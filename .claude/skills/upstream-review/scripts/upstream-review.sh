@@ -49,8 +49,65 @@ require upstreamBranch "$BRANCH";     is_name "$BRANCH" upstreamBranch
 require forkPointSha "$FORKSHA";      is_sha "$FORKSHA" forkPointSha
 require lastReviewedSha "$WATERMARK"; is_sha "$WATERMARK" lastReviewedSha
 [[ "$URL" =~ ^(https://[A-Za-z0-9._/-]+|/[^[:space:]]+)$ ]] || die "watermark.json: upstreamUrl must be a plain https URL or an absolute path"
+TIP="refs/remotes/$REMOTE/$BRANCH"
+REFSPEC="+refs/heads/$BRANCH:$TIP"
+GH_WEB="${URL%.git}/commit"
+PR_SUBJECT='^Merge pull request #([0-9]+) from [^/]+/(.*)$'
+
+g() { git -C "$REPO_ROOT" "$@"; }
+
+ensure_upstream() {
+  local have
+  if have="$(g remote get-url -- "$REMOTE" 2>/dev/null)"; then
+    [ "$have" = "$URL" ] || die "remote '$REMOTE' points at $have, watermark.json says $URL"
+  else
+    echo "[upstream-review] adding remote $REMOTE -> $URL" >&2
+    g remote add --no-tags -- "$REMOTE" "$URL"
+  fi
+  echo "[upstream-review] fetching $REMOTE/$BRANCH" >&2
+  if ! g fetch -q --no-tags -- "$REMOTE" "$REFSPEC" 2>/dev/null; then
+    g rev-parse -q --verify "$TIP" >/dev/null || die "fetch failed and no cached $TIP"
+    echo "[upstream-review] fetch failed; using cached $TIP" >&2
+  fi
+  g merge-base --is-ancestor "$WATERMARK" "$TIP" || die "lastReviewedSha is not an ancestor of $REMOTE/$BRANCH (history rewritten?)"
+}
+
+# The PR title GitHub writes into the merge commit body: its first non-empty line.
+pr_title() { g log -1 --format=%b "$1" | sed -n '/./{p;q;}'; }
 
 case "$cmd" in
-  --show|--diverged|--advance|list|--stat|--urls) die "not implemented" ;;
+  --show|--diverged|--advance) die "not implemented" ;;
+  list|--stat|--urls) ;;
   *) die "unknown option '$cmd' (see --help)" ;;
 esac
+
+ensure_upstream
+RANGE="$WATERMARK..$TIP"
+COUNT="$(g rev-list --count --first-parent "$RANGE")"
+TIPSHA="$(g rev-parse "$TIP")"
+echo "Upstream review: $REMOTE/$BRANCH"
+echo "  fork point:          $(g rev-parse --short "$FORKSHA") $(g log -1 --date=short --pretty=%ad "$FORKSHA")"
+echo "  last reviewed:       $(g rev-parse --short "$WATERMARK") $(g log -1 --date=short --pretty=%ad "$WATERMARK")"
+echo "  upstream tip:        $TIPSHA"
+echo "  entries to review:   $COUNT"
+[ "$COUNT" -eq 0 ] && { echo "Up to date."; exit 0; }
+
+g log --first-parent --reverse --date=short --pretty='%H%x09%h%x09%ad%x09%P%x09%s' "$RANGE" |
+while IFS=$'\t' read -r full short date parents subj; do
+  echo
+  if [[ "$parents" == *" "* ]]; then
+    k="$(g rev-list --count "$full^1..$full^2")"
+    if [[ "$subj" =~ $PR_SUBJECT ]]; then
+      echo "* $short  $date  PR #${BASH_REMATCH[1]} ${BASH_REMATCH[2]}: $(pr_title "$full")  [$k commits]"
+    else
+      echo "* $short  $date  merge $subj  [$k commits]"
+    fi
+  else
+    echo "* $short  $date  $subj"
+  fi
+  if [ "$cmd" = "--urls" ]; then echo "    $GH_WEB/$full"; fi
+done
+
+echo
+echo "Next: classify each entry (see SKILL.md), write .upstream-review/reviews/$(date +%Y-%m-%d)-review.md"
+echo "with 'Window: $(g rev-parse --short "$WATERMARK")..$TIPSHA', then: $0 --advance $TIPSHA"
