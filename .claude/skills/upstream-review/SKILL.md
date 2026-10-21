@@ -52,7 +52,7 @@ merges from), falling back to the fork point:
 | | Meaning | Adoption path |
 | --- | --- | --- |
 | `=` | ours equals the pre-image | `git cherry-pick -x <sha>` applies cleanly |
-| `<` | ours equals the fork point, not the pre-image; or the file exists in neither | an older un-reviewed entry touched it first: pick in order, it becomes `=` |
+| `<` | ours equals the fork point, not the pre-image; or the file exists in neither | an older un-reviewed entry touched it first (pick in order, it becomes `=`), or the PR branch was cut before the fork point and a commit we already carry touched it (the 3-way pick usually applies; read the hunk) |
 | `~` | ours differs from both | we changed it; resolve the 3-way or hand-port |
 | `x` | we removed it | check "Deleted or moved paths" in `references/deviations.md` |
 | `+` | new upstream file | cherry-pick creates it |
