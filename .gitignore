@@ -24,7 +24,8 @@ ctx/
 # IDE Cache
 .vscode
 .DS_Store
-.claude/
+.claude/*
+!.claude/skills/
 
 .beads/
 .local-dev-certs/
