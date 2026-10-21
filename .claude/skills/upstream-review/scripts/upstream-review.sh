@@ -126,7 +126,8 @@ case "$cmd" in
     ensure_upstream
     NEWSHA="$(g rev-parse -q --verify "$2^{commit}")" || die "not a commit: $2"
     g merge-base --is-ancestor "$NEWSHA" "$TIP" || die "$2 is not on $REMOTE/$BRANCH"
-    g rev-list --first-parent "$TIP" | grep -qx "$NEWSHA" || die "$2 is not on the first-parent chain of $REMOTE/$BRANCH"
+    # grep without -q reads to EOF: with pipefail, an early exit would SIGPIPE rev-list and fail the pipeline.
+    g rev-list --first-parent "$TIP" | grep -x "$NEWSHA" >/dev/null || die "$2 is not on the first-parent chain of $REMOTE/$BRANCH"
     g merge-base --is-ancestor "$WATERMARK" "$NEWSHA" || die "$2 is behind the current watermark"
     NEWSHORT="$(g rev-parse --short "$NEWSHA")"
     NEWDATE="$(g log -1 --date=short --pretty=%ad "$NEWSHA")"
