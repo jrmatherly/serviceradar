@@ -121,7 +121,22 @@ case "$cmd" in
   --diverged)
     echo "Files where our HEAD differs from fork point $(g rev-parse --short "$FORKSHA"):"
     g diff --stat=120 "$FORKSHA" HEAD; exit 0 ;;
-  --advance) die "not implemented" ;;
+  --advance)
+    [ $# -ge 2 ] || die "--advance needs the tip <sha> you reviewed (printed by the listing)"
+    ensure_upstream
+    NEWSHA="$(g rev-parse -q --verify "$2^{commit}")" || die "not a commit: $2"
+    g merge-base --is-ancestor "$NEWSHA" "$TIP" || die "$2 is not on $REMOTE/$BRANCH"
+    g rev-list --first-parent "$TIP" | grep -qx "$NEWSHA" || die "$2 is not on the first-parent chain of $REMOTE/$BRANCH"
+    g merge-base --is-ancestor "$WATERMARK" "$NEWSHA" || die "$2 is behind the current watermark"
+    NEWSHORT="$(g rev-parse --short "$NEWSHA")"
+    NEWDATE="$(g log -1 --date=short --pretty=%ad "$NEWSHA")"
+    NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    tmp="$(mktemp)"
+    jq --arg s "$NEWSHA" --arg ss "$NEWSHORT" --arg d "$NEWDATE" --arg n "$NOW" \
+      '.lastReviewedSha=$s | .lastReviewedShaShort=$ss | .lastReviewedDate=$d | .lastAdvancedAt=$n' \
+      "$STATE" > "$tmp" && cat "$tmp" > "$STATE" && rm -f "$tmp"
+    echo "[upstream-review] watermark -> $NEWSHORT ($NEWDATE). Commit .upstream-review/ to share it." >&2
+    exit 0 ;;
   list|--stat|--urls) ;;
   *) die "unknown option '$cmd' (see --help)" ;;
 esac

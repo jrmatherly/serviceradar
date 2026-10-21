@@ -141,3 +141,47 @@ setup() { REPO="$BATS_TEST_TMPDIR/repo"; git init -q "$REPO"; cd "$REPO"; git -c
   [[ "$output" == *"d.txt"* ]]
   [[ "$output" != *"a.txt"* ]]
 }
+
+@test "--advance moves the watermark and the next listing shrinks" {
+  make_fixture
+  run "$DRIVER" --advance "$M12"
+  [ "$status" -eq 0 ]
+  [ "$(jq -r .lastReviewedSha .upstream-review/watermark.json)" = "$M12" ]
+  [ "$(jq -r .lastReviewedShaShort .upstream-review/watermark.json)" = "$(git rev-parse --short "$M12")" ]
+  [[ "$(jq -r .lastAdvancedAt .upstream-review/watermark.json)" == 20[0-9][0-9]-*Z ]]
+  run "$DRIVER"
+  [[ "$output" == *"entries to review:   1"* ]]
+}
+
+@test "--advance refuses a sha behind the watermark" {
+  make_fixture
+  "$DRIVER" --advance "$M12" >/dev/null
+  run "$DRIVER" --advance "$M11"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"is behind the current watermark"* ]]
+  [ "$(jq -r .lastReviewedSha .upstream-review/watermark.json)" = "$M12" ]
+}
+
+@test "--advance refuses a sha that is not on carverauto/staging" {
+  make_fixture
+  ours="$(git rev-parse HEAD)"
+  run "$DRIVER" --advance "$ours"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"is not on carverauto/staging"* ]]
+}
+
+@test "--advance refuses an inner PR commit that is not on the first-parent chain" {
+  make_fixture
+  run "$DRIVER" --advance "$C1"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"is not on the first-parent chain of carverauto/staging"* ]]
+  [ "$(jq -r .lastReviewedSha .upstream-review/watermark.json)" = "$C0" ]
+}
+
+@test "a watermark no longer on carverauto/staging is an error" {
+  make_fixture
+  write_watermark "$FORK" "$UP" "$C0" "$(git rev-parse HEAD)"
+  run "$DRIVER"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"lastReviewedSha is not an ancestor of carverauto/staging"* ]]
+}
