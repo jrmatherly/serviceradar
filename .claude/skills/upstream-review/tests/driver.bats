@@ -108,3 +108,36 @@ setup() { REPO="$BATS_TEST_TMPDIR/repo"; git init -q "$REPO"; cd "$REPO"; git -c
   echo "$output" | grep -Eq '^ +[<] +\+0 +-3 +a\.txt$'   # ours still equals the fork point's a.txt
   echo "$output" | grep -Eq '^ +[+] +\+3 +-0 +e\.txt$'
 }
+
+@test "--show on a PR merge prints its commits and combined diff" {
+  make_fixture
+  run "$DRIVER" --show "$M11"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"a.txt two"* ]]
+  [[ "$output" == *"add b.txt"* ]]
+  [[ "$output" == *"+++ b/b.txt"* ]]
+}
+
+@test "--show on a plain commit is git show" {
+  make_fixture
+  run "$DRIVER" --show "$C1"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"+two"* ]]
+  [[ "$output" != *"b.txt"* ]]
+}
+
+@test "--show without a sha is an error" {
+  make_fixture
+  run "$DRIVER" --show
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"--show needs a <sha>"* ]]
+}
+
+@test "--diverged lists our footprint since the fork point" {
+  make_fixture
+  run "$DRIVER" --diverged
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"c.txt"* ]]
+  [[ "$output" == *"d.txt"* ]]
+  [[ "$output" != *"a.txt"* ]]
+}

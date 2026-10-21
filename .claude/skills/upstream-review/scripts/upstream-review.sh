@@ -107,7 +107,21 @@ stat_commit() {
 }
 
 case "$cmd" in
-  --show|--diverged|--advance) die "not implemented" ;;
+  --show)
+    [ $# -ge 2 ] || die "--show needs a <sha>"
+    ensure_upstream
+    sha="$(g rev-parse -q --verify "$2^{commit}")" || die "not a commit: $2"
+    if [ "$(g rev-list --parents -n 1 "$sha" | wc -w)" -gt 2 ]; then
+      g log --reverse --pretty='%h  %s' "$sha^1..$sha^2"
+      g diff "$sha^1" "$sha"
+    else
+      g show "$sha"
+    fi
+    exit 0 ;;
+  --diverged)
+    echo "Files where our HEAD differs from fork point $(g rev-parse --short "$FORKSHA"):"
+    g diff --stat=120 "$FORKSHA" HEAD; exit 0 ;;
+  --advance) die "not implemented" ;;
   list|--stat|--urls) ;;
   *) die "unknown option '$cmd' (see --help)" ;;
 esac
