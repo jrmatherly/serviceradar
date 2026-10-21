@@ -167,9 +167,15 @@ while IFS=$'\t' read -r full short date parents subj; do
       echo "* $short  $date  merge $subj  [$k commits]"
     fi
     if [ "$cmd" = "--stat" ]; then
-      g log --reverse --pretty='%h%x09%s' "$full^1..$full^2" | while IFS=$'\t' read -r ishort isubj; do
-        echo "    - $ishort  $isubj"
-        stat_commit "$ishort"
+      g log --reverse --pretty='%h%x09%P%x09%s' "$full^1..$full^2" | while IFS=$'\t' read -r ishort iparents isubj; do
+        # A merge inside the PR (the author merged staging into the branch) has no diff of its own and
+        # cannot be cherry-picked without -m; its staging-side content arrives through earlier entries.
+        if [[ "$iparents" == *" "* ]]; then
+          echo "    - $ishort  $isubj  [merge: not picked]"
+        else
+          echo "    - $ishort  $isubj"
+          stat_commit "$ishort"
+        fi
       done
     fi
   else

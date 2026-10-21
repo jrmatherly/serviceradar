@@ -221,3 +221,21 @@ setup() { REPO="$BATS_TEST_TMPDIR/repo"; git init -q "$REPO"; cd "$REPO"; git -c
   [ "$status" -eq 0 ]
   [[ "$output" == *"fetch failed"*"$UP"* ]]
 }
+
+@test "an inner merge commit inside a PR is listed as not picked and gets no stat lines" {
+  make_fixture
+  local G="git -C $WORK -c user.name=t -c user.email=t@example.com"
+  $G switch -q -c feat/delta "$C0"
+  printf 'eff\n' > "$WORK/f.txt"; $G add f.txt; $G commit -q -m "add f.txt"
+  $G merge -q --no-ff -m "Merge branch 'staging' into feat/delta" staging
+  printf 'eff\nenn\n' > "$WORK/f.txt"; $G commit -q -am "f.txt enn"
+  $G switch -q staging
+  $G merge -q --no-ff -m "Merge pull request #14 from carverauto/feat/delta" -m "add delta" feat/delta
+  $G push -q "$UP" staging
+  run "$DRIVER" --stat
+  [ "$status" -eq 0 ]
+  inner="$(echo "$output" | grep "Merge branch 'staging' into feat/delta")"
+  [[ "$inner" == *"[merge: not picked]"* ]]
+  [ "$(line_after "Merge branch 'staging' into feat/delta" | awk '{print $1}')" = "-" ]   # next line is the next commit, not a stat line
+  echo "$output" | grep -Eq '^ +[+] +\+1 +-0 +f\.txt$'
+}

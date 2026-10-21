@@ -71,8 +71,12 @@ merges from), falling back to the fork point:
 5. Write every verdict with file-level evidence to the dated decision log.
    Before writing, read `references/decision-log-template.md`.
 6. Adopt in a batch on a branch: for each adopted PR, cherry-pick its inner
-   commits oldest first with `-x`; then run the per-area commands in
-   `references/validation.md` for every area the batch touched.
+   commits oldest first with `-x`, skipping any commit `--stat` tagged
+   `[merge: not picked]` (a merge of staging into the PR branch; its content
+   arrives through earlier entries, and a conflict resolution baked into it
+   shows up as a `~` on a later commit, so read it with `--show <sha>`); then
+   run the per-area commands in `references/validation.md` for every area the
+   batch touched.
 7. Then `--advance <tip-sha>` with the tip SHA from the listing you reviewed
    (a fresh fetch may have moved on) and commit `.upstream-review/` with the
    adopted commits. Push only when the user asks, with an explicit refspec:
