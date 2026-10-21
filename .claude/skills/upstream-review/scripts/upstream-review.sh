@@ -30,24 +30,23 @@ die() { echo "ERROR: $*" >&2; exit 1; }
 
 cmd="${1:-list}"
 case "$cmd" in
-  -h|--help) sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+  -h|--help) sed -n '2,/^set -euo/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'; exit 0 ;;
 esac
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 STATE="$REPO_ROOT/.upstream-review/watermark.json"
 [ -f "$STATE" ] || die "missing $STATE"
 
-require() { [ "$2" != "-" ] || die "watermark.json: $1 is missing"; }
 is_sha()  { [[ "$1" =~ ^[0-9a-f]{40}$ ]] || die "watermark.json: $2 is not a full SHA: $1"; }
 is_name() { [[ "$1" =~ ^[A-Za-z0-9._][A-Za-z0-9._/-]*$ ]] || die "watermark.json: $2 is not a safe git name: $1"; }
 
+# A missing field reads as "-" (a tab-IFS read would otherwise collapse it), which every validator rejects.
 IFS=$'\t' read -r URL REMOTE BRANCH FORKSHA WATERMARK < <(
   jq -r '[.upstreamUrl, .upstreamRemote, .upstreamBranch, .forkPointSha, .lastReviewedSha] | map(. // "-") | @tsv' "$STATE")
-require upstreamUrl "$URL"
-require upstreamRemote "$REMOTE";     is_name "$REMOTE" upstreamRemote
-require upstreamBranch "$BRANCH";     is_name "$BRANCH" upstreamBranch
-require forkPointSha "$FORKSHA";      is_sha "$FORKSHA" forkPointSha
-require lastReviewedSha "$WATERMARK"; is_sha "$WATERMARK" lastReviewedSha
+is_name "$REMOTE" upstreamRemote
+is_name "$BRANCH" upstreamBranch
+is_sha "$FORKSHA" forkPointSha
+is_sha "$WATERMARK" lastReviewedSha
 [[ "$URL" =~ ^(https://[A-Za-z0-9._/-]+|/[^[:space:]]+)$ ]] || die "watermark.json: upstreamUrl must be a plain https URL or an absolute path"
 TIP="refs/remotes/$REMOTE/$BRANCH"
 REFSPEC="+refs/heads/$BRANCH:$TIP"
@@ -78,7 +77,7 @@ pr_title() { g log -1 --format=%b "$1" | sed -n '/./{p;q;}'; }
 # Print one line per file the commit touches: marker, +adds, -dels, path. Three git calls per commit:
 # diff-tree --raw gives the pre-image blob, --numstat the counts, cat-file --batch-check our HEAD and fork-point blobs.
 stat_commit() {
-  local commit="$1" meta path pre head fork i j n=0 m
+  local commit="$1" meta path pre head fork i j n=0 m add del
   local paths pres heads forks adds dels; paths=(); pres=(); heads=(); forks=(); adds=(); dels=()
   while IFS= read -r -d '' meta && IFS= read -r -d '' path; do
     read -r _ _ pre _ <<<"$meta"
@@ -101,8 +100,9 @@ stat_commit() {
     elif [ "$head" = "$pre" ]; then m="="
     elif [ "$head" = "$fork" ]; then m="<"
     else m="~"; fi
-    if [ "$m" = bin ]; then printf '      %-3s %5s %5s  %s\n' bin "" "" "${paths[i]}"
-    else printf '      %-3s %5s %5s  %s\n' "$m" "+${adds[i]}" "-${dels[i]}" "${paths[i]}"; fi
+    add="+${adds[i]}"; del="-${dels[i]}"
+    if [ "$m" = bin ]; then add=""; del=""; fi
+    printf '      %-3s %5s %5s  %s\n' "$m" "$add" "$del" "${paths[i]}"
   done
 }
 
@@ -111,7 +111,7 @@ case "$cmd" in
     [ $# -ge 2 ] || die "--show needs a <sha>"
     ensure_upstream
     sha="$(g rev-parse -q --verify "$2^{commit}")" || die "not a commit: $2"
-    if [ "$(g rev-list --parents -n 1 "$sha" | wc -w)" -gt 2 ]; then
+    if g rev-parse -q --verify "$sha^2" >/dev/null; then
       g log --reverse --pretty='%h  %s' "$sha^1..$sha^2"
       g diff "$sha^1" "$sha"
     else
@@ -125,7 +125,7 @@ case "$cmd" in
     [ $# -ge 2 ] || die "--advance needs the tip <sha> you reviewed (printed by the listing)"
     ensure_upstream
     NEWSHA="$(g rev-parse -q --verify "$2^{commit}")" || die "not a commit: $2"
-    g merge-base --is-ancestor "$NEWSHA" "$TIP" || die "$2 is not on $REMOTE/$BRANCH"
+    # Membership of the first-parent chain also proves the SHA is on the branch.
     # grep without -q reads to EOF: with pipefail, an early exit would SIGPIPE rev-list and fail the pipeline.
     g rev-list --first-parent "$TIP" | grep -x "$NEWSHA" >/dev/null || die "$2 is not on the first-parent chain of $REMOTE/$BRANCH"
     g merge-base --is-ancestor "$WATERMARK" "$NEWSHA" || die "$2 is behind the current watermark"

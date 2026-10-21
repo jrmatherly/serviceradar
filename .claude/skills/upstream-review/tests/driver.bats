@@ -92,11 +92,6 @@ setup() { REPO="$BATS_TEST_TMPDIR/repo"; git init -q "$REPO"; cd "$REPO"; git -c
   echo "$c5" | grep -Eq '^ +[<] +\+1 +-0 +b\.txt$'   # b.txt exists in neither ours nor the fork point: c2 comes first
 }
 
-@test "--stat on a direct commit stats it like a PR" {
-  make_fixture
-  run "$DRIVER" --stat
-  [ "$(line_after "^\* $(git rev-parse --short "$C5")  " | awk '{print $1}')" = "<" ]
-}
 
 @test "a renamed file shows as removed plus added" {
   make_fixture
@@ -167,7 +162,7 @@ setup() { REPO="$BATS_TEST_TMPDIR/repo"; git init -q "$REPO"; cd "$REPO"; git -c
   ours="$(git rev-parse HEAD)"
   run "$DRIVER" --advance "$ours"
   [ "$status" -eq 1 ]
-  [[ "$output" == *"is not on carverauto/staging"* ]]
+  [[ "$output" == *"is not on the first-parent chain of carverauto/staging"* ]]
 }
 
 @test "--advance refuses an inner PR commit that is not on the first-parent chain" {

@@ -19,6 +19,3 @@ Not runnable on the fork: `make check` (Bazel `--config=ci`, which `.bazelrc`
 points at upstream's in-cluster remote cache) and `make test` (Bazel
 `--config=remote`, upstream's BuildBuddy remote executor). Say so in the log
 instead of reporting them as passed.
-
-Upstream `.github/workflows/` changes are the source for new commands: port
-them into this table and into our workflows by hand.
