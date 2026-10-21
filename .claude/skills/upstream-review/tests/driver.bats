@@ -180,3 +180,44 @@ setup() { REPO="$BATS_TEST_TMPDIR/repo"; git init -q "$REPO"; cd "$REPO"; git -c
   [ "$status" -eq 1 ]
   [[ "$output" == *"lastReviewedSha is not an ancestor of carverauto/staging"* ]]
 }
+
+@test "a missing jq is named, not blamed on the watermark" {
+  make_fixture
+  mkdir -p "$BATS_TEST_TMPDIR/nojq"; printf '#!/bin/sh\nexit 127\n' > "$BATS_TEST_TMPDIR/nojq/jq"; chmod +x "$BATS_TEST_TMPDIR/nojq/jq"
+  PATH="$BATS_TEST_TMPDIR/nojq:$PATH" run "$DRIVER"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"jq is required"* ]]
+}
+
+@test "a PR merge with an empty body gets no dangling colon" {
+  make_fixture
+  git -C "$WORK" -c user.name=t -c user.email=t@example.com switch -q -c chore/gamma
+  printf 'gee\n' > "$WORK/g.txt"; git -C "$WORK" add g.txt
+  git -C "$WORK" -c user.name=t -c user.email=t@example.com commit -q -m "add g.txt"
+  git -C "$WORK" -c user.name=t -c user.email=t@example.com switch -q staging
+  git -C "$WORK" -c user.name=t -c user.email=t@example.com merge -q --no-ff -m "Merge pull request #13 from carverauto/chore/gamma" chore/gamma
+  git -C "$WORK" push -q "$UP" staging
+  run "$DRIVER"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"PR #13 chore/gamma  [1 commits]"* ]]
+  [[ "$output" != *"chore/gamma:"* ]]
+}
+
+@test "a binary file is marked bin with no counts" {
+  make_fixture
+  printf '\000\001\002\003' > "$WORK/blob.bin"; git -C "$WORK" add blob.bin
+  git -C "$WORK" -c user.name=t -c user.email=t@example.com commit -q -m "add blob.bin"
+  git -C "$WORK" push -q "$UP" staging
+  run "$DRIVER" --stat
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -Eq '^ +bin +blob\.bin$'
+}
+
+@test "a failed fetch reports git's reason before falling back" {
+  make_fixture
+  "$DRIVER" >/dev/null
+  mv "$UP" "$UP.gone"
+  run "$DRIVER"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"fetch failed"*"$UP"* ]]
+}

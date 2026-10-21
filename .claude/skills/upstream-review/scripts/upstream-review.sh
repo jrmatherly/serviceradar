@@ -33,7 +33,8 @@ case "$cmd" in
   -h|--help) sed -n '2,/^set -euo/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'; exit 0 ;;
 esac
 
-REPO_ROOT="$(git rev-parse --show-toplevel)"
+jq --version >/dev/null 2>&1 || die "jq is required (brew install jq)"
+REPO_ROOT="$(git rev-parse --show-toplevel)" || die "not inside a git repository"
 STATE="$REPO_ROOT/.upstream-review/watermark.json"
 [ -f "$STATE" ] || die "missing $STATE"
 
@@ -64,9 +65,10 @@ ensure_upstream() {
     g remote add --no-tags -- "$REMOTE" "$URL"
   fi
   echo "[upstream-review] fetching $REMOTE/$BRANCH" >&2
-  if ! g fetch -q --no-tags -- "$REMOTE" "$REFSPEC" 2>/dev/null; then
-    g rev-parse -q --verify "$TIP" >/dev/null || die "fetch failed and no cached $TIP"
-    echo "[upstream-review] fetch failed; using cached $TIP" >&2
+  local err
+  if ! err="$(g fetch -q --no-tags -- "$REMOTE" "$REFSPEC" 2>&1)"; then
+    g rev-parse -q --verify "$TIP" >/dev/null || die "fetch failed and no cached $TIP: $err"
+    echo "[upstream-review] fetch failed; using cached $TIP: $err" >&2
   fi
   g merge-base --is-ancestor "$WATERMARK" "$TIP" || die "lastReviewedSha is not an ancestor of $REMOTE/$BRANCH (history rewritten?)"
 }
@@ -159,7 +161,8 @@ while IFS=$'\t' read -r full short date parents subj; do
   if [[ "$parents" == *" "* ]]; then
     k="$(g rev-list --count "$full^1..$full^2")"
     if [[ "$subj" =~ $PR_SUBJECT ]]; then
-      echo "* $short  $date  PR #${BASH_REMATCH[1]} ${BASH_REMATCH[2]}: $(pr_title "$full")  [$k commits]"
+      title="$(pr_title "$full")"
+      echo "* $short  $date  PR #${BASH_REMATCH[1]} ${BASH_REMATCH[2]}${title:+: $title}  [$k commits]"
     else
       echo "* $short  $date  merge $subj  [$k commits]"
     fi
