@@ -64,7 +64,7 @@ env:
 jobs:
   audit:
     name: Elixir Dependency Audit
-    runs-on: arc-runner-set
+    runs-on: ubuntu-24.04
     env:
       ImageOS: ubuntu24
     steps:

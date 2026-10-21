@@ -2,31 +2,24 @@ name: Source Security Scan
 
 on:
   push:
-    branches:
-      - main
-      - staging
-    tags:
-      - 'v*'
+    branches: [staging]
+  pull_request:
+    branches: [staging]
+  schedule:
+    # Weekly, Mondays 04:53 UTC. Advisories land on their own schedule.
+    - cron: '53 4 * * 1'
   workflow_dispatch:
-    inputs:
-      tag:
-        description: "Optional release tag whose release should receive the generated bundle."
-        required: false
-        type: string
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref || github.run_id }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref }}
   cancel-in-progress: true
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   source-security:
-    runs-on: arc-runner-set
-    env:
-      GITHUB_TOKEN: ${{ github.token }}
-      GH_TOKEN: ${{ github.token }}
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -38,18 +31,6 @@ jobs:
 
       - name: Install OSV-Scanner
         run: ./scripts/install-osv-scanner.sh
-
-      - name: Resolve release tag
-        id: release
-        env:
-          INPUT_TAG: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || '' }}
-        run: |
-          set -euo pipefail
-          tag="${INPUT_TAG}"
-          if [[ -z "${tag}" && "${GITHUB_REF}" == refs/tags/* ]]; then
-            tag="${GITHUB_REF#refs/tags/}"
-          fi
-          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
 
       - name: Generate source SBOM and vulnerability report
         run: |
@@ -74,45 +55,12 @@ jobs:
           set -euo pipefail
           tar -C out/security/source -czf out/security/serviceradar-source-security.tar.gz .
 
-      - name: Wait for release to exist
-        if: ${{ steps.release.outputs.tag != '' }}
-        env:
-          RELEASE_TAG: ${{ steps.release.outputs.tag }}
-        run: |
-          set -euo pipefail
-          api_url="https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}"
-          releases_url="https://api.github.com/repos/${GITHUB_REPOSITORY}/releases?per_page=100"
-          release_exists() {
-            if curl -fsS --connect-timeout 5 --max-time 10 \
-              -H "Accept: application/vnd.github+json" \
-              -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-              "${api_url}" >/dev/null 2>&1; then
-              return 0
-            fi
-            curl -fsS --connect-timeout 5 --max-time 10 \
-              -H "Accept: application/vnd.github+json" \
-              -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-              "${releases_url}" 2>/dev/null \
-              | jq -e --arg tag "${RELEASE_TAG}" 'any(.[]; .tag_name == $tag)' >/dev/null
-          }
-          for _ in $(seq 1 360); do
-            if release_exists; then
-              exit 0
-            fi
-            sleep 10
-          done
-          echo "Timed out waiting for release ${RELEASE_TAG} to exist" >&2
-          exit 1
-
-      - name: Upload source security bundle to release
-        if: ${{ steps.release.outputs.tag != '' }}
-        env:
-          RELEASE_TAG: ${{ steps.release.outputs.tag }}
-        run: |
-          set -euo pipefail
-          ./scripts/upload-forgejo-release-asset.sh \
-            "${RELEASE_TAG}" \
-            out/security/serviceradar-source-security.tar.gz
+      - name: Upload source security bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: serviceradar-source-security
+          path: out/security/serviceradar-source-security.tar.gz
+          if-no-files-found: error
 
       - name: Summarize source security outputs
         run: |
@@ -129,10 +77,5 @@ jobs:
               echo "OSV findings: none detected"
             else
               echo "OSV findings: vulnerabilities detected (see JSON artifact)"
-            fi
-            if [[ -n "${{ steps.release.outputs.tag }}" ]]; then
-              echo
-              echo "Uploaded release asset:"
-              echo "- \`serviceradar-source-security.tar.gz\` on \`${{ steps.release.outputs.tag }}\`"
             fi
           } >> "${GITHUB_STEP_SUMMARY}"

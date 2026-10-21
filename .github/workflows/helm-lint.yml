@@ -48,14 +48,14 @@ concurrency:
 jobs:
   lint:
     name: Helm Lint
-    runs-on: arc-runner-set
+    runs-on: ubuntu-24.04
     env:
       HELM_VERSION: 3.14.4
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
-      # ARC runners have no docker.sock. Install a native helm binary.
+      # Install a native helm binary rather than running helm through Docker.
       - name: Install Helm
         run: |
           set -euo pipefail

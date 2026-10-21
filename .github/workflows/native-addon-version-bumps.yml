@@ -9,7 +9,7 @@
 # staging it runs on every pull_request against staging and covers the full `//...` build, the
 # `make test` unit sweep, the integration suite with its database lifecycle, and the Go race
 # tests, cross-compiled to both platforms. A second sweep here would duplicate all of it on a
-# runner that is worse for the job -- arc-runner-set has neither the /bazel-cache volume nor a
+# runner that is worse for the job -- a GitHub-hosted runner has neither the /bazel-cache volume nor a
 # Harbor login, so //docker/images:multiarch_index_test alone would need a push-capable robot
 # secret handed to every PR branch.
 #
@@ -38,7 +38,7 @@ permissions:
 jobs:
   native-addon-version-bumps:
     name: Native add-on version bumps
-    runs-on: arc-runner-set
+    runs-on: ubuntu-24.04
     env:
       PUSH_BEFORE: ${{ github.event.before }}
     steps:

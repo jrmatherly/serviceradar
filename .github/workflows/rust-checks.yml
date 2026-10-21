@@ -29,7 +29,7 @@ name: rust-check
 #     before it executes, so check the runner version before pointing this at one.
 on:
   push:
-    branches: [staging, main]
+    branches: [staging]
     paths:
       - 'rust/**'
       - 'Cargo.toml'
@@ -37,7 +37,7 @@ on:
       - '.github/workflows/rust-checks.yml'
       - 'scripts/ci/install-sfw.sh'
   pull_request:
-    branches: [staging, main]
+    branches: [staging]
     paths:
       - 'rust/**'
       - 'Cargo.toml'
