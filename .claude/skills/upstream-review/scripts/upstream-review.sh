@@ -75,6 +75,37 @@ ensure_upstream() {
 # The PR title GitHub writes into the merge commit body: its first non-empty line.
 pr_title() { g log -1 --format=%b "$1" | sed -n '/./{p;q;}'; }
 
+# Print one line per file the commit touches: marker, +adds, -dels, path. Three git calls per commit:
+# diff-tree --raw gives the pre-image blob, --numstat the counts, cat-file --batch-check our HEAD and fork-point blobs.
+stat_commit() {
+  local commit="$1" meta path pre head fork i j n=0 m
+  local paths pres heads forks adds dels; paths=(); pres=(); heads=(); forks=(); adds=(); dels=()
+  while IFS= read -r -d '' meta && IFS= read -r -d '' path; do
+    read -r _ _ pre _ <<<"$meta"
+    paths[n]="$path"; pres[n]="$pre"; n=$((n+1))
+  done < <(g diff-tree --no-commit-id --no-renames -r -z --raw "$commit")
+  [ "$n" -gt 0 ] || return 0
+  i=0
+  while IFS=$'\t' read -r -d '' add del path; do adds[i]="$add"; dels[i]="$del"; i=$((i+1)); done < <(g diff-tree --no-commit-id --no-renames -r -z --numstat "$commit")
+  i=0
+  while read -r head _ && read -r fork _; do heads[i]="$head"; forks[i]="$fork"; i=$((i+1)); done < <(
+    for ((j=0; j<n; j++)); do printf 'HEAD:%s\n%s:%s\n' "${paths[j]}" "$FORKSHA" "${paths[j]}"; done |
+    g cat-file --batch-check='%(objectname) %(objecttype)' | sed 's/^.* missing$/- missing/')
+  for ((i=0; i<n; i++)); do
+    pre="${pres[i]}"; head="${heads[i]}"; fork="${forks[i]}"
+    if [ "${adds[i]}" = "-" ]; then m=bin
+    elif [[ "$pre" =~ ^0+$ ]]; then
+      if [ "$head" = "-" ]; then m="+"; elif [ "$head" = "$fork" ]; then m="<"; else m="~"; fi
+    elif [ "$head" = "-" ]; then
+      if [ "$fork" = "-" ]; then m="<"; else m=x; fi
+    elif [ "$head" = "$pre" ]; then m="="
+    elif [ "$head" = "$fork" ]; then m="<"
+    else m="~"; fi
+    if [ "$m" = bin ]; then printf '      %-3s %5s %5s  %s\n' bin "" "" "${paths[i]}"
+    else printf '      %-3s %5s %5s  %s\n' "$m" "+${adds[i]}" "-${dels[i]}" "${paths[i]}"; fi
+  done
+}
+
 case "$cmd" in
   --show|--diverged|--advance) die "not implemented" ;;
   list|--stat|--urls) ;;
@@ -102,8 +133,15 @@ while IFS=$'\t' read -r full short date parents subj; do
     else
       echo "* $short  $date  merge $subj  [$k commits]"
     fi
+    if [ "$cmd" = "--stat" ]; then
+      g log --reverse --pretty='%h%x09%s' "$full^1..$full^2" | while IFS=$'\t' read -r ishort isubj; do
+        echo "    - $ishort  $isubj"
+        stat_commit "$ishort"
+      done
+    fi
   else
     echo "* $short  $date  $subj"
+    if [ "$cmd" = "--stat" ]; then stat_commit "$full"; fi
   fi
   if [ "$cmd" = "--urls" ]; then echo "    $GH_WEB/$full"; fi
 done

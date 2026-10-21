@@ -76,3 +76,35 @@ setup() { REPO="$BATS_TEST_TMPDIR/repo"; git init -q "$REPO"; cd "$REPO"; git -c
   [ "$status" -eq 1 ]
   [[ "$output" == *"remote 'carverauto' points at /nowhere/else"* ]]
 }
+
+@test "--stat expands a PR into its commits and marks files against the commit's own parent" {
+  make_fixture
+  run "$DRIVER" --stat
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"- $(git rev-parse --short "$C1")  a.txt two"* ]]
+  [[ "$output" == *"- $(git rev-parse --short "$C2")  add b.txt"* ]]
+  line_after "^    - $(git rev-parse --short "$C1")  " | grep -Eq '^ +[=] +\+1 +-0 +a\.txt$'   # ours equals c0's a.txt, the pre-image
+  line_after "^    - $(git rev-parse --short "$C2")  " | grep -Eq '^ +[+] +\+1 +-0 +b\.txt$'   # new upstream file
+  line_after "^    - $(git rev-parse --short "$C3")  " | grep -Eq '^ +[~] +\+1 +-0 +c\.txt$'   # we changed c.txt
+  line_after "^    - $(git rev-parse --short "$C4")  " | grep -Eq '^ +[x] +\+1 +-0 +d\.txt$'   # we removed d.txt, upstream edits it
+  c5="$(echo "$output" | grep -A2 "^\* $(git rev-parse --short "$C5")  ")"
+  echo "$c5" | grep -Eq '^ +[<] +\+1 +-0 +a\.txt$'   # ours equals the fork point, not m12's pre-image: c1 comes first
+  echo "$c5" | grep -Eq '^ +[<] +\+1 +-0 +b\.txt$'   # b.txt exists in neither ours nor the fork point: c2 comes first
+}
+
+@test "--stat on a direct commit stats it like a PR" {
+  make_fixture
+  run "$DRIVER" --stat
+  [ "$(line_after "^\* $(git rev-parse --short "$C5")  " | awk '{print $1}')" = "<" ]
+}
+
+@test "a renamed file shows as removed plus added" {
+  make_fixture
+  git -C "$WORK" -c user.name=t -c user.email=t@example.com mv a.txt e.txt
+  git -C "$WORK" -c user.name=t -c user.email=t@example.com commit -q -m "rename a to e"
+  git -C "$WORK" push -q "$UP" staging
+  run "$DRIVER" --stat
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -Eq '^ +[<] +\+0 +-3 +a\.txt$'   # ours still equals the fork point's a.txt
+  echo "$output" | grep -Eq '^ +[+] +\+3 +-0 +e\.txt$'
+}
