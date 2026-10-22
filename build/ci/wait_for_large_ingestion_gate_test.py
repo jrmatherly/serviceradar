@@ -21,7 +21,7 @@ BASE = "2" * 40
 INTRODUCTION = "3" * 40
 FEATURE = "4" * 40
 MERGE = "5" * 40
-PREFIX = "https://carverauto.buildbuddy.io/invocation/"
+PREFIX = "https://app.buildbuddy.io/invocation/"
 VALID_URL = PREFIX + "abc123"
 
 
@@ -350,10 +350,10 @@ class StatusPolicyTest(unittest.TestCase):
         self.assertEqual("buildbuddy.yaml", gate.ACTION_PATH)
         self.assertEqual(b'name: "LargeIngestionGate"', gate.ACTION_TEXT)
         self.assertEqual("LargeIngestionGate", gate.STATUS_CONTEXT)
-        self.assertEqual("carverauto.buildbuddy.io", gate.BUILDBUDDY_HOST)
+        self.assertEqual("app.buildbuddy.io", gate.BUILDBUDDY_HOST)
         self.assertEqual("/invocation/", gate.INVOCATION_PATH)
         self.assertEqual(
-            "https://carverauto.buildbuddy.io/invocation/", gate.TARGET_URL_PREFIX
+            "https://app.buildbuddy.io/invocation/", gate.TARGET_URL_PREFIX
         )
 
     def test_latest_uses_timestamp_then_id_not_response_order(self):
@@ -367,13 +367,13 @@ class StatusPolicyTest(unittest.TestCase):
 
     def test_url_rejects_spoofs_and_malformed_values(self):
         invalid = (
-            "http://carverauto.buildbuddy.io/invocation/abc",
-            "https://carverauto.buildbuddy.io/invocation/",
-            "https://carverauto.buildbuddy.io/invocations/abc",
-            "https://carverauto.buildbuddy.io.evil.example/invocation/abc",
-            "https://evil.example/carverauto.buildbuddy.io/invocation/abc",
-            "https://carverauto.buildbuddy.io@evil.example/invocation/abc",
-            "https://evil.example@carverauto.buildbuddy.io/invocation/abc",
+            "http://app.buildbuddy.io/invocation/abc",
+            "https://app.buildbuddy.io/invocation/",
+            "https://app.buildbuddy.io/invocations/abc",
+            "https://app.buildbuddy.io.evil.example/invocation/abc",
+            "https://evil.example/app.buildbuddy.io/invocation/abc",
+            "https://app.buildbuddy.io@evil.example/invocation/abc",
+            "https://evil.example@app.buildbuddy.io/invocation/abc",
             "not a URL",
             "",
             VALID_URL + " ",
@@ -398,9 +398,9 @@ class StatusPolicyTest(unittest.TestCase):
 
     def test_configured_prefix_cannot_weaken_fixed_policy(self):
         for prefix in (
-            "http://carverauto.buildbuddy.io/invocation/",
+            "http://app.buildbuddy.io/invocation/",
             "https://evil.example/invocation/",
-            "https://carverauto.buildbuddy.io/",
+            "https://app.buildbuddy.io/",
             PREFIX + "nested/",
         ):
             with self.subTest(prefix=prefix):

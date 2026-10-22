@@ -3,6 +3,7 @@ load("@rules_shell//shell:sh_test.bzl", "sh_test")
 package(default_visibility = ["//visibility:public"])
 
 exports_files([
+    "lib/fork-registry.sh",
     "check-addon-binary-size.sh",
     "check-oci-chart-version-available.sh",
     "check-native-addon-version-bumps.sh",
@@ -37,6 +38,7 @@ sh_test(
     timeout = "short",
     srcs = ["test-release-publish-contracts.sh"],
     data = [
+        "lib/fork-registry.sh",
         "check-oci-chart-version-available.sh",
         "cosign_common.sh",
         "cut-release.sh",
@@ -77,6 +79,7 @@ sh_test(
     timeout = "short",
     srcs = ["test-external-wasm-plugin-release-workflow.sh"],
     data = [
+        "lib/fork-registry.sh",
         "install-external-wasm-tinygo.sh",
         "publish-external-wasm-plugin-release.sh",
         "test-publish-external-wasm-plugin-release.py",
@@ -101,6 +104,7 @@ sh_test(
     timeout = "short",
     srcs = ["test-verify-native-addon-publish-negative.sh"],
     data = [
+        "lib/fork-registry.sh",
         "cosign_common.sh",
         "verify-native-addon-publish.sh",
         "@jq_linux_amd64//file",

@@ -36,6 +36,7 @@ manifests two live clusters were pinned to. Three rules keep it fixed:
 Also: do NOT publish over an existing tag, for the Harbor GC reason above.
 """
 
+load("//docker/images:fork_registry.bzl", "FORK_IMAGE_PREFIX")
 load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load")
 
 def declare_cnpg_image_amd64():
@@ -473,5 +474,5 @@ tar -C "$${ROOT_DIR}" -cf "$${OUT_TAR}" .
     oci_load(
         name = "cnpg_image_amd64_tar",
         image = ":cnpg_image_amd64",
-        repo_tags = ["registry.carverauto.dev/serviceradar/serviceradar-cnpg:local"],
+        repo_tags = [FORK_IMAGE_PREFIX + "/serviceradar-cnpg:local"],
     )

@@ -1,0 +1,10 @@
+# Where each base image that MODULE.bazel pulls originally comes from.
+# Format: <mirror path under ghcr.io/<owner>/mirror/> <origin reference>
+# scripts/ci/mirror-base-images.sh copies origin@<digest from MODULE.bazel> into the
+# fork's mirror, so builds never contact these registries; only this workflow does.
+library/ubuntu docker.io/library/ubuntu
+library/alpine docker.io/library/alpine
+library/debian docker.io/library/debian
+library/node docker.io/library/node
+cloudnative-pg/postgresql ghcr.io/cloudnative-pg/postgresql
+pgduckdb/pgduckdb docker.io/pgduckdb/pgduckdb

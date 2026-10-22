@@ -15,17 +15,21 @@ concurrency:
 permissions:
   contents: write
   id-token: write
+  packages: write
 
 jobs:
   publish:
-    runs-on: serviceradar-signing
+    if: ${{ vars.PUBLISH_ENABLED == 'true' }}
+    runs-on: ubuntu-24.04
     environment: release
     env:
-      BUILDBUDDY_ORG_API_KEY: ${{ secrets.BUILDBUDDY_ORG_API_KEY || secrets.BUILDBUDDY_API_KEY }}
-      OCI_REGISTRY: registry.carverauto.dev
-      OCI_PROJECT: serviceradar
-      OCI_USERNAME: ${{ secrets.HARBOR_ROBOT_USERNAME }}
-      OCI_TOKEN: ${{ secrets.HARBOR_ROBOT_SECRET }}
+      OCI_REGISTRY: ${{ vars.OCI_REGISTRY || 'ghcr.io' }}
+      OCI_PROJECT: ${{ vars.OCI_PROJECT || github.repository_owner }}
+      # GITHUB_TOKEN pushes to GHCR; set both OCI_USERNAME/OCI_TOKEN secrets for another registry.
+      OCI_USERNAME: ${{ secrets.OCI_USERNAME || github.actor }}
+      OCI_TOKEN: ${{ secrets.OCI_TOKEN || secrets.GITHUB_TOKEN }}
+      OCI_USERNAME_SET: ${{ secrets.OCI_USERNAME != '' }}
+      OCI_TOKEN_SET: ${{ secrets.OCI_TOKEN != '' }}
       BAZELISK_HOME: ${{ github.workspace }}/.cache/bazelisk
       GH_TOKEN: ${{ github.token }}
       GITHUB_TOKEN: ${{ github.token }}
@@ -62,7 +66,7 @@ jobs:
           fi
 
           tag_commit="$(git rev-list -n1 "refs/tags/${release_tag}^{commit}")"
-          checkout_commit="$(git rev-parse HEAD^{commit})"
+          checkout_commit="$(git rev-parse "HEAD^{commit}")"
           if [[ ! "${tag_commit}" =~ ^[0-9a-f]{40}$ || "${checkout_commit}" != "${tag_commit}" ]]; then
             echo "Checked-out commit ${checkout_commit} does not match ${release_tag} commit ${tag_commit}" >&2
             exit 1
@@ -91,29 +95,33 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-bazel-
 
-      - name: Configure BuildBuddy remote cache
-        if: ${{ env.BUILDBUDDY_ORG_API_KEY != '' }}
+      - name: Configure Bazel remote execution
+        env:
+          BAZEL_REMOTE_ENABLED: ${{ vars.BAZEL_REMOTE_ENABLED || 'true' }}
+          BUILDBUDDY_ENDPOINT: ${{ vars.BUILDBUDDY_ENDPOINT || 'remote.buildbuddy.io' }}
+          BUILDBUDDY_APP_URL: ${{ vars.BUILDBUDDY_APP_URL || 'https://app.buildbuddy.io' }}
+          BUILDBUDDY_ORG_API_KEY: ${{ secrets.BUILDBUDDY_ORG_API_KEY || secrets.BUILDBUDDY_API_KEY }}
+        run: scripts/ci/configure-bazel-remote.sh
+
+      # Publish-specific Bazel flags, on top of --config=remote (set through BAZEL_BUILD_FLAGS
+      # below so the Wasm bundles build on the fork's RBE platform and executor image).
+      # --lockfile_mode=error: a release build consumes the committed MODULE.bazel.lock
+      # without rewriting it, so a stale fact fails here instead of publishing signed
+      # artifacts from silently regenerated dependency facts.
+      - name: Add Wasm publish Bazel flags
+        if: ${{ (vars.BAZEL_REMOTE_ENABLED || 'true') == 'true' }}
         run: |
           umask 077
-          # --lockfile_mode=error: a release build consumes the committed MODULE.bazel.lock
-          # without rewriting it, so a stale fact fails here instead of publishing signed
-          # artifacts from silently regenerated dependency facts. It is `common` so that
-          # query, build, run and mod all inherit it without changing the publish wrapper.
-          cat <<'EOF' | sed 's/^ *//' > .bazelrc.remote
+          cat <<'EOF' | sed 's/^ *//' >> .bazelrc.remote
             common --lockfile_mode=error
-            build --bes_results_url=https://carverauto.buildbuddy.io/invocation/
-            build --bes_backend=grpcs://carverauto.buildbuddy.io
-            build --remote_cache=grpcs://carverauto.buildbuddy.io
-            build --remote_executor=grpcs://carverauto.buildbuddy.io
-            build --remote_timeout=10m
-            build --remote_download_minimal
-            build --remote_upload_local_results
-            build --jobs=100
-            build --strategy=ExpandTemplate=local
-            build --strategy=NpmPackageExtract=local
-            build --strategy=CopyDirectory=local
+            build:remote_base --remote_timeout=10m
+            build:remote_base --remote_download_minimal
+            build:remote_base --remote_upload_local_results
+            build:remote_base --jobs=100
+            build:remote_base --strategy=ExpandTemplate=local
+            build:remote_base --strategy=NpmPackageExtract=local
+            build:remote_base --strategy=CopyDirectory=local
           EOF
-          printf 'common --remote_header=x-buildbuddy-api-key=%s\n' "${BUILDBUDDY_ORG_API_KEY}" >> .bazelrc.remote
 
       - name: Install Bazelisk
         run: |
@@ -142,11 +150,11 @@ jobs:
       - name: Verify committed dependency lockfile
         run: bazel mod deps --lockfile_mode=error
 
-      - name: Login to Harbor
+      - name: Log in to the OCI registry
         run: |
           set -euo pipefail
-          if [[ -z "${OCI_USERNAME:-}" || -z "${OCI_TOKEN:-}" ]]; then
-            echo "Missing Harbor robot credentials. Set HARBOR_ROBOT_USERNAME and HARBOR_ROBOT_SECRET." >&2
+          if [[ "${OCI_USERNAME_SET}" != "${OCI_TOKEN_SET}" ]]; then
+            echo "Set both OCI_USERNAME and OCI_TOKEN secrets or neither (GITHUB_TOKEN is used when neither is set)." >&2
             exit 1
           fi
 
@@ -155,10 +163,18 @@ jobs:
       - name: Publish Wasm plugin OCI artifacts
         env:
           EXTRA_TAG: ${{ github.ref_name }}
-          OPENBAO_ADDR: https://openbao-active.openbao-system.svc.cluster.local:8200
-          OPENBAO_K8S_ROLE: github-signing-runner
+          # Bundles build remotely on the fork's RBE platform (build/rbe/BUILD).
+          BAZEL_BUILD_FLAGS: -c opt --config=remote --lockfile_mode=error
+          # OpenBao Transit signing is upstream's path; off unless OPENBAO_SIGNING_ENABLED is 'true'.
+          # Otherwise cosign signs with the fork's own key from the COSIGN_PRIVATE_KEY secret.
+          OPENBAO_SIGNING_ENABLED: ${{ vars.OPENBAO_SIGNING_ENABLED == 'true' }}
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
           OPENBAO_SIGNING_ALLOWED_REFS_REGEX: '^refs/tags/v.*$'
-          COSIGN_KEY_REF: hashivault://cosign-release
+          # Wasm upload signatures: a fork-owned Ed25519 key unless OpenBao signing is enabled.
+          PLUGIN_UPLOAD_SIGNING_PRIVATE_KEY: ${{ secrets.PLUGIN_UPLOAD_SIGNING_PRIVATE_KEY }}
+          PLUGIN_UPLOAD_SIGNING_KEY_ID: ${{ secrets.PLUGIN_UPLOAD_SIGNING_KEY_ID }}
+          PLUGIN_UPLOAD_SIGNING_SIGNER: ${{ secrets.PLUGIN_UPLOAD_SIGNING_SIGNER }}
           COSIGN_YES: "true"
           COSIGN_DOCKER_MEDIA_TYPES: "1"
         run: |
@@ -179,7 +195,9 @@ jobs:
           # right before each phase that uses Transit (upload signatures,
           # cosign signing, cosign verification), so no phase inherits a token
           # an earlier phase has already aged.
-          source ./scripts/ci/prepare-openbao-cosign-env.sh
+          # Ref allowlist applies to every signing backend, not only OpenBao.
+          [[ "${GITHUB_REF}" =~ ${OPENBAO_SIGNING_ALLOWED_REFS_REGEX} ]] || { echo "Signing is not allowed for ref '${GITHUB_REF}'" >&2; exit 1; }
+          if [[ "${OPENBAO_SIGNING_ENABLED}" == "true" ]]; then source ./scripts/ci/prepare-openbao-cosign-env.sh; fi
           if [[ -z "${PLUGIN_UPLOAD_SIGNING_TRANSIT_KEY:-}" && -z "${PLUGIN_UPLOAD_SIGNING_PRIVATE_KEY:-}" ]]; then
             echo "Missing Wasm upload signing: set PLUGIN_UPLOAD_SIGNING_TRANSIT_KEY or PLUGIN_UPLOAD_SIGNING_PRIVATE_KEY." >&2
             exit 1
@@ -190,9 +208,9 @@ jobs:
           fi
 
           ./scripts/push_all_wasm_plugins.sh "${push_args[@]}"
-          source ./scripts/ci/prepare-openbao-cosign-env.sh
+          if [[ "${OPENBAO_SIGNING_ENABLED}" == "true" ]]; then source ./scripts/ci/prepare-openbao-cosign-env.sh; fi
           ./scripts/sign-wasm-plugin-publish.sh "${verify_tags[@]}"
-          source ./scripts/ci/prepare-openbao-cosign-env.sh
+          if [[ "${OPENBAO_SIGNING_ENABLED}" == "true" ]]; then source ./scripts/ci/prepare-openbao-cosign-env.sh; fi
           ./scripts/verify-wasm-plugin-publish.sh "${verify_tags[@]}"
           unset VAULT_TOKEN VAULT_ADDR COSIGN_KEY_REF PLUGIN_UPLOAD_SIGNING_TRANSIT_KEY
 

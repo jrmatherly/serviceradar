@@ -11,11 +11,12 @@ sizing) is owned by the Helm analytics-head component, not this image.
 Digest pin bumps are gated by scripts/ci/cold-analytics-image-smoke.sh.
 """
 
+load("//docker/images:fork_registry.bzl", "FORK_IMAGE_PREFIX")
 load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load")
 
 # Keep in sync with the @pgduckdb_18 pull in MODULE.bazel and the static tag in
 # image_inventory.bzl.
-CNPG_ANALYTICS_BASE_REF = "docker.io/pgduckdb/pgduckdb:18-v1.1.1"
+CNPG_ANALYTICS_BASE_REF = FORK_IMAGE_PREFIX + "/mirror/pgduckdb/pgduckdb:18-v1.1.1"
 
 def declare_cnpg_analytics_image_amd64():
     """Declare the analytics-head image on top of the pinned pgduckdb base."""
@@ -53,5 +54,5 @@ tar -C "$${ROOT_DIR}" -cf "$$(pwd)/$@" .
     oci_load(
         name = "cnpg_analytics_image_amd64_tar",
         image = ":cnpg_analytics_image_amd64",
-        repo_tags = ["registry.carverauto.dev/serviceradar/serviceradar-cnpg-analytics:local"],
+        repo_tags = [FORK_IMAGE_PREFIX + "/serviceradar-cnpg-analytics:local"],
     )

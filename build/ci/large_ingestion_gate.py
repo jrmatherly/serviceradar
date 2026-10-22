@@ -6,6 +6,7 @@ import ast
 import io
 import json
 import math
+import os
 import re
 import subprocess
 import tokenize
@@ -23,9 +24,12 @@ TARGET_TEXT = b'name = "large_ingestion_release_gate"'
 ACTION_PATH = "buildbuddy.yaml"
 ACTION_TEXT = b'name: "LargeIngestionGate"'
 STATUS_CONTEXT = "LargeIngestionGate"
-BUILDBUDDY_HOST = "carverauto.buildbuddy.io"
+# The BuildBuddy org that runs the LargeIngestionGate action. Derived from the
+# same variable the workflows use so the fixed-prefix policy below still holds.
+BUILDBUDDY_APP_URL = os.environ.get("BUILDBUDDY_APP_URL", "https://app.buildbuddy.io").rstrip("/")
+BUILDBUDDY_HOST = urlparse(BUILDBUDDY_APP_URL).hostname or "app.buildbuddy.io"
 INVOCATION_PATH = "/invocation/"
-TARGET_URL_PREFIX = "https://carverauto.buildbuddy.io/invocation/"
+TARGET_URL_PREFIX = f"{BUILDBUDDY_APP_URL}{INVOCATION_PATH}"
 HISTORICAL_NOT_APPLICABLE = "HISTORICAL_NOT_APPLICABLE"
 FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
 FIRST_PARENT_WALK_LIMIT = 256

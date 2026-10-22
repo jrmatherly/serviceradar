@@ -31,13 +31,22 @@ fi
 
 mkdir -p "${install_root}"
 install_path="${install_root}/bazelisk"
+# Reuse a preinstalled bazelisk only when it IS the pinned release. GitHub-hosted
+# images ship some other version; that one is replaced by the pinned download
+# instead of being rejected.
+reuse_existing=0
 if command -v bazelisk >/dev/null 2>&1; then
   existing_bazelisk="$(command -v bazelisk)"
-  if [[ "${existing_bazelisk}" != "${install_path}" ]]; then
-    cp "${existing_bazelisk}" "${install_path}"
+  if [[ -n "${expected_sha256}" && "$(sr_sha256_file "${existing_bazelisk}")" == "${expected_sha256}" ]]; then
+    reuse_existing=1
+    if [[ "${existing_bazelisk}" != "${install_path}" ]]; then
+      cp "${existing_bazelisk}" "${install_path}"
+    fi
+  else
+    echo "preinstalled bazelisk at ${existing_bazelisk} is not ${version}; downloading the pinned release" >&2
   fi
-  sr_verify_sha256 "${install_path}" "$expected_sha256" "bazelisk ${version} ${asset}"
-else
+fi
+if [[ "${reuse_existing}" -eq 0 ]]; then
   tmp_download="${tmpdir}/bazelisk"
   rm -f "${tmp_download}"
   curl_args=(

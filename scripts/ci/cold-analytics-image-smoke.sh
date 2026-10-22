@@ -33,6 +33,8 @@
 # in MODULE.bazel, so CI exercises exactly the pinned base.
 
 set -euo pipefail
+# shellcheck source=scripts/lib/fork-registry.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/fork-registry.sh"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
@@ -48,7 +50,7 @@ if [[ -z "${IMAGE}" ]]; then
     echo "error: could not extract the @pgduckdb_18 digest from MODULE.bazel" >&2
     exit 1
   fi
-  IMAGE="docker.io/pgduckdb/pgduckdb@${digest}"
+  IMAGE="${OCI_REGISTRY}/${OCI_PROJECT}/mirror/pgduckdb/pgduckdb@${digest}"
 fi
 
 # The UID the chart runs this image under (cold-analytics-head.yaml

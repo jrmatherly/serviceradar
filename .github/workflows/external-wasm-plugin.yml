@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       plugin_repository:
-        description: "External plugin repository in the carverauto organization."
+        description: "External plugin repository under PLUGIN_ORG (default: this repository's owner)."
         required: true
         type: string
       plugin_tag:
@@ -22,7 +22,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: arc-runner-set
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     outputs:
       source_commit: ${{ steps.source.outputs.commit }}
@@ -38,6 +38,7 @@ jobs:
       - name: Enforce trusted workflow source and plugin inputs
         env:
           PLUGIN_REPOSITORY: ${{ github.event.inputs.plugin_repository }}
+          PLUGIN_ORG: ${{ vars.PLUGIN_ORG || github.repository_owner }}
           PLUGIN_TAG: ${{ github.event.inputs.plugin_tag }}
         run: |
           set -euo pipefail
@@ -45,7 +46,11 @@ jobs:
             echo "External plugin publication must run from ServiceRadar staging or main" >&2
             exit 1
           fi
-          if [[ ! "${PLUGIN_REPOSITORY}" =~ ^carverauto/serviceradar-plugin-[a-z0-9]+([a-z0-9-]*[a-z0-9])?$ ]]; then
+          if [[ ! "${PLUGIN_ORG}" =~ ^[A-Za-z0-9-]+$ ]]; then
+            echo "PLUGIN_ORG must be a GitHub owner name" >&2
+            exit 1
+          fi
+          if [[ ! "${PLUGIN_REPOSITORY}" =~ ^${PLUGIN_ORG}/serviceradar-plugin-[a-z0-9]+([a-z0-9-]*[a-z0-9])?$ ]]; then
             echo "Invalid external plugin repository" >&2
             exit 1
           fi
@@ -215,17 +220,21 @@ jobs:
 
   publish:
     needs: build
-    runs-on: serviceradar-signing
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
       contents: write
       id-token: write
+      packages: write
     environment: release
     env:
-      OCI_REGISTRY: registry.carverauto.dev
-      OCI_PROJECT: serviceradar
-      OCI_USERNAME: ${{ secrets.HARBOR_ROBOT_USERNAME }}
-      OCI_TOKEN: ${{ secrets.HARBOR_ROBOT_SECRET }}
+      OCI_REGISTRY: ${{ vars.OCI_REGISTRY || 'ghcr.io' }}
+      OCI_PROJECT: ${{ vars.OCI_PROJECT || github.repository_owner }}
+      # GITHUB_TOKEN pushes to GHCR; set both OCI_USERNAME/OCI_TOKEN secrets for another registry.
+      OCI_USERNAME: ${{ secrets.OCI_USERNAME || github.actor }}
+      OCI_TOKEN: ${{ secrets.OCI_TOKEN || secrets.GITHUB_TOKEN }}
+      OCI_USERNAME_SET: ${{ secrets.OCI_USERNAME != '' }}
+      OCI_TOKEN_SET: ${{ secrets.OCI_TOKEN != '' }}
       COSIGN_KEYLESS: ${{ secrets.COSIGN_KEYLESS }}
       SIGSTORE_FULCIO_URL: ${{ secrets.SIGSTORE_FULCIO_URL }}
       SIGSTORE_REKOR_URL: ${{ secrets.SIGSTORE_REKOR_URL }}
@@ -304,11 +313,11 @@ jobs:
             --version "${PLUGIN_VERSION}" \
             --source-commit "${SOURCE_COMMIT}"
 
-      - name: Login to Harbor
+      - name: Log in to the OCI registry
         run: |
           set -euo pipefail
-          if [[ -z "${OCI_USERNAME:-}" || -z "${OCI_TOKEN:-}" ]]; then
-            echo "Missing Harbor robot credentials" >&2
+          if [[ "${OCI_USERNAME_SET}" != "${OCI_TOKEN_SET}" ]]; then
+            echo "Set both OCI_USERNAME and OCI_TOKEN secrets or neither (GITHUB_TOKEN is used when neither is set)." >&2
             exit 1
           fi
           echo "${OCI_TOKEN}" | oras login "${OCI_REGISTRY}" -u "${OCI_USERNAME}" --password-stdin
@@ -319,10 +328,12 @@ jobs:
           SOURCE_COMMIT: ${{ needs.build.outputs.source_commit }}
           SOURCE_COMMITTED_AT: ${{ needs.build.outputs.source_committed_at }}
           UPLOAD_SIGNATURE_TOOL: ${{ steps.signature_tool.outputs.path }}
-          OPENBAO_ADDR: https://openbao-active.openbao-system.svc.cluster.local:8200
-          OPENBAO_K8S_ROLE: github-signing-runner
+          # OpenBao Transit signing is upstream's path; off unless OPENBAO_SIGNING_ENABLED is 'true'.
+          # Otherwise cosign signs with the fork's own key from the COSIGN_PRIVATE_KEY secret.
+          OPENBAO_SIGNING_ENABLED: ${{ vars.OPENBAO_SIGNING_ENABLED == 'true' }}
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
           OPENBAO_SIGNING_ALLOWED_REFS_REGEX: '^refs/heads/(staging|main)$'
-          COSIGN_KEY_REF: hashivault://cosign-release
         run: |
           set -euo pipefail
           metadata_files=(external-plugin-dist/*.metadata.json)
@@ -337,7 +348,9 @@ jobs:
             --commit-sha "${SOURCE_COMMIT}" \
             --tag "${PLUGIN_TAG}"
 
-          source ./scripts/ci/prepare-openbao-cosign-env.sh
+          # Ref allowlist applies to every signing backend, not only OpenBao.
+          [[ "${GITHUB_REF}" =~ ${OPENBAO_SIGNING_ALLOWED_REFS_REGEX} ]] || { echo "Signing is not allowed for ref '${GITHUB_REF}'" >&2; exit 1; }
+          if [[ "${OPENBAO_SIGNING_ENABLED}" == "true" ]]; then source ./scripts/ci/prepare-openbao-cosign-env.sh; fi
           export WASM_PLUGIN_METADATA_DIR="${GITHUB_WORKSPACE}/external-plugin-dist"
           export WASM_PLUGIN_UPLOAD_SIGNATURE_TOOL="${UPLOAD_SIGNATURE_TOOL}"
           tags=("sha-${SOURCE_COMMIT}" "${PLUGIN_TAG}")

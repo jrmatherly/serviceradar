@@ -1,5 +1,6 @@
 """Bazel-native OCI images."""
 
+load("//docker/images:fork_registry.bzl", "FORK_IMAGE_PREFIX")
 load("@io_bazel_rules_go//go:def.bzl", "go_test")
 load("@rules_python//python:py_test.bzl", "py_test")
 load("//docker/images:analytics_image.bzl", "declare_cnpg_analytics_image_amd64")
@@ -52,15 +53,6 @@ py_test(
     name = "cnpg_age_extension_test",
     srcs = ["cnpg_age_extension_test.py"],
     data = ["cnpg_image.bzl"],
-)
-
-# ARC runner image -----------------------------------------------------------
-
-declare_loaded_oci_image_amd64(
-    name = "arc_runner_image_amd64",
-    base = "@arc_runner_linux_amd64//:arc_runner_linux_amd64",
-    image_title = "arc-runner",
-    repo_tags = ["registry.carverauto.dev/serviceradar/arc-runner:local"],
 )
 
 declare_common_tools_layer()
@@ -169,7 +161,7 @@ declare_web_ng_release_container_amd64(
         ":sshca_signer_layer_amd64",
     ],
     image_title = "serviceradar-web-ng",
-    local_repo_tag = "registry.carverauto.dev/serviceradar/serviceradar-web-ng:local",
+    local_repo_tag = FORK_IMAGE_PREFIX + "/serviceradar-web-ng:local",
     release_tar = "//elixir/web-ng:release_tar",
     target_compatible_with = [],
     workdir = "/app",
@@ -218,7 +210,7 @@ declare_elixir_release_container_with_debs_amd64(
         ":web_ng_ca_bundle_layer_amd64",
     ],
     image_title = "serviceradar-core-elx",
-    local_repo_tag = "registry.carverauto.dev/serviceradar/serviceradar-core-elx:local",
+    local_repo_tag = FORK_IMAGE_PREFIX + "/serviceradar-core-elx:local",
     release_tar = "//elixir/serviceradar_core_elx:release_tar",
     target_compatible_with = [],
     workdir = "/app",
@@ -282,7 +274,7 @@ declare_elixir_release_container_with_debs_amd64(
         "MIX_ENV": "prod",
     },
     image_title = "serviceradar-agent-gateway",
-    local_repo_tag = "registry.carverauto.dev/serviceradar/serviceradar-agent-gateway:local",
+    local_repo_tag = FORK_IMAGE_PREFIX + "/serviceradar-agent-gateway:local",
     release_tar = "//elixir/serviceradar_agent_gateway:release_tar",
     workdir = "/app",
 )
@@ -344,7 +336,7 @@ declare_service_container_amd64(
         "etc/serviceradar/agent.json": "0644",
         "etc/serviceradar/checkers/sweep/sweep.json": "0644",
     },
-    repo_tags = ["registry.carverauto.dev/serviceradar/serviceradar-agent:local"],
+    repo_tags = [FORK_IMAGE_PREFIX + "/serviceradar-agent:local"],
     runtime = "alpine",
     workdir = "/var/lib/serviceradar",
 )
@@ -370,7 +362,7 @@ declare_service_container_amd64(
     modes = {
         "usr/local/bin/serviceradar-trivy-sidecar": "0755",
     },
-    repo_tags = ["registry.carverauto.dev/serviceradar/serviceradar-trivy-sidecar:local"],
+    repo_tags = [FORK_IMAGE_PREFIX + "/serviceradar-trivy-sidecar:local"],
     runtime = "scratch",
     workdir = "/var/lib/serviceradar",
 )
@@ -398,7 +390,7 @@ declare_service_container_amd64(
     modes = {
         "usr/local/bin/serviceradar-k8s-inventory": "0755",
     },
-    repo_tags = ["registry.carverauto.dev/serviceradar/serviceradar-k8s-inventory:local"],
+    repo_tags = [FORK_IMAGE_PREFIX + "/serviceradar-k8s-inventory:local"],
     runtime = "scratch",
     workdir = "/var/lib/serviceradar",
 )
@@ -428,7 +420,7 @@ declare_service_container_amd64(
         "usr/local/bin/entrypoint.sh": "0755",
         "etc/serviceradar/datasvc.json": "0644",
     },
-    repo_tags = ["registry.carverauto.dev/serviceradar/serviceradar-datasvc:local"],
+    repo_tags = [FORK_IMAGE_PREFIX + "/serviceradar-datasvc:local"],
     runtime = "alpine",
     workdir = "/var/lib/serviceradar",
 )
@@ -468,7 +460,7 @@ declare_service_container_amd64(
         "etc/serviceradar/flowgger.toml": "0644",
         "etc/serviceradar/otel.toml": "0644",
     },
-    repo_tags = ["registry.carverauto.dev/serviceradar/serviceradar-log-collector:local"],
+    repo_tags = [FORK_IMAGE_PREFIX + "/serviceradar-log-collector:local"],
     runtime = "ubuntu",
     workdir = "/var/lib/serviceradar",
 )
@@ -502,7 +494,7 @@ declare_service_container_amd64(
         "usr/local/bin/entrypoint.sh": "0755",
         "etc/serviceradar/trapd.json": "0644",
     },
-    repo_tags = ["registry.carverauto.dev/serviceradar/serviceradar-trapd:local"],
+    repo_tags = [FORK_IMAGE_PREFIX + "/serviceradar-trapd:local"],
     runtime = "ubuntu",
     workdir = "/var/lib/serviceradar",
 )
@@ -529,7 +521,7 @@ declare_service_container_amd64(
         "usr/local/bin/dgraph-migrate": "0755",
         "usr/local/bin/age-to-dgraph": "0755",
     },
-    repo_tags = ["registry.carverauto.dev/serviceradar/serviceradar-dgraph-migrate:local"],
+    repo_tags = [FORK_IMAGE_PREFIX + "/serviceradar-dgraph-migrate:local"],
     runtime = "ubuntu",
     workdir = "/tmp",
 )
@@ -564,7 +556,7 @@ declare_service_container_amd64(
         "usr/local/bin/serviceradar-flow-collector": "0755",
         "etc/serviceradar/flow-collector.json": "0644",
     },
-    repo_tags = ["registry.carverauto.dev/serviceradar/serviceradar-flow-collector:local"],
+    repo_tags = [FORK_IMAGE_PREFIX + "/serviceradar-flow-collector:local"],
     runtime = "ubuntu",
     workdir = "/var/lib/serviceradar",
 )
@@ -594,7 +586,7 @@ declare_service_container_amd64(
     modes = {
         "usr/local/bin/serviceradar-bmp-collector": "0755",
     },
-    repo_tags = ["registry.carverauto.dev/serviceradar/arancini:local"],
+    repo_tags = [FORK_IMAGE_PREFIX + "/arancini:local"],
     runtime = "ubuntu",
     workdir = "/var/lib/serviceradar",
 )
@@ -632,7 +624,7 @@ declare_service_container_amd64(
         "usr/local/bin/entrypoint.sh": "0755",
         "tmp/rperf-client.docker.json": "0644",
     },
-    repo_tags = ["registry.carverauto.dev/serviceradar/serviceradar-rperf-client:local"],
+    repo_tags = [FORK_IMAGE_PREFIX + "/serviceradar-rperf-client:local"],
     runtime = "ubuntu",
     workdir = "/var/lib/serviceradar",
 )
@@ -662,7 +654,7 @@ declare_service_container_amd64(
     modes = {
         "usr/local/bin/serviceradar-faker": "0755",
     },
-    repo_tags = ["registry.carverauto.dev/serviceradar/serviceradar-faker:local"],
+    repo_tags = [FORK_IMAGE_PREFIX + "/serviceradar-faker:local"],
     runtime = "alpine",
     workdir = "/var/lib/serviceradar",
 )
@@ -688,7 +680,7 @@ declare_service_container_amd64(
         "usr/local/bin/srctl": "0755",
         "usr/local/bin/update-config.sh": "0755",
     },
-    repo_tags = ["registry.carverauto.dev/serviceradar/serviceradar-config-updater:local"],
+    repo_tags = [FORK_IMAGE_PREFIX + "/serviceradar-config-updater:local"],
     runtime = "alpine",
     symlinks = {
         # Deprecated alias for the pre-rename binary (see #4260).
@@ -735,7 +727,7 @@ declare_custom_base_service_container_amd64(
     modes = {
         "entrypoint-certs.sh": "0755",
     },
-    repo_tags = ["registry.carverauto.dev/serviceradar/serviceradar-cert-generator:local"],
+    repo_tags = [FORK_IMAGE_PREFIX + "/serviceradar-cert-generator:local"],
 )
 
 declare_multiarch_image_index(
@@ -827,7 +819,7 @@ declare_custom_base_service_container_amd64(
         "etc/motd": "0644",
         "usr/local/bin/nats": "0755",
     },
-    repo_tags = ["registry.carverauto.dev/serviceradar/serviceradar-tools:local"],
+    repo_tags = [FORK_IMAGE_PREFIX + "/serviceradar-tools:local"],
     symlinks = {
         # Deprecated alias for the pre-rename binary (see #4260).
         "usr/local/bin/serviceradar-cli": "/usr/local/bin/srctl",
@@ -856,7 +848,10 @@ py_test(
     name = "push_targets_test",
     size = "small",
     srcs = ["push_targets_test.py"],
-    data = ["push_targets.bzl"],
+    data = [
+        "fork_registry.bzl",
+        "push_targets.bzl",
+    ],
 )
 
 # --- Multi-arch verification -------------------------------------------------

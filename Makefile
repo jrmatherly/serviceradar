@@ -101,7 +101,7 @@ NEXT_VERSION ?= $(shell git describe --tags --abbrev=0 | awk -F. '{$$NF = $$NF +
 RELEASE ?= 1
 
 # Container configuration
-REGISTRY ?= registry.carverauto.dev/serviceradar
+REGISTRY ?= $(shell . scripts/lib/fork-registry.sh && printf %s/%s "$$OCI_REGISTRY" "$$OCI_PROJECT")
 KO_DOCKER_REPO ?= $(REGISTRY)
 PLATFORMS ?= linux/amd64,linux/arm64
 

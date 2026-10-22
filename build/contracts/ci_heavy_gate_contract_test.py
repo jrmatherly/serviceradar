@@ -17,6 +17,12 @@ ROOT = Path(__file__).resolve().parents[2]
 BAZELRC = ROOT / ".bazelrc"
 MODULE_FILE = ROOT / "MODULE.bazel"
 WORKFLOW = ROOT / "buildbuddy.yaml"
+# The fork runs BazelCI on BuildBuddy-hosted runners and disables every action that needs
+# upstream's self-hosted executor pools and in-cluster fixtures (docs/fork-ci.md). The
+# contracts for those actions are skipped here; ForkHostedBazelCIContractTest covers what
+# the fork actually runs.
+FORK_MODE = "# Disabled on the fork" in WORKFLOW.read_text(encoding="utf-8")
+FORK_SKIP = "self-hosted heavy-gate actions are disabled on the fork"
 # The hosted runner ends a workflow action after one hour. Each BazelCI database
 # action reserves part of that hour for the work before its observer starts
 # (checkout, change selection, fixture setup, schema preflight, compile); its
@@ -729,6 +735,7 @@ def cpu_diagnostic_input_hash() -> str:
     return digest.hexdigest()
 
 
+@unittest.skipIf(FORK_MODE, FORK_SKIP)
 class SchemaTemplateQualificationContractTest(unittest.TestCase):
     def test_recovery_run_id_is_explicit_validated_and_shared_by_all_steps(self):
         action = named_action("SchemaTemplateQualification")
@@ -763,6 +770,7 @@ class SchemaTemplateQualificationContractTest(unittest.TestCase):
         self.assertIn('"replay_env.bzl"', manifest)
 
 
+@unittest.skipIf(FORK_MODE, FORK_SKIP)
 class IntegrationBenchmarkContractTest(unittest.TestCase):
     def setUp(self):
         self.action = integration_benchmark_action()
@@ -1030,6 +1038,7 @@ class IntegrationBenchmarkContractTest(unittest.TestCase):
         self.assertLess(cleanup.index('exit "$OBSERVER_STATUS"'), cleanup.index('exit "$TEARDOWN_STATUS"'))
 
 
+@unittest.skipIf(FORK_MODE, FORK_SKIP)
 class WorkflowIntegrationLifecycleContractTest(unittest.TestCase):
     # The retired shared-template lifecycle. No active caller may name any of these; the
     # build-graph half of that contract is RetiredLegacyTemplateLifecycleContractTest below.
@@ -2902,6 +2911,65 @@ def parsed_integration_lanes() -> list[str]:
     return ["async"] + [f"serial_{index}" for index in range(serial_lane_count)]
 
 
+
+class ForkHostedBazelCIContractTest(unittest.TestCase):
+    """What the fork runs on BuildBuddy-hosted workflow runners (docs/fork-ci.md)."""
+
+    @classmethod
+    def setUpClass(cls):
+        if not FORK_MODE:
+            raise unittest.SkipTest("upstream buildbuddy.yaml; see WorkflowIntegrationLifecycleContractTest")
+        cls.workflow = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+        cls.actions = {item["name"]: item for item in cls.workflow["actions"]}
+
+    def test_bazel_ci_is_the_only_triggered_action_and_runs_hosted(self):
+        triggered = [name for name, action in self.actions.items() if action.get("triggers")]
+        self.assertEqual(["BazelCI"], triggered)
+        action = self.actions["BazelCI"]
+        self.assertEqual({"pull_request": {"branches": ["staging"]}}, action["triggers"])
+        self.assertNotIn("self_hosted", action)
+        self.assertNotIn("pool", action)
+        self.assertNotIn("platform_properties", action)
+        self.assertEqual("ubuntu-24.04", action["container_image"])
+        self.assertEqual("staging", action["env"]["GIT_BASE_BRANCH"])
+        # The hosted runner accepted 7 CPU / 28 GB; the free tier caps a run at one hour.
+        resources = action["resource_requests"]
+        self.assertLessEqual(int(resources["cpu"]), WORKFLOWS_PR_CPUS)
+        self.assertLessEqual(int(resources["memory"].removesuffix("GB")), WORKFLOWS_PR_MEMORY_GIB)
+
+    def test_bazel_ci_uses_remote_config_and_no_registry_login(self):
+        text = named_action("BazelCI")
+        self.assertNotIn("--config=ci", text)
+        self.assertNotIn("//:buildbuddy_setup_docker_auth", text)
+        self.assertNotIn("OCI_AUTH_REQUIRED", text)
+        self.assertNotIn("svc.cluster.local", text)
+        self.assertNotIn("carverauto", text)
+        self.assertIn("python3 build/ci/detect_docs_only.py", text)
+        unit_sweep = (
+            "scripts/ci/unless_docs_only.sh bazel test -c opt --config=remote --//build:enable_integration_tests "
+            "//... --test_tag_filters=-integration_test,-acceptance_test,-benchmark"
+        )
+        self.assertEqual(1, run_step_shell_lines(text).count(unit_sweep))
+
+    def test_go_race_step_keeps_its_private_output_base_under_remote_config(self):
+        action = named_action("BazelCI")
+        output_base = "/home/buildbuddy/output-base-race"
+        shell = sole_literal_run_body(action, f"={output_base}", "Go race step on its private output base")
+        lines = normalized_shell_lines(shell)
+        self.assertIn(f"race_output_base={output_base}", lines)
+        self.assertTrue(any(line.startswith('bazel --output_base="$race_output_base" test -c opt --config=remote //go/...') for line in lines), lines)
+        self.assertIn('bazel --output_base="$race_output_base" shutdown', lines)
+        self.assertIn('[ -e "${DOCS_ONLY_MARKER:-/tmp/serviceradar-docs-only-marker}" ] && { echo "docs-only change: BazelCI Go race tests skipped"; exit 0; }', lines)
+
+    def test_disabled_actions_keep_their_definitions_for_manual_use(self):
+        for name, action in self.actions.items():
+            if name == "BazelCI":
+                continue
+            with self.subTest(action=name):
+                self.assertNotIn("triggers", action)
+                self.assertTrue(action.get("steps"), "a disabled action must keep its steps")
+
+
 class RetiredLegacyTemplateLifecycleContractTest(unittest.TestCase):
     """The shared mutable template lifecycle is deleted, and must stay deleted.
 
@@ -3040,10 +3108,13 @@ class RetiredLegacyTemplateLifecycleContractTest(unittest.TestCase):
 
 class ReleaseLargeIngestionQualificationContractTest(unittest.TestCase):
     qualifier_step = """      - name: Wait for large-ingestion gate
+        if: ${{ vars.LARGE_INGESTION_GATE_ENABLED == 'true' }}
         env:
+          BUILDBUDDY_APP_URL: ${{ vars.BUILDBUDDY_APP_URL || 'https://app.buildbuddy.io' }}
           RELEASE_COMMIT: ${{ steps.source.outputs.commit }}
         run: |
           set -euo pipefail
+          # shellcheck disable=SC2086
           bazel run ${BAZEL_BUILD_FLAGS} //build/ci:wait_for_large_ingestion_gate -- \\
             --repository "${GITHUB_REPOSITORY}" \\
             --commit "${RELEASE_COMMIT}" \\
@@ -3051,7 +3122,7 @@ class ReleaseLargeIngestionQualificationContractTest(unittest.TestCase):
             --token-env GH_TOKEN \\
             --timeout-seconds 5400 \\
             --poll-seconds 15 \\
-            --target-url-prefix https://carverauto.buildbuddy.io/invocation/
+            --target-url-prefix "${BUILDBUDDY_APP_URL}/invocation/"
 
 """
 
@@ -3157,7 +3228,7 @@ class ReleaseLargeIngestionQualificationContractTest(unittest.TestCase):
 
     def test_release_permissions_checkout_and_qualifier_are_exact(self):
         self.assertEqual(
-            ("contents: write", "id-token: write", "statuses: read"),
+            ("contents: write", "id-token: write", "packages: write", "statuses: read"),
             release_permissions(),
         )
         checkout = named_release_step("Checkout")
@@ -3167,11 +3238,13 @@ class ReleaseLargeIngestionQualificationContractTest(unittest.TestCase):
         )
 
     def test_qualifier_precedes_tools_metadata_checkout_and_publication(self):
+        # The remote-config step appears in three jobs; order within the publish job only.
         workflow = RELEASE_WORKFLOW.read_text(encoding="utf-8")
+        workflow = workflow[workflow.index("\n  publish:\n") :]
         ordered_steps = (
             "Enforce release source",
             "Cache Bazel artifacts",
-            "Configure BuildBuddy remote cache",
+            "Configure Bazel remote execution",
             "Install Bazelisk",
             "Install GitHub CLI",
             "Wait for large-ingestion gate",
@@ -3195,7 +3268,7 @@ class ReleaseLargeIngestionQualificationContractTest(unittest.TestCase):
             "--token-env GH_TOKEN",
             "--timeout-seconds 5400",
             "--poll-seconds 15",
-            "--target-url-prefix https://carverauto.buildbuddy.io/invocation/",
+            '--target-url-prefix "${BUILDBUDDY_APP_URL}/invocation/"',
         )
         for value in required:
             self.assertEqual(1, step.count(value), value)

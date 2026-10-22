@@ -3,13 +3,13 @@
 * Currently, only linux on x86_64 is supported.
 * The recommended linux distro is Ubuntu 24_04.
 * The build process uses Bazel via Bazelisk.
-* The repository currently pins Bazel via `.bazelversion` to `9.0.0`.
+* The repository currently pins Bazel via `.bazelversion` to `9.2.0`.
 
 When configuring a VM, have at least 12 GB of RAM and 8 CPU cores available.
 
 ### Install Bazelisk
 
-wget https://github.com/bazelbuild/bazelisk/releases/download/v1.27.0/bazelisk-linux-amd64
+wget https://github.com/bazelbuild/bazelisk/releases/download/v1.28.1/bazelisk-linux-amd64
 
 chmod +x bazelisk-linux-amd64
 
@@ -45,7 +45,7 @@ sudo apt install -y git clang-18 build-essential openjdk-25-jdk bubblewrap rsync
 
 ### Clone the project
 
-git clone https://github.com/carverauto/serviceradar.git
+git clone https://github.com/jrmatherly/serviceradar.git
 
 
 ### Build the project 

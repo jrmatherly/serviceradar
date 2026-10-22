@@ -270,8 +270,8 @@ config :serviceradar_web_ng, :first_party_plugin_import,
   # step by //build/contracts:first_party_plugin_cosign_key_consistency_test.
   cosign_public_key: """
   -----BEGIN PUBLIC KEY-----
-  MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEhJcdPbybyipSl8sNHSKStAYiqhP7
-  cp6jIdZ3L4AkL/WI9oFn5xqJSnwTC29cz+JN/bXzWE807+iPS/DOl3C9EQ==
+  MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEtCe52WILxH2SH9tk2tY7pOoO20l8
+  ZBWkNSowsW9Nb4pIy0JWIsovQzqYYIq5QZkPPDgFJY9DWHgGx71aCoz0uQ==
   -----END PUBLIC KEY-----
   """,
   cosign_public_key_file: nil

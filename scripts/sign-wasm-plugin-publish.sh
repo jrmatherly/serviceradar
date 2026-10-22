@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# shellcheck source=scripts/lib/fork-registry.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/fork-registry.sh"
 
 # shellcheck source=scripts/cosign_common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/cosign_common.sh"
@@ -33,9 +35,10 @@ if [[ -z "${ORAS_BIN}" ]]; then
 fi
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=scripts/oci_registry.sh
+source "${REPO_ROOT}/scripts/oci_registry.sh"
 wasm_plugin_publish_init "${REPO_ROOT}"
-REGISTRY_HOST="${OCI_REGISTRY:-registry.carverauto.dev}"
-OCI_PROJECT="${OCI_PROJECT:-serviceradar}"
+REGISTRY_HOST="${OCI_REGISTRY}"
 COMMIT_TAG="sha-$(git -C "${REPO_ROOT}" rev-parse HEAD)"
 export COSIGN_DOCKER_MEDIA_TYPES="${COSIGN_DOCKER_MEDIA_TYPES:-1}"
 COSIGN_REFERRERS_MODE="${COSIGN_REFERRERS_MODE:-oci-1-1}"
@@ -64,14 +67,6 @@ cosign_init_sign_args
 resolve_registry_auth() {
   if [[ -n "${OCI_USERNAME:-}" && -n "${OCI_TOKEN:-}" ]]; then
     printf '%s|%s\n' "${OCI_USERNAME}" "${OCI_TOKEN}"
-    return 0
-  fi
-  if [[ -n "${HARBOR_ROBOT_USERNAME:-}" && -n "${HARBOR_ROBOT_SECRET:-}" ]]; then
-    printf '%s|%s\n' "${HARBOR_ROBOT_USERNAME}" "${HARBOR_ROBOT_SECRET}"
-    return 0
-  fi
-  if [[ -n "${HARBOR_USERNAME:-}" && -n "${HARBOR_PASSWORD:-}" ]]; then
-    printf '%s|%s\n' "${HARBOR_USERNAME}" "${HARBOR_PASSWORD}"
     return 0
   fi
 
@@ -110,12 +105,7 @@ fetch_registry_token() {
   auth="$(resolve_registry_auth)"
   IFS='|' read -r user pass <<<"${auth}"
 
-  local token_url="https://${REGISTRY_HOST}/service/token?service=harbor-registry&scope=repository:${repo_path}:${scope_actions}"
-  if [[ -n "${user}" && -n "${pass}" ]]; then
-    curl -fsSL -u "${user}:${pass}" "${token_url}" | jq -r '.token'
-  else
-    curl -fsSL "${token_url}" | jq -r '.token'
-  fi
+  oci_registry_token "${repo_path}" "${scope_actions}" "${user}" "${pass}"
 }
 
 upload_blob() {
