@@ -1,0 +1,80 @@
+# Builds the BuildBuddy RBE executor image from docker/Dockerfile.rbe and
+# publishes it to GHCR. build/rbe/BUILD names the tag that remote actions run
+# in; bump both together. Tags follow upstream's image version with a
+# -fork.N suffix so the lineage stays readable.
+#
+# Dispatch-only. See docs/fork-ci.md.
+name: RBE executor image
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag to publish, for example v1.0.25.1-fork.1."
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/serviceradar-rbe-executor
+      TAG: ${{ inputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Validate tag
+        run: |
+          set -euo pipefail
+          if [[ ! "${TAG}" =~ ^v[0-9]+(\.[0-9]+){2,3}-fork\.[0-9]+$ ]]; then
+            echo "tag must look like v1.0.25.1-fork.1, got '${TAG}'" >&2
+            exit 1
+          fi
+
+      # The image is large; the hosted runner's preinstalled SDKs are not needed here.
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /usr/local/share/boost
+
+      - name: Set up buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: docker
+          file: docker/Dockerfile.rbe
+          platforms: linux/amd64
+          push: true
+          provenance: false
+          sbom: false
+          tags: ${{ env.IMAGE }}:${{ env.TAG }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.description=ServiceRadar BuildBuddy RBE executor image
+
+      - name: Summarize
+        run: |
+          set -euo pipefail
+          {
+            echo "## RBE executor image"
+            echo
+            echo "- \`${IMAGE}:${TAG}\`"
+            echo "- Point build/rbe/BUILD container-image at this tag and dispatch bazel-remote-smoke."
+          } >> "${GITHUB_STEP_SUMMARY}"
