@@ -155,7 +155,10 @@ ensure_mix_audit() {
     return 0
   fi
 
-  local escripts="${MIX_HOME:-${HOME}/.mix}/escripts"
+  # Ask Mix rather than guess ~/.mix: a version manager such as mise sets MIX_HOME only
+  # for its own shims, so escript.install writes somewhere the shell's env never names.
+  local escripts
+  escripts="$(elixir -e 'IO.write(Mix.Utils.mix_home())')/escripts"
 
   if [[ ! -x "${escripts}/mix_audit" ]]; then
     log "==> installing mix_audit ${MIX_AUDIT_VERSION}"
