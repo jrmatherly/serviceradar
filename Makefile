@@ -176,20 +176,48 @@ test-db-reset: ## Delete the local test database volume and tmp/test-db
 	@$(TEST_DB_COMPOSE) down -v
 	@rm -rf "$(TEST_DB_DIR)"
 
+# Bazel gives every lane a fresh clone of a migrated template; tests that TRUNCATE ... CASCADE
+# or commit rows rely on that. test-db-migrate seals the migrated database as a template and
+# test-db-restore rebuilds sr_core_test_local from it (under a second).
+TEST_DB_PSQL := $(TEST_DB_COMPOSE) exec -T test-db psql -v ON_ERROR_STOP=1 -U postgres -d postgres -qtA -c
+
 .PHONY: test-db-migrate
-test-db-migrate: ## Replay the core migrations into the local test database
+test-db-migrate: ## Replay the core migrations into the local test database and snapshot it as a template
 	@$(TEST_DB_ENV); cd elixir/serviceradar_core && MIX_ENV=test mix serviceradar.db.migrate --no-baseline
+	@$(TEST_DB_PSQL) "DROP DATABASE IF EXISTS sr_core_test_template WITH (FORCE)"
+	@$(TEST_DB_PSQL) "ALTER DATABASE sr_core_test_local ALLOW_CONNECTIONS false"
+	@$(TEST_DB_PSQL) "SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE datname = 'sr_core_test_local'" >/dev/null
+	@$(TEST_DB_PSQL) "CREATE DATABASE sr_core_test_template TEMPLATE sr_core_test_local"
+	@$(TEST_DB_PSQL) "ALTER DATABASE sr_core_test_template ALLOW_CONNECTIONS false"
+	@$(TEST_DB_PSQL) "ALTER DATABASE sr_core_test_local ALLOW_CONNECTIONS true"
+	@echo "snapshot sr_core_test_template taken"
+
+TEST_DB_RESTORE := { $(TEST_DB_PSQL) "SELECT 1 FROM pg_database WHERE datname = 'sr_core_test_template'" | grep -q 1 || \
+	{ echo "No sr_core_test_template; run make test-db-migrate first." >&2; exit 1; }; } && \
+	$(TEST_DB_PSQL) "DROP DATABASE IF EXISTS sr_core_test_local WITH (FORCE)" && \
+	$(TEST_DB_PSQL) "CREATE DATABASE sr_core_test_local TEMPLATE sr_core_test_template OWNER srql"
+
+.PHONY: test-db-restore
+test-db-restore: ## Rebuild the local test database from the template test-db-migrate took
+	@$(TEST_DB_RESTORE)
 
 # With no TEST_ARGS, run only the DB tier (test_helper.exs SERVICERADAR_ONLY_INTEGRATION), one
 # module at a time, since every module shares this one database. With TEST_ARGS, run everything
 # the arguments select, so a focused file's untagged unit tests are not silently excluded.
 TEST_CORE_DB_SELECTION = $(if $(TEST_ARGS),,SERVICERADAR_ONLY_INTEGRATION=1 \
 	SERVICERADAR_INTEGRATION_MAX_CASES=1 SERVICERADAR_TEST_DATABASE_POOL_SIZE=12)
+# The DB tier is the files Bazel's lanes run. An :integration include beats every exclude, so the
+# release gates (which commit 50,000 devices) and the Bazel-only bootstrap test must be left out
+# by file, not by tag.
+TEST_CORE_DB_SOURCES = $(shell awk -F'\t' 'NR>1 && $$4!="load_only"{print $$1}' \
+	elixir/serviceradar_core/test/INTEGRATION_SOURCE_DISPOSITIONS.tsv | sort -u)
 
+# runtime.exs resets alert_evaluation_mode from this variable (default prepared), overriding
+# config/test.exs; Bazel never loads runtime.exs, so its lanes keep :active.
 .PHONY: test-core-db
 test-core-db: ## Run the DB-backed core tests against the local test database (TEST_ARGS=<file>)
-	@$(TEST_DB_ENV); cd elixir/serviceradar_core && MIX_ENV=test $(TEST_CORE_DB_SELECTION) \
-		mix test $(TEST_ARGS)
+	@$(if $(TEST_ARGS),,$(TEST_DB_RESTORE) &&) $(TEST_DB_ENV); cd elixir/serviceradar_core && MIX_ENV=test $(TEST_CORE_DB_SELECTION) \
+		SERVICERADAR_ALERT_EVALUATION_MODE=active mix test $(or $(TEST_ARGS),$(TEST_CORE_DB_SOURCES))
 
 .PHONY: compose-upgrade
 compose-upgrade: ## Pull images and recreate containers without destroying volumes

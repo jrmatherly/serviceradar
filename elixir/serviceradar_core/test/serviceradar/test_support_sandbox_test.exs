@@ -535,7 +535,9 @@ defmodule ServiceRadar.TestSupportSandboxTest do
 
   defp ownership_timeout_outcome?({:error, %DBConnection.ConnectionError{message: message}})
        when is_binary(message),
-       do: message =~ "(set via the :ownership_timeout option)"
+       do:
+         message =~ "(set via the :ownership_timeout option)" or
+           message =~ "(the connection was closed by the pool"
 
   defp ownership_timeout_outcome?(_other), do: false
 

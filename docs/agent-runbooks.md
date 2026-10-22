@@ -98,14 +98,22 @@ make test-core-db TEST_ARGS=test/serviceradar/observability/plugin_result_ingest
 make test-db-down      # stop it; the volume and the migrated schema survive
 ```
 
-- `make test-core-db` with no `TEST_ARGS` runs only the DB tier (`SERVICERADAR_ONLY_INTEGRATION=1`,
-  one module at a time). That run took more than 20 minutes on an arm64 Mac (the image runs
-  under amd64 emulation), so prefer focused files. With `TEST_ARGS` it runs everything the
+- `make test-core-db` with no `TEST_ARGS` runs the DB tier: the files
+  `test/INTEGRATION_SOURCE_DISPOSITIONS.tsv` selects (the set Bazel's lanes run, so the
+  large-ingestion release gates and the Bazel-only bootstrap test stay out), one module at a
+  time, with `SERVICERADAR_ALERT_EVALUATION_MODE=active` because `config/runtime.exs` would
+  otherwise reset `config/test.exs`'s `:active` to `prepared`. It takes about 10 minutes on an
+  arm64 Mac (the image runs under amd64 emulation). With `TEST_ARGS` it runs everything the
   arguments select, unit tests included.
-- It is one long-lived database, not the per-lane clones CI makes. A test that leaks rows
-  breaks the next run, so "A test that commits data must delete it" in `AGENTS.md` applies in
-  full. `make test-db-reset` deletes the volume and `tmp/test-db`; then run `make test-db-up`
-  and `make test-db-migrate` again.
+- CI gives each lane a fresh clone of a migrated template, and some tests depend on that (one
+  `TRUNCATE platform.ng_users CASCADE` empties the migration-seeded plugin repository).
+  `make test-db-migrate` therefore snapshots the migrated database as `sr_core_test_template`,
+  and the full tier first rebuilds `sr_core_test_local` from it (`make test-db-restore`, under a
+  second). A `TEST_ARGS` run reuses the current database; run `make test-db-restore` first if an
+  earlier run may have left rows behind. "A test that commits data must delete it" in
+  `AGENTS.md` still applies, because tests within one run share the database.
+  `make test-db-reset` deletes the volume and `tmp/test-db`; then run `make test-db-up` and
+  `make test-db-migrate` again.
 - The container presents the srql-fixtures TLS name with a throwaway CA it generates on first
   start, which is what `config/test_database_guard.exs` requires (IP host,
   `SERVICERADAR_TEST_DATABASE_SERVER_NAME`, `sslmode=verify-full`, an `sr_core_test_*`
