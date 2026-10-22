@@ -102,16 +102,23 @@ make test-db-down      # stop it; the volume and the migrated schema survive
   `test/INTEGRATION_SOURCE_DISPOSITIONS.tsv` selects (the set Bazel's lanes run, so the
   large-ingestion release gates and the Bazel-only bootstrap test stay out), one module at a
   time, with `SERVICERADAR_ALERT_EVALUATION_MODE=active` because `config/runtime.exs` would
-  otherwise reset `config/test.exs`'s `:active` to `prepared`. It takes about 10 minutes on an
-  arm64 Mac (the image runs under amd64 emulation). With `TEST_ARGS` it runs everything the
-  arguments select, unit tests included.
+  otherwise reset `config/test.exs`'s `:active` to `prepared`. It took 7 to 10 minutes on an
+  arm64 Mac on 2026-10-22 (the image runs under amd64 emulation). With `TEST_ARGS` it runs
+  everything the arguments select, unit tests included.
 - CI gives each lane a fresh clone of a migrated template, and some tests depend on that (one
   `TRUNCATE platform.ng_users CASCADE` empties the migration-seeded plugin repository).
-  `make test-db-migrate` therefore snapshots the migrated database as `sr_core_test_template`,
-  and the full tier first rebuilds `sr_core_test_local` from it (`make test-db-restore`, under a
-  second). A `TEST_ARGS` run reuses the current database; run `make test-db-restore` first if an
+  `make test-db-migrate` therefore snapshots the migrated database as `sr_core_test_template`
+  and stamps it with the newest migration. The full tier runs in two passes, the async files
+  and then the serial files, rebuilding `sr_core_test_local` from the template before each
+  (`make test-db-restore`, under a second on 2026-10-22). CI's seven serial lanes share one
+  database here. The restore refuses a template older than the newest migration on disk; run
+  `make test-db-migrate` after pulling new migrations. `make test-db-migrate` itself starts from
+  the existing template, so rows a test run left behind never reach a new snapshot. Under
+  emulation the application occasionally fails to start (its pool times out while connecting;
+  `mix` exits 1); the full tier retries such a pass once and says so.
+- A `TEST_ARGS` run reuses the current database; run `make test-db-restore` first if an
   earlier run may have left rows behind. "A test that commits data must delete it" in
-  `AGENTS.md` still applies, because tests within one run share the database.
+  `AGENTS.md` still applies, because the tests within one pass share the database.
   `make test-db-reset` deletes the volume and `tmp/test-db`; then run `make test-db-up` and
   `make test-db-migrate` again.
 - The container presents the srql-fixtures TLS name with a throwaway CA it generates on first

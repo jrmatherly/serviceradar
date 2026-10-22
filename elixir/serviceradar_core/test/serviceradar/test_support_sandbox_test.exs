@@ -404,9 +404,10 @@ defmodule ServiceRadar.TestSupportSandboxTest do
     with_short_ownership_repo(fn ->
       TestSupport.checkout_repo!(%{sandbox: :unboxed})
 
-      result = Repo.query("SELECT pg_sleep($1::float8)", [@outlasting_query_s])
+      {elapsed_us, result} =
+        :timer.tc(fn -> Repo.query("SELECT pg_sleep($1::float8)", [@outlasting_query_s]) end)
 
-      assert ownership_timeout_outcome?(result),
+      assert ownership_timeout_outcome?(result, div(elapsed_us, 1000)),
              "expected the pool ownership timer to interrupt the outlasting query, got: " <>
                inspect(result)
     end)
@@ -522,24 +523,32 @@ defmodule ServiceRadar.TestSupportSandboxTest do
   end
 
   # The ownership timer counts from checkout and disconnects whatever query is in
-  # flight when it fires. Mid-query that surfaces as one of two documented outcomes,
-  # depending on which side of the teardown wins the race: Postgres cancels the
-  # in-flight statement (57014/query_canceled), or the ownership proxy tears the
-  # connection down first and the caller sees its disconnect reason. That reason is
-  # emitted only by the ownership-timer handler (DBConnection.Ownership.Proxy), so
-  # requiring its exact ":ownership_timeout option" marker both proves the timer fired
-  # and rejects unrelated connection failures. Anything else -- notably :ok -- means the
-  # pool default did not govern this checkout and must stay red.
-  defp ownership_timeout_outcome?({:error, %Postgrex.Error{postgres: %{code: :query_canceled}}}),
-    do: true
+  # flight when it fires. Mid-query that surfaces as one of three outcomes, depending on
+  # which side of the teardown wins the race: Postgres cancels the in-flight statement
+  # (57014/query_canceled); the ownership proxy tears the connection down first and the
+  # caller sees its ":ownership_timeout option" reason; or the proxy has already deleted
+  # the holder, so the caller sees the socket close with DBConnection.Holder's "closed by
+  # the pool" suffix. That suffix is not specific to the timer (a pool shutdown adds it
+  # too), so it counts only when the query ended between the timer and the sleep's end.
+  # Anything else -- notably :ok -- means the pool default did not govern this checkout
+  # and must stay red.
+  defp ownership_timeout_outcome?(
+         {:error, %Postgrex.Error{postgres: %{code: :query_canceled}}},
+         _elapsed_ms
+       ), do: true
 
-  defp ownership_timeout_outcome?({:error, %DBConnection.ConnectionError{message: message}})
-       when is_binary(message),
-       do:
-         message =~ "(set via the :ownership_timeout option)" or
-           message =~ "(the connection was closed by the pool"
+  defp ownership_timeout_outcome?(
+         {:error, %DBConnection.ConnectionError{message: message}},
+         elapsed_ms
+       )
+       when is_binary(message) do
+    message =~ "(set via the :ownership_timeout option)" or
+      (message =~ "(the connection was closed by the pool" and
+         elapsed_ms >= @short_ownership_timeout_ms and
+         elapsed_ms < trunc(@outlasting_query_s * 1000))
+  end
 
-  defp ownership_timeout_outcome?(_other), do: false
+  defp ownership_timeout_outcome?(_other, _elapsed_ms), do: false
 
   defp with_short_ownership_repo(fun) do
     {:ok, repo} =
