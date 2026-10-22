@@ -17,8 +17,8 @@ fi
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 wasm_plugin_publish_init "${REPO_ROOT}"
-REGISTRY_HOST="${OCI_REGISTRY:-registry.carverauto.dev}"
-OCI_PROJECT="${OCI_PROJECT:-serviceradar}"
+REGISTRY_HOST="${OCI_REGISTRY:-ghcr.io}"
+OCI_PROJECT="${OCI_PROJECT:-jrmatherly}"
 OUTPUT="${OUTPUT:-${REPO_ROOT}/serviceradar-wasm-plugin-index.json}"
 GENERATED_AT="${GENERATED_AT:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
 

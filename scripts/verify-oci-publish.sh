@@ -10,8 +10,8 @@ trap cosign_cleanup_temp_files EXIT
 # image_inventory.bzl is not resolved as $RUNNER_TEMP/../docker/images/...
 REPO_ROOT="${SERVICERADAR_REPO_ROOT:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 INVENTORY="${SERVICERADAR_IMAGE_INVENTORY:-${REPO_ROOT}/docker/images/image_inventory.bzl}"
-REGISTRY_HOST="${OCI_REGISTRY:-registry.carverauto.dev}"
-OCI_PROJECT="${OCI_PROJECT:-serviceradar}"
+REGISTRY_HOST="${OCI_REGISTRY:-ghcr.io}"
+OCI_PROJECT="${OCI_PROJECT:-jrmatherly}"
 OCI_REPOSITORY_BASE="${REGISTRY_HOST}/${OCI_PROJECT}"
 
 if ! command -v python3 >/dev/null 2>&1; then
@@ -97,14 +97,6 @@ fail() {
 resolve_registry_auth() {
   if [[ -n "${OCI_USERNAME:-}" && -n "${OCI_TOKEN:-}" ]]; then
     printf '%s|%s\n' "${OCI_USERNAME}" "${OCI_TOKEN}"
-    return 0
-  fi
-  if [[ -n "${HARBOR_ROBOT_USERNAME:-}" && -n "${HARBOR_ROBOT_SECRET:-}" ]]; then
-    printf '%s|%s\n' "${HARBOR_ROBOT_USERNAME}" "${HARBOR_ROBOT_SECRET}"
-    return 0
-  fi
-  if [[ -n "${HARBOR_USERNAME:-}" && -n "${HARBOR_PASSWORD:-}" ]]; then
-    printf '%s|%s\n' "${HARBOR_USERNAME}" "${HARBOR_PASSWORD}"
     return 0
   fi
   printf '|\n'
@@ -231,20 +223,24 @@ check_signature_accessory() {
   auth="$(resolve_registry_auth)"
   IFS='|' read -r user pass <<<"${auth}"
 
-  local token_url="https://${REGISTRY_HOST}/service/token?service=harbor-registry&scope=repository:${repo_path}:pull"
-  if [[ -n "${user}" && -n "${pass}" ]]; then
-    token="$(curl -fsSL -u "${user}:${pass}" "${token_url}" | jq -r '.token')"
-  else
-    token="$(curl -fsSL "${token_url}" | jq -r '.token')"
-  fi
-  [[ -n "${token}" && "${token}" != "null" ]] || fail "${ref}:${tag} registry token lookup failed"
+  token="$(oci_registry_token "${repo_path}" pull "${user}" "${pass}")" \
+    || fail "${ref}:${tag} registry token lookup failed"
 
-  local referrers
+  # Registries without the OCI 1.1 referrers API (GHCR returns 404) keep the
+  # cosign signature on a tag instead; verify that path and stop here.
+  local referrers http_code
   referrers="$(
-    curl -fsSL \
+    curl -sSL -w '\n%{http_code}' \
       -H "Authorization: Bearer ${token}" \
       "https://${REGISTRY_HOST}/v2/${repo_path}/referrers/${digest}"
   )"
+  http_code="${referrers##*$'\n'}"
+  referrers="${referrers%$'\n'*}"
+  if [[ "${http_code}" == "404" ]]; then
+    check_legacy_signature_tag "${tag}" "${ref}"
+    return 0
+  fi
+  [[ "${http_code}" == "200" ]] || fail "${ref}:${tag} referrers lookup returned HTTP ${http_code}"
 
   if jq -e '
     (.manifests // []) as $m
@@ -260,7 +256,7 @@ check_signature_accessory() {
 
   local referrer_digests=()
   mapfile -t referrer_digests < <(jq -r '.manifests[]?.digest // empty' <<<"${referrers}")
-  [[ ${#referrer_digests[@]} -gt 0 ]] || fail "${ref}:${tag} is missing a Harbor-visible Cosign signature accessory"
+  [[ ${#referrer_digests[@]} -gt 0 ]] || fail "${ref}:${tag} is missing a registry-visible Cosign signature accessory"
 
   local referrer_manifest
   local referrer_digest
@@ -283,7 +279,7 @@ check_signature_accessory() {
     fi
   done
 
-  fail "${ref}:${tag} is missing a Harbor-visible Cosign signature accessory"
+  fail "${ref}:${tag} is missing a registry-visible Cosign signature accessory"
 }
 
 check_legacy_signature_tag() {
@@ -304,13 +300,8 @@ check_legacy_signature_tag() {
   auth="$(resolve_registry_auth)"
   IFS='|' read -r user pass <<<"${auth}"
 
-  local token_url="https://${REGISTRY_HOST}/service/token?service=harbor-registry&scope=repository:${signature_repo_path}:pull"
-  if [[ -n "${user}" && -n "${pass}" ]]; then
-    token="$(curl -fsSL -u "${user}:${pass}" "${token_url}" | jq -r '.token')"
-  else
-    token="$(curl -fsSL "${token_url}" | jq -r '.token')"
-  fi
-  [[ -n "${token}" && "${token}" != "null" ]] || fail "${ref}:${tag} legacy signature token lookup failed"
+  token="$(oci_registry_token "${signature_repo_path}" pull "${user}" "${pass}")" \
+    || fail "${ref}:${tag} legacy signature token lookup failed"
 
   curl -fsSI \
     -H "Authorization: Bearer ${token}" \

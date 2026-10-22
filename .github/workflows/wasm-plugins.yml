@@ -15,6 +15,7 @@ concurrency:
 permissions:
   contents: write
   id-token: write
+  packages: write
 
 jobs:
   publish:
@@ -22,10 +23,13 @@ jobs:
     environment: release
     env:
       BUILDBUDDY_ORG_API_KEY: ${{ secrets.BUILDBUDDY_ORG_API_KEY || secrets.BUILDBUDDY_API_KEY }}
-      OCI_REGISTRY: registry.carverauto.dev
-      OCI_PROJECT: serviceradar
-      OCI_USERNAME: ${{ secrets.HARBOR_ROBOT_USERNAME }}
-      OCI_TOKEN: ${{ secrets.HARBOR_ROBOT_SECRET }}
+      OCI_REGISTRY: ${{ vars.OCI_REGISTRY || 'ghcr.io' }}
+      OCI_PROJECT: ${{ vars.OCI_PROJECT || github.repository_owner }}
+      # GITHUB_TOKEN pushes to GHCR; set both OCI_USERNAME/OCI_TOKEN secrets for another registry.
+      OCI_USERNAME: ${{ secrets.OCI_USERNAME || github.actor }}
+      OCI_TOKEN: ${{ secrets.OCI_TOKEN || secrets.GITHUB_TOKEN }}
+      OCI_USERNAME_SET: ${{ secrets.OCI_USERNAME != '' }}
+      OCI_TOKEN_SET: ${{ secrets.OCI_TOKEN != '' }}
       BAZELISK_HOME: ${{ github.workspace }}/.cache/bazelisk
       GH_TOKEN: ${{ github.token }}
       GITHUB_TOKEN: ${{ github.token }}
@@ -142,11 +146,11 @@ jobs:
       - name: Verify committed dependency lockfile
         run: bazel mod deps --lockfile_mode=error
 
-      - name: Login to Harbor
+      - name: Log in to the OCI registry
         run: |
           set -euo pipefail
-          if [[ -z "${OCI_USERNAME:-}" || -z "${OCI_TOKEN:-}" ]]; then
-            echo "Missing Harbor robot credentials. Set HARBOR_ROBOT_USERNAME and HARBOR_ROBOT_SECRET." >&2
+          if [[ "${OCI_USERNAME_SET}" != "${OCI_TOKEN_SET}" ]]; then
+            echo "Set both OCI_USERNAME and OCI_TOKEN secrets or neither (GITHUB_TOKEN is used when neither is set)." >&2
             exit 1
           fi
 

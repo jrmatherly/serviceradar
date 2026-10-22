@@ -10,7 +10,7 @@ version="$1"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 "${script_dir}/validate-release-tag.sh" "v${version}"
 
-oci_registry="${OCI_REGISTRY:-registry.carverauto.dev}"
+oci_registry="${OCI_REGISTRY:-ghcr.io}"
 oci_chart_repository="${OCI_CHART_REPOSITORY:-serviceradar/charts}"
 oci_chart_name="${OCI_CHART_NAME:-serviceradar}"
 helm_runner="${SERVICERADAR_HELM_RUNNER:-}"

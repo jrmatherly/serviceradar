@@ -43,16 +43,20 @@ if ! command -v oras >/dev/null 2>&1; then
   exit 2
 fi
 
+# Inventory entries are image names; prefix them with the registry and project
+# the workflows export (the same values workspace status stamps into oci_push).
+repository_base="${OCI_REGISTRY:-ghcr.io}/${OCI_PROJECT:-jrmatherly}"
 mapfile -t repositories < <(
-  python3 - "$INVENTORY" <<'PY'
+  python3 - "$INVENTORY" "$repository_base" <<'PY'
 import re
 import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
+base = sys.argv[2]
 text = path.read_text()
 for repo in re.findall(r'"repository"\s*:\s*"([^"]+)"', text):
-    print(repo)
+    print(f"{base}/{repo.rsplit('/', 1)[-1]}")
 PY
 )
 

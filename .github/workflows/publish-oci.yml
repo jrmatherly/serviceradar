@@ -34,6 +34,7 @@ concurrency:
 permissions:
   contents: write
   id-token: write
+  packages: write
 
 jobs:
   publish:
@@ -41,18 +42,16 @@ jobs:
     environment: release
     env:
       BUILDBUDDY_ORG_API_KEY: ${{ secrets.BUILDBUDDY_ORG_API_KEY || secrets.BUILDBUDDY_API_KEY }}
-      OCI_REGISTRY: registry.carverauto.dev
-      OCI_PROJECT: serviceradar
-      OCI_USERNAME: ${{ secrets.HARBOR_ROBOT_USERNAME }}
-      OCI_TOKEN: ${{ secrets.HARBOR_ROBOT_SECRET }}
-      # Pull-side credential, distinct from the Harbor push target above. The base images were
-      # mirrored into Harbor: 11 of the oci pulls in //MODULE.bazel now resolve to
-      # registry.carverauto.dev and exactly one does not -- docker.io/pgduckdb/pgduckdb. There
-      # are ZERO ghcr.io pulls left, so GHCR_USERNAME/GHCR_TOKEN were removed; they
-      # authenticated a registry nothing fetches from.
-      #
-      # Anonymous Docker Hub pulls are rate limited, and a throttled fetch fails during Bazel's
-      # loading phase as "no such package" rather than anything resembling a 429.
+      OCI_REGISTRY: ${{ vars.OCI_REGISTRY || 'ghcr.io' }}
+      OCI_PROJECT: ${{ vars.OCI_PROJECT || github.repository_owner }}
+      # GITHUB_TOKEN pushes to GHCR; set both OCI_USERNAME/OCI_TOKEN secrets for another registry.
+      OCI_USERNAME: ${{ secrets.OCI_USERNAME || github.actor }}
+      OCI_TOKEN: ${{ secrets.OCI_TOKEN || secrets.GITHUB_TOKEN }}
+      OCI_USERNAME_SET: ${{ secrets.OCI_USERNAME != '' }}
+      OCI_TOKEN_SET: ${{ secrets.OCI_TOKEN != '' }}
+      # Pull-side credential, distinct from the push target in OCI_REGISTRY: the one
+      # base image Bazel still fetches from Docker Hub (docker.io/pgduckdb/pgduckdb).
+      # Anonymous pulls are capped at 100 per 6 h per IP.
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
       COSIGN_KEYLESS: ${{ secrets.COSIGN_KEYLESS }}
@@ -194,8 +193,8 @@ jobs:
             echo "${token}" | oras login "${OCI_REGISTRY}" -u "${user}" --password-stdin
           }
 
-          if [[ -z "${OCI_USERNAME:-}" || -z "${OCI_TOKEN:-}" ]]; then
-            echo "Missing Harbor robot credentials. Set HARBOR_ROBOT_USERNAME and HARBOR_ROBOT_SECRET." >&2
+          if [[ "${OCI_USERNAME_SET}" != "${OCI_TOKEN_SET}" ]]; then
+            echo "Set both OCI_USERNAME and OCI_TOKEN secrets or neither (GITHUB_TOKEN is used when neither is set)." >&2
             exit 1
           fi
 

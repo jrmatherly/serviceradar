@@ -23,8 +23,8 @@ fi
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 wasm_plugin_publish_init "${REPO_ROOT}"
-REGISTRY_HOST="${OCI_REGISTRY:-registry.carverauto.dev}"
-OCI_PROJECT="${OCI_PROJECT:-serviceradar}"
+REGISTRY_HOST="${OCI_REGISTRY:-ghcr.io}"
+OCI_PROJECT="${OCI_PROJECT:-jrmatherly}"
 TMP_DIR="$(mktemp -d)"
 
 cleanup_verify_wasm() {

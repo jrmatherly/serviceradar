@@ -57,6 +57,7 @@ concurrency:
 permissions:
   contents: write
   id-token: write
+  packages: write
   statuses: read
 
 jobs:
@@ -347,20 +348,17 @@ jobs:
       BUILDBUDDY_ORG_API_KEY: ${{ secrets.BUILDBUDDY_ORG_API_KEY || secrets.BUILDBUDDY_API_KEY }}
       GH_TOKEN: ${{ github.token }}
       GITHUB_TOKEN: ${{ github.token }}
-      OCI_REGISTRY: registry.carverauto.dev
-      OCI_PROJECT: serviceradar
-      OCI_CHART_REPOSITORY: serviceradar/charts
-      OCI_USERNAME: ${{ secrets.HARBOR_ROBOT_USERNAME }}
-      OCI_TOKEN: ${{ secrets.HARBOR_ROBOT_SECRET }}
-      # Harbor above is where this job PUSHES. The pair below is where Bazel still PULLS from
-      # upstream, and it is now down to a SINGLE image.
-      #
-      # The base images were mirrored into Harbor: of the oci pulls in //MODULE.bazel, 11 now
-      # resolve to registry.carverauto.dev and exactly one does not --
-      #   image = "docker.io/pgduckdb/pgduckdb"   (@pgduckdb_18, base of the analytics head)
-      # DOCKERHUB_* stays for that one pull. Anonymous fetches hit Docker Hub's
-      # 100-per-6h-per-IP limit, and a throttled fetch surfaces as a Bazel "no such package"
-      # loading error rather than anything resembling a rate limit.
+      OCI_REGISTRY: ${{ vars.OCI_REGISTRY || 'ghcr.io' }}
+      OCI_PROJECT: ${{ vars.OCI_PROJECT || github.repository_owner }}
+      OCI_CHART_REPOSITORY: ${{ vars.OCI_CHART_REPOSITORY || format('{0}/charts', github.repository_owner) }}
+      # GITHUB_TOKEN pushes to GHCR; set both OCI_USERNAME/OCI_TOKEN secrets for another registry.
+      OCI_USERNAME: ${{ secrets.OCI_USERNAME || github.actor }}
+      OCI_TOKEN: ${{ secrets.OCI_TOKEN || secrets.GITHUB_TOKEN }}
+      OCI_USERNAME_SET: ${{ secrets.OCI_USERNAME != '' }}
+      OCI_TOKEN_SET: ${{ secrets.OCI_TOKEN != '' }}
+      # OCI_REGISTRY above is where this job PUSHES. DOCKERHUB_* below is a PULL-side
+      # credential for the one base image Bazel still fetches from Docker Hub
+      # (docker.io/pgduckdb/pgduckdb); anonymous pulls are capped at 100 per 6 h per IP.
       # buildbuddy_setup_docker_auth.sh writes an entry per registry.
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -666,8 +664,8 @@ jobs:
             echo "${token}" | oras login "${OCI_REGISTRY}" -u "${user}" --password-stdin
           }
 
-          if [[ -z "${OCI_USERNAME:-}" || -z "${OCI_TOKEN:-}" ]]; then
-            echo "Missing Harbor robot credentials. Set HARBOR_ROBOT_USERNAME and HARBOR_ROBOT_SECRET." >&2
+          if [[ "${OCI_USERNAME_SET}" != "${OCI_TOKEN_SET}" ]]; then
+            echo "Set both OCI_USERNAME and OCI_TOKEN secrets or neither (GITHUB_TOKEN is used when neither is set)." >&2
             exit 1
           fi
 
@@ -825,8 +823,9 @@ jobs:
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
           RELEASE_COMMIT: ${{ steps.release.outputs.commit }}
           VERSION: ${{ steps.release.outputs.version }}
-          CHART_OCI_USERNAME: ${{ secrets.HARBOR_CHART_ROBOT_USERNAME }}
-          CHART_OCI_TOKEN: ${{ secrets.HARBOR_CHART_ROBOT_SECRET }}
+          # A dedicated chart publisher may be configured; otherwise the image publisher's credentials apply.
+          CHART_OCI_USERNAME: ${{ secrets.CHART_OCI_USERNAME || secrets.OCI_USERNAME || github.actor }}
+          CHART_OCI_TOKEN: ${{ secrets.CHART_OCI_TOKEN || secrets.OCI_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           export HELM_STATE_DIR="${PWD}/.helm-home"
@@ -849,7 +848,7 @@ jobs:
           }
 
           if [[ -z "${CHART_OCI_USERNAME:-}" || -z "${CHART_OCI_TOKEN:-}" ]]; then
-            echo "Missing protected chart publisher credentials. Configure HARBOR_CHART_ROBOT_USERNAME and HARBOR_CHART_ROBOT_SECRET in the release environment." >&2
+            echo "Missing chart publisher credentials. Set CHART_OCI_USERNAME/CHART_OCI_TOKEN (or OCI_USERNAME/OCI_TOKEN) in the release environment, or grant packages: write." >&2
             exit 1
           fi
 
