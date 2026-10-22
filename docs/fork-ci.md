@@ -108,6 +108,10 @@ set on the `release` environment does not open a gate.
 4. Set `PUBLISH_ENABLED=true` when a release should actually publish.
 5. Optional: enable Pages, Apple Developer Program.
 
+`staging` is guarded by repository ruleset 25662015: no deletion or force-push, changes
+only through a pull request merged with a merge commit, and the `BazelCI`, `lint` and
+`gitleaks` checks green. Auto-merge is on, so `gh pr merge <n> --merge --auto` waits for them.
+
 ## Workflows
 
 | File | Trigger | Purpose | State |

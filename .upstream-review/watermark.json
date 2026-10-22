@@ -4,9 +4,9 @@
   "upstreamBranch": "staging",
   "forkPointSha": "5993ec10432ccbddaeffb5fe3416ba7d261bede7",
   "forkPointDate": "2026-10-21",
-  "lastReviewedSha": "a43aea84d83939318f0d4054d12882e2a059f5ed",
-  "lastReviewedShaShort": "a43aea84d8",
+  "lastReviewedSha": "ca00e40a7416cd6e120bd766be1fd1fbad47088b",
+  "lastReviewedShaShort": "ca00e40a74",
   "lastReviewedDate": "2026-10-22",
-  "lastAdvancedAt": "2026-10-22T15:16:58Z",
+  "lastAdvancedAt": "2026-10-22T20:45:34Z",
   "note": "forkPointSha = the carverauto/staging commit this fork was cut from (fixed). lastReviewedSha = the last upstream commit reviewed; advance it only with .claude/skills/upstream-review/scripts/upstream-review.sh --advance <tip-sha>."
 }
