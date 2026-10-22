@@ -33,6 +33,10 @@ jobs:
       BAZELISK_HOME: ${{ github.workspace }}/.cache/bazelisk
       GH_TOKEN: ${{ github.token }}
       GITHUB_TOKEN: ${{ github.token }}
+      # Wasm upload signatures: a fork-owned Ed25519 key unless OpenBao signing is enabled.
+      PLUGIN_UPLOAD_SIGNING_PRIVATE_KEY: ${{ secrets.PLUGIN_UPLOAD_SIGNING_PRIVATE_KEY }}
+      PLUGIN_UPLOAD_SIGNING_KEY_ID: ${{ secrets.PLUGIN_UPLOAD_SIGNING_KEY_ID }}
+      PLUGIN_UPLOAD_SIGNING_SIGNER: ${{ secrets.PLUGIN_UPLOAD_SIGNING_SIGNER }}
       # github.com/carverauto/* modules (serviceradar-sdk-go and friends) are
       # not served via the public Go proxy or checksum database, so every Go
       # module resolution in this job fetches them directly from GitHub. Keep
@@ -169,10 +173,12 @@ jobs:
       - name: Publish Wasm plugin OCI artifacts
         env:
           EXTRA_TAG: ${{ github.ref_name }}
-          OPENBAO_ADDR: https://openbao-active.openbao-system.svc.cluster.local:8200
-          OPENBAO_K8S_ROLE: github-signing-runner
+          # OpenBao Transit signing is upstream's path; off unless OPENBAO_SIGNING_ENABLED is 'true'.
+          # Otherwise cosign signs with the fork's own key from the COSIGN_PRIVATE_KEY secret.
+          OPENBAO_SIGNING_ENABLED: ${{ vars.OPENBAO_SIGNING_ENABLED == 'true' }}
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
           OPENBAO_SIGNING_ALLOWED_REFS_REGEX: '^refs/tags/v.*$'
-          COSIGN_KEY_REF: hashivault://cosign-release
           COSIGN_YES: "true"
           COSIGN_DOCKER_MEDIA_TYPES: "1"
         run: |
@@ -193,7 +199,7 @@ jobs:
           # right before each phase that uses Transit (upload signatures,
           # cosign signing, cosign verification), so no phase inherits a token
           # an earlier phase has already aged.
-          source ./scripts/ci/prepare-openbao-cosign-env.sh
+          if [[ "${OPENBAO_SIGNING_ENABLED}" == "true" ]]; then source ./scripts/ci/prepare-openbao-cosign-env.sh; fi
           if [[ -z "${PLUGIN_UPLOAD_SIGNING_TRANSIT_KEY:-}" && -z "${PLUGIN_UPLOAD_SIGNING_PRIVATE_KEY:-}" ]]; then
             echo "Missing Wasm upload signing: set PLUGIN_UPLOAD_SIGNING_TRANSIT_KEY or PLUGIN_UPLOAD_SIGNING_PRIVATE_KEY." >&2
             exit 1
@@ -204,9 +210,9 @@ jobs:
           fi
 
           ./scripts/push_all_wasm_plugins.sh "${push_args[@]}"
-          source ./scripts/ci/prepare-openbao-cosign-env.sh
+          if [[ "${OPENBAO_SIGNING_ENABLED}" == "true" ]]; then source ./scripts/ci/prepare-openbao-cosign-env.sh; fi
           ./scripts/sign-wasm-plugin-publish.sh "${verify_tags[@]}"
-          source ./scripts/ci/prepare-openbao-cosign-env.sh
+          if [[ "${OPENBAO_SIGNING_ENABLED}" == "true" ]]; then source ./scripts/ci/prepare-openbao-cosign-env.sh; fi
           ./scripts/verify-wasm-plugin-publish.sh "${verify_tags[@]}"
           unset VAULT_TOKEN VAULT_ADDR COSIGN_KEY_REF PLUGIN_UPLOAD_SIGNING_TRANSIT_KEY
 

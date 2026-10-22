@@ -729,10 +729,12 @@ jobs:
         env:
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
           RELEASE_COMMIT: ${{ steps.release.outputs.commit }}
-          OPENBAO_ADDR: https://openbao-active.openbao-system.svc.cluster.local:8200
-          OPENBAO_K8S_ROLE: github-signing-runner
+          # OpenBao Transit signing is upstream's path; off unless OPENBAO_SIGNING_ENABLED is 'true'.
+          # Otherwise cosign signs with the fork's own key from the COSIGN_PRIVATE_KEY secret.
+          OPENBAO_SIGNING_ENABLED: ${{ vars.OPENBAO_SIGNING_ENABLED == 'true' }}
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
           OPENBAO_SIGNING_ALLOWED_REFS_REGEX: '^refs/(tags/v.*|heads/(staging|main|master))$'
-          COSIGN_KEY_REF: hashivault://cosign-release
         run: |
           set -euo pipefail
           release_sha_tag="sha-${RELEASE_COMMIT}"
@@ -798,7 +800,7 @@ jobs:
           if [[ -n "${RELEASE_TAG}" ]]; then
             verify_tags+=("${RELEASE_TAG}")
           fi
-          source ./scripts/ci/prepare-openbao-cosign-env.sh
+          if [[ "${OPENBAO_SIGNING_ENABLED}" == "true" ]]; then source ./scripts/ci/prepare-openbao-cosign-env.sh; fi
           sign_script="./scripts/sign-oci-publish.sh"
           if [[ -x "${RUNNER_TEMP}/sign-oci-publish.sh" ]]; then
             sign_script="${RUNNER_TEMP}/sign-oci-publish.sh"

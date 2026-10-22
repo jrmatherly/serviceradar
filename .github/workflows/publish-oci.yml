@@ -251,10 +251,12 @@ jobs:
         if: ${{ github.event.inputs.publish_scope == 'full' }}
         env:
           EXTRA_TAG: ${{ steps.release.outputs.tag }}
-          OPENBAO_ADDR: https://openbao-active.openbao-system.svc.cluster.local:8200
-          OPENBAO_K8S_ROLE: github-signing-runner
+          # OpenBao Transit signing is upstream's path; off unless OPENBAO_SIGNING_ENABLED is 'true'.
+          # Otherwise cosign signs with the fork's own key from the COSIGN_PRIVATE_KEY secret.
+          OPENBAO_SIGNING_ENABLED: ${{ vars.OPENBAO_SIGNING_ENABLED == 'true' }}
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
           OPENBAO_SIGNING_ALLOWED_REFS_REGEX: '^refs/heads/staging$'
-          COSIGN_KEY_REF: hashivault://cosign-release
         run: |
           set -euo pipefail
           cmd=(bazel run -c opt --config=remote --stamp //:push)
@@ -267,7 +269,7 @@ jobs:
           if [[ -n "${EXTRA_TAG}" ]]; then
             verify_tags+=("${EXTRA_TAG}")
           fi
-          source ./scripts/ci/prepare-openbao-cosign-env.sh
+          if [[ "${OPENBAO_SIGNING_ENABLED}" == "true" ]]; then source ./scripts/ci/prepare-openbao-cosign-env.sh; fi
           # Sign what the registry holds under this commit's tag, as release.yml does.
           # Without the tag the signer reads image digests out of `bazel info bazel-bin`,
           # and that path encodes the build configuration: asked without `-c opt

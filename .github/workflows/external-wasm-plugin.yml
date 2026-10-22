@@ -328,10 +328,12 @@ jobs:
           SOURCE_COMMIT: ${{ needs.build.outputs.source_commit }}
           SOURCE_COMMITTED_AT: ${{ needs.build.outputs.source_committed_at }}
           UPLOAD_SIGNATURE_TOOL: ${{ steps.signature_tool.outputs.path }}
-          OPENBAO_ADDR: https://openbao-active.openbao-system.svc.cluster.local:8200
-          OPENBAO_K8S_ROLE: github-signing-runner
+          # OpenBao Transit signing is upstream's path; off unless OPENBAO_SIGNING_ENABLED is 'true'.
+          # Otherwise cosign signs with the fork's own key from the COSIGN_PRIVATE_KEY secret.
+          OPENBAO_SIGNING_ENABLED: ${{ vars.OPENBAO_SIGNING_ENABLED == 'true' }}
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
           OPENBAO_SIGNING_ALLOWED_REFS_REGEX: '^refs/heads/(staging|main)$'
-          COSIGN_KEY_REF: hashivault://cosign-release
         run: |
           set -euo pipefail
           metadata_files=(external-plugin-dist/*.metadata.json)
@@ -346,7 +348,7 @@ jobs:
             --commit-sha "${SOURCE_COMMIT}" \
             --tag "${PLUGIN_TAG}"
 
-          source ./scripts/ci/prepare-openbao-cosign-env.sh
+          if [[ "${OPENBAO_SIGNING_ENABLED}" == "true" ]]; then source ./scripts/ci/prepare-openbao-cosign-env.sh; fi
           export WASM_PLUGIN_METADATA_DIR="${GITHUB_WORKSPACE}/external-plugin-dist"
           export WASM_PLUGIN_UPLOAD_SIGNATURE_TOOL="${UPLOAD_SIGNATURE_TOOL}"
           tags=("sha-${SOURCE_COMMIT}" "${PLUGIN_TAG}")
