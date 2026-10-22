@@ -190,10 +190,7 @@ defmodule ServiceRadarWebNG.Application do
       children ++
         [
           ServiceRadarWebNG.Plugins.FirstPartySyncScheduler,
-          Supervisor.child_spec(
-            {Task, fn -> ServiceRadarWebNG.Plugins.FirstPartySyncWorker.enqueue_if_version_changed() end},
-            id: :first_party_plugin_version_sync
-          )
+          ServiceRadarWebNG.Plugins.FirstPartyVersionSync
         ]
     else
       children
