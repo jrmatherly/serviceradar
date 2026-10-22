@@ -2,7 +2,8 @@ actions:
   # Explicit API dispatch only, after verifying the reaper namespace protection.
   # No push/PR/scheduled trigger: this mutates isolated fixture generations.
   - name: "SchemaTemplateQualification"
-    triggers: {}
+    # Disabled on the fork: needs self-hosted executors and in-cluster fixtures (see docs/fork-ci.md).
+    # Dispatch manually from the BuildBuddy UI if that infrastructure exists.
     env:
       OCI_REGISTRY: "registry.carverauto.dev"
       OCI_AUTH_REQUIRED: "1"
@@ -79,7 +80,8 @@ actions:
   # SRQL_PARITY_STARROCKS_PASSWORD. `--strategy=TestRunner=local` keeps both credentials on
   # this runner: a remote action ships its environment to the executor.
   - name: "SrqlParity"
-    triggers: {}
+    # Disabled on the fork: needs self-hosted executors and in-cluster fixtures (see docs/fork-ci.md).
+    # Dispatch manually from the BuildBuddy UI if that infrastructure exists.
     env:
       SRQL_FIXTURE_CA_URL: "https://srql-fixture-ca.carverauto.dev/ca.crt"
     self_hosted: true
@@ -161,7 +163,8 @@ actions:
   # "GodViewAcceptance") when changing God View rendering; screenshots and traces land in
   # TEST_UNDECLARED_OUTPUTS_DIR.
   - name: "GodViewAcceptance"
-    triggers: {}
+    # Disabled on the fork: needs self-hosted executors and in-cluster fixtures (see docs/fork-ci.md).
+    # Dispatch manually from the BuildBuddy UI if that infrastructure exists.
     env:
       OCI_REGISTRY: "registry.carverauto.dev"
       OCI_AUTH_REQUIRED: "1"
@@ -202,7 +205,8 @@ actions:
   # keeps the fixture secrets on this runner: a remote action ships its environment
   # to the executor.
   - name: "WebNgDbDiagnostic"
-    triggers: {}
+    # Disabled on the fork: needs self-hosted executors and in-cluster fixtures (see docs/fork-ci.md).
+    # Dispatch manually from the BuildBuddy UI if that infrastructure exists.
     env:
       OCI_REGISTRY: "registry.carverauto.dev"
       OCI_AUTH_REQUIRED: "1"
@@ -559,40 +563,20 @@ actions:
   # (build/ci/select_integration_actions.py); a build-graph, dependency or fixture change runs both.
   - name: "BazelCI"
     env:
-      OCI_REGISTRY: "registry.carverauto.dev"
-      OCI_AUTH_REQUIRED: "1"
-
-      # Cert server. in cluster.
-      SRQL_FIXTURE_CA_URL: "https://srql-fixture-ca.carverauto.dev/ca.crt"
+      OCI_REGISTRY: "ghcr.io"
 
       GIT_BASE_BRANCH: "staging"
 
-    # Redirects work to pods in the self hosted cluster.
-    self_hosted: true
-
-    # The pull-request fleet: four executors (32Gi/8 CPU requests each, one runner apiece), Helm
-    # release `buildbuddy-workflows-pr`. BazelCI and its two database actions run on it in
-    # parallel. Matched against the executor's `poolName`, so the two must match at all times.
-    pool: "workflows-pr"
-
-    # OWN PATCH LINE (v1.0.24.x), NOT in lockstep with rbe-executor (v1.0.25.x since the
-    # hermetic-LLVM migration). //docker/images/Dockerfile.workflow-runner records the policy.
-    container_image: "docker://registry.carverauto.dev/serviceradar/buildbuddy-workflow-runner:v1.0.24.5"
-
-    platform_properties:
-      OSFamily: "linux"
-      Arch: "amd64"
-      # Under `oci` isolation this is a BOOLEAN in disguise. ociruntime.go reduces the property
-      # to `networkEnabled: networkMode != "off"`
-      dockerNetwork: "bridge"
+    # BuildBuddy-hosted Linux workflow runner (the fork has no self-hosted executor pool).
+    container_image: "ubuntu-24.04"
 
     triggers:
       pull_request:
         branches:
           - "staging"
 
-    # UNITS: `GB` HERE MEANS GiB, NOT 10^9. Each workflows-pr executor requests 32Gi and 8 CPU,
-    # so one run of any of the three BazelCI actions fits beside the executor's own overhead.
+    # UNITS: `GB` HERE MEANS GiB. Hosted runners default to 3 CPU / 8 GB / 20 GB; the cap on
+    # the free plan is not published, so these are requests, not guarantees.
     resource_requests:
       cpu: "7"
       memory: "28GB"
@@ -601,13 +585,13 @@ actions:
     steps:
       - run: python3 build/ci/detect_docs_only.py
       - run: >-
-          scripts/ci/unless_docs_only.sh bazel run -c opt --config=ci //build/ci:verify_git_metadata --
+          scripts/ci/unless_docs_only.sh bazel run -c opt --config=remote //build/ci:verify_git_metadata --
           --expected-commit "$(git rev-parse HEAD)"
-      - run: scripts/ci/unless_docs_only.sh bazel run -c opt --config=ci //build/ci:git_checkout_regression
+      - run: scripts/ci/unless_docs_only.sh bazel run -c opt --config=remote //build/ci:git_checkout_regression
       # Put Harbor credentials into ~/.docker/config.json, for rules_oci's registry fetches.
       # See buildbuddy_setup_docker_auth.sh for details
       - run: >-
-          scripts/ci/unless_docs_only.sh bazel run -c opt --config=ci --//build:enable_integration_tests //:buildbuddy_setup_docker_auth --verbose_failures
+          scripts/ci/unless_docs_only.sh bazel run -c opt --config=remote --//build:enable_integration_tests //:buildbuddy_setup_docker_auth --verbose_failures
 
       # The one full //... invocation. Unit tests run here. Integration and
       # acceptance tests are filtered out of execution; they run in the
@@ -616,7 +600,7 @@ actions:
       #
       # `--//build:enable_integration_tests` is here for CONFIGURATION and CACHE CONTINUITY
       - run: >-
-          scripts/ci/unless_docs_only.sh bazel test -c opt --config=ci --//build:enable_integration_tests
+          scripts/ci/unless_docs_only.sh bazel test -c opt --config=remote --//build:enable_integration_tests
           //... --test_tag_filters=-integration_test,-acceptance_test,-benchmark
 
       # Compile-only manual targets: the wildcard above skips manual targets, and none of these
@@ -625,7 +609,7 @@ actions:
       # WorldWorkerScale, and the bitmap transport measurement stays unexecuted. Same flags as the
       # unit sweep, for configuration and cache continuity.
       - run: >-
-          scripts/ci/unless_docs_only.sh bazel build -c opt --config=ci --//build:enable_integration_tests
+          scripts/ci/unless_docs_only.sh bazel build -c opt --config=remote --//build:enable_integration_tests
           //rust/netprobe:loaded_tcp_attribution_test //rust/dgraph-topology:world_worker_test
           //elixir/web-ng:bitmap_websocket_transport_test
 
@@ -652,7 +636,7 @@ actions:
       # repo from scratch rather than reusing what the earlier steps just built. This step
       # therefore matches the unit sweep's flags exactly.
       - run: >-
-          scripts/ci/unless_docs_only.sh bazel test -c opt --config=ci --//build:enable_integration_tests
+          scripts/ci/unless_docs_only.sh bazel test -c opt --config=remote --//build:enable_integration_tests
           --test_tag_filters=benchmark
           --test_output=errors
           //...
@@ -673,7 +657,7 @@ actions:
           [ -e "${DOCS_ONLY_MARKER:-/tmp/serviceradar-docs-only-marker}" ] && { echo "docs-only change: BazelCI Go race tests skipped"; exit 0; }
           race_output_base=/home/buildbuddy/output-base-race
           set +e
-          bazel --output_base="$race_output_base" test -c opt --config=ci //go/... \
+          bazel --output_base="$race_output_base" test -c opt --config=remote //go/... \
             --@io_bazel_rules_go//go/config:pure=false \
             --@io_bazel_rules_go//go/config:race \
             --test_tag_filters=-integration_test,-acceptance_test,-benchmark \
@@ -719,11 +703,8 @@ actions:
       # to `networkEnabled: networkMode != "off"`
       dockerNetwork: "bridge"
 
-    triggers:
-      pull_request:
-        branches:
-          - "staging"
-
+    # Disabled on the fork: needs self-hosted executors and in-cluster fixtures (see docs/fork-ci.md).
+    # Dispatch manually from the BuildBuddy UI if that infrastructure exists.
     # UNITS: `GB` HERE MEANS GiB, NOT 10^9. Each workflows-pr executor requests 32Gi and 8 CPU,
     # so one run of any of the three BazelCI actions fits beside the executor's own overhead.
     resource_requests:
@@ -1030,11 +1011,8 @@ actions:
       # to `networkEnabled: networkMode != "off"`
       dockerNetwork: "bridge"
 
-    triggers:
-      pull_request:
-        branches:
-          - "staging"
-
+    # Disabled on the fork: needs self-hosted executors and in-cluster fixtures (see docs/fork-ci.md).
+    # Dispatch manually from the BuildBuddy UI if that infrastructure exists.
     # UNITS: `GB` HERE MEANS GiB, NOT 10^9. Each workflows-pr executor requests 32Gi and 8 CPU,
     # so one run of any of the three BazelCI actions fits beside the executor's own overhead.
     resource_requests:
@@ -1325,13 +1303,8 @@ actions:
       OSFamily: "linux"
       Arch: "amd64"
       dockerNetwork: "bridge"
-    triggers:
-      push:
-        branches:
-          - "staging"
-      schedule:
-        crons:
-          - "0 2 * * *"
+    # Disabled on the fork: needs self-hosted executors and in-cluster fixtures (see docs/fork-ci.md).
+    # Dispatch manually from the BuildBuddy UI if that infrastructure exists.
     resource_requests:
       memory: "36GB"
       disk: "40GB"
@@ -1595,10 +1568,8 @@ actions:
       OSFamily: "linux"
       Arch: "amd64"
       dockerNetwork: "bridge"
-    triggers:
-      schedule:
-        crons:
-          - "30 7 * * *"
+    # Disabled on the fork: needs self-hosted executors and in-cluster fixtures (see docs/fork-ci.md).
+    # Dispatch manually from the BuildBuddy UI if that infrastructure exists.
     resource_requests:
       memory: "36GB"
       disk: "40GB"
@@ -1842,10 +1813,8 @@ actions:
       OSFamily: "linux"
       Arch: "amd64"
       dockerNetwork: "bridge"
-    triggers:
-      push:
-        branches:
-          - "benchmark/parallel-core-integration"
+    # Disabled on the fork: needs self-hosted executors and in-cluster fixtures (see docs/fork-ci.md).
+    # Dispatch manually from the BuildBuddy UI if that infrastructure exists.
     resource_requests:
       memory: "50GB"
       disk: "40GB"
@@ -2079,10 +2048,8 @@ actions:
       OSFamily: "linux"
       Arch: "amd64"
       dockerNetwork: "bridge"
-    triggers:
-      push:
-        branches:
-          - "benchmark/parallel-core-integration-cpu2"
+    # Disabled on the fork: needs self-hosted executors and in-cluster fixtures (see docs/fork-ci.md).
+    # Dispatch manually from the BuildBuddy UI if that infrastructure exists.
     resource_requests:
       cpu: "2"
       memory: "50GB"
@@ -2099,10 +2066,8 @@ actions:
       OSFamily: "linux"
       Arch: "amd64"
       dockerNetwork: "bridge"
-    triggers:
-      push:
-        branches:
-          - "benchmark/parallel-core-integration-cpu12"
+    # Disabled on the fork: needs self-hosted executors and in-cluster fixtures (see docs/fork-ci.md).
+    # Dispatch manually from the BuildBuddy UI if that infrastructure exists.
     resource_requests:
       cpu: "12"
       memory: "50GB"
@@ -2130,10 +2095,8 @@ actions:
       OSFamily: "linux"
       Arch: "amd64"
       dockerNetwork: "bridge"
-    triggers:
-      schedule:
-        crons:
-          - "0 7 * * *"
+    # Disabled on the fork: needs self-hosted executors and in-cluster fixtures (see docs/fork-ci.md).
+    # Dispatch manually from the BuildBuddy UI if that infrastructure exists.
     timeout: 3h
     resource_requests:
       memory: "32GB"

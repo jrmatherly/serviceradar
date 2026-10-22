@@ -38,7 +38,7 @@ jobs:
           BAZEL_REMOTE_ENABLED: ${{ vars.BAZEL_REMOTE_ENABLED || 'true' }}
           BUILDBUDDY_ENDPOINT: ${{ vars.BUILDBUDDY_ENDPOINT || 'remote.buildbuddy.io' }}
           BUILDBUDDY_APP_URL: ${{ vars.BUILDBUDDY_APP_URL || 'https://app.buildbuddy.io' }}
-          BUILDBUDDY_ORG_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+          BUILDBUDDY_ORG_API_KEY: ${{ secrets.BUILDBUDDY_ORG_API_KEY || secrets.BUILDBUDDY_API_KEY }}
         run: scripts/ci/configure-bazel-remote.sh
 
       - name: Build and run a small target remotely
