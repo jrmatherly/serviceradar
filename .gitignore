@@ -24,7 +24,8 @@ ctx/
 # IDE Cache
 .vscode
 .DS_Store
-.claude/
+.claude/*
+!.claude/skills/
 
 .beads/
 .local-dev-certs/
@@ -332,3 +333,7 @@ __pycache__/
 .local-fixture-certs/
 .local-secrets/
 *.beam
+
+# Local working notes (findings, plans, scratch) at the repo root; never tracked.
+# Anchored: vendored code under third_party/ has its own private/ directories.
+/private/

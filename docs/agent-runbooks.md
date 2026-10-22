@@ -842,3 +842,16 @@ Context for the `mix serviceradar.db.migrate` rule in `AGENTS.md`.
   schema-generation digest, after which every run of that digest clones the ready generation. Do not reintroduce
   baselining there. `ServiceRadar.Cluster.StartupMigrations` still baselines a fresh deployment
   and has the same latent problem; that path is not yet fixed.
+
+## Upstream review (carverauto/serviceradar)
+
+This repository is a fork of `carverauto/serviceradar` that adopts upstream pull
+requests selectively. The project skill `.claude/skills/upstream-review/`
+(`/upstream-review`) owns the method; its body has the markers and rules.
+
+- Once per clone: `gh repo set-default jrmatherly/serviceradar`, so `gh pr create`
+  never targets the parent. The upstream remote is named `carverauto`, never `upstream`.
+- State is tracked in `.upstream-review/watermark.json` (advance only through the
+  driver) and `.upstream-review/reviews/<date>-review.md` (one decision log per window).
+- Run `.claude/skills/upstream-review/scripts/upstream-review.sh --stat` to list
+  un-reviewed PRs with per-file markers; `--help` lists the other modes.
