@@ -7,7 +7,8 @@
 # expansion on the command line.
 #
 # Env (set by the workflow step "Configure Bazel remote execution"):
-#   BAZEL_REMOTE_ENABLED    "true" to use BuildBuddy; anything else = local Bazel
+#   BAZEL_REMOTE_ENABLED    "true" (default) to use BuildBuddy; anything else fails
+#                           fast: there is no local-Bazel publish path on hosted runners
 #   BUILDBUDDY_ENDPOINT     gRPC host, default remote.buildbuddy.io
 #   BUILDBUDDY_APP_URL      UI base URL, default https://app.buildbuddy.io
 #   BUILDBUDDY_ORG_API_KEY  org API key; required when enabled
@@ -19,9 +20,8 @@ app_url="${BUILDBUDDY_APP_URL:-https://app.buildbuddy.io}"
 app_url="${app_url%/}"
 
 if [[ "${enabled}" != "true" ]]; then
-  : > .bazelrc.remote
-  echo "Bazel remote execution disabled; building locally."
-  exit 0
+  echo "BAZEL_REMOTE_ENABLED is '${enabled}': Bazel jobs need BuildBuddy remote execution and cannot run. Set the variable to true." >&2
+  exit 1
 fi
 
 if [[ -z "${BUILDBUDDY_ORG_API_KEY:-}" ]]; then

@@ -90,11 +90,11 @@ build:cache_only --experimental_remote_cache_chunking
 # Remote Cache reduction and compression
 build:cache_only --remote_cache_compression
 build:cache_only --experimental_remote_cache_compression_threshold=100
-# The cache proxy is the cache hop; BuildBuddy remains the bytestream/BES authority.
-build:cache_only --remote_bytestream_uri_prefix=carverauto.buildbuddy.io
-build:cache_only --remote_cache=grpcs://cache-proxy.carverauto.dev:443
-build:cache_only --bes_backend=grpcs://carverauto.buildbuddy.io
-build:cache_only --bes_results_url=https://carverauto.buildbuddy.io/invocation/
+# BuildBuddy Cloud defaults; CI overrides them per org via .bazelrc.remote (imported last).
+build:cache_only --remote_bytestream_uri_prefix=remote.buildbuddy.io
+build:cache_only --remote_cache=grpcs://remote.buildbuddy.io
+build:cache_only --bes_backend=grpcs://remote.buildbuddy.io
+build:cache_only --bes_results_url=https://app.buildbuddy.io/invocation/
 
 # Remote execution profile settings inherited by CI.
 build:remote_base --config=cache_only
@@ -102,7 +102,7 @@ build:remote_base --config=cache_only
 build:remote_base --jobs=100
 build:remote_base --remote_download_minimal
 
-build:remote_base --remote_executor=grpcs://carverauto.buildbuddy.io
+build:remote_base --remote_executor=grpcs://remote.buildbuddy.io
 # Remote platforms
 build:remote_base --host_platform=//build/rbe:rbe_platform
 build:remote_base --platforms=//build/rbe:rbe_platform
