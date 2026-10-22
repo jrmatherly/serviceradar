@@ -72,7 +72,6 @@ ELIXIR_PROJECTS ?= datasvc palisade serviceradar_agent_gateway serviceradar_core
 
 # Rust configuration
 CARGO ?= cargo
-RUSTFMT ?= rustfmt
 
 # Set up Rust environment - use original user's paths when running with sudo
 ifdef SUDO_USER
@@ -388,10 +387,7 @@ tidy: ## Tidy and format Go code
 	@$(GO) mod tidy
 	@$(GO) fmt ./...
 	@echo "$(COLOR_BOLD)Formatting Rust code$(COLOR_RESET)"
-	@cd rust/rperf-client && $(RUSTFMT) src/*.rs
-	@cd rust/trapd && $(RUSTFMT) src/*.rs
-	@cd rust/otel && $(RUSTFMT) src/*.rs
-	@cd rust/flowgger && $(RUSTFMT) src/*.rs src/flowgger/*.rs
+	@cargo fmt --all
 
 .PHONY: update-rust-deps
 update-rust-deps: ## Update root Cargo.lock, refresh //third_party/crate_mirror, verify with Bazel (REPIN=<mode>, VERIFY_TARGET=<label>)
@@ -652,7 +648,9 @@ generate-proto: ## Generate Go and Rust code from protobuf definitions
 # against the runtime {:protobuf, "~> 0.17.1"} dependency in mix.exs.
 ELIXIR_PROTOBUF_VERSION ?= 0.16.0
 ELIXIR_PROTO_OUT ?= elixir/serviceradar_core/lib/serviceradar/proto
-PROTOC_GEN_ELIXIR ?= $(HOME)/.mix/escripts/protoc-gen-elixir
+# mise and asdf relocate MIX_HOME, and `mix escript.install` writes under it.
+MIX_HOME ?= $(HOME)/.mix
+PROTOC_GEN_ELIXIR ?= $(MIX_HOME)/escripts/protoc-gen-elixir
 
 .PHONY: install-protoc-gen-elixir
 install-protoc-gen-elixir: ## Install the protoc-gen-elixir escript pinned to the protobuf hex dep
