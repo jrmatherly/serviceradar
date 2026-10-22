@@ -260,7 +260,7 @@ Ecto.Adapters.SQL.query!(ServiceRadar.Repo, "SELECT 1", [])
 mix test --no-start
 
 # Run the complete integration suite through the guarded Bazel lifecycle documented in
-# ../../.agents/skills/srql-fixtures-db-tests/SKILL.md. It provisions one disposable
+# ../../docs/agent-runbooks.md (SRQL Fixture Integration Tests). It provisions one disposable
 # sr_core_test_<run-id>_<lane> clone per lane on srql-fixtures and tears them down.
 
 # A focused Mix test may use a separately created disposable srql-fixtures scratch database as

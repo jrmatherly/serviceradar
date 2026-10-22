@@ -24,8 +24,8 @@ metadata:
 - Focused Go packages: `go test ./go/pkg/...`.
 - SRQL (Rust) integration tests: `cd rust/srql && cargo test`.
 - Bazel images: `bazel run //docker/images:<target>_push`. A worktree without
-  `.bazelrc.remote` is not on RBE — copy the gitignored rc files first (the
-  `.bazelrc.remote` hard rule in [AGENTS.md](../../../AGENTS.md#hard-rules-never-violate)).
+  `.bazelrc.remote` is not on RBE — symlink the gitignored rc files first, per
+  [serviceradar-bazel-guardrails](../serviceradar-bazel-guardrails/SKILL.md).
 - First-party Wasm plugins: `make build_wasm_plugins`, `make push_wasm_plugins`, `make verify_wasm_plugins`. Bazel fetches the pinned TinyGo toolchain automatically; local `oras` is still required for publish/inspect workflows. `make push_all` is the container-image path; `make push_all_release` adds the Wasm publish/sign/verify path for release-style runs.
 
 Formatting and the "prefer Bazel targets" rule are in

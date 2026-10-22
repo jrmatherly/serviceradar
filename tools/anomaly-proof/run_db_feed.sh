@@ -6,7 +6,7 @@
 #
 # Proves the F15 data feed end to end on real infrastructure (not just the kernel).
 # Creates and DROPS its own scratch database. Reads the CNPG admin secret from the
-# `srql-fixtures` namespace (never printed); see .claude/skills/srql-fixtures-db-tests.
+# `srql-fixtures` namespace (never printed); see docs/agent-runbooks.md (SRQL Fixture Integration Tests).
 set -uo pipefail
 cd "$(dirname "$0")/../.."   # repo root
 HARNESS=tools/anomaly-proof

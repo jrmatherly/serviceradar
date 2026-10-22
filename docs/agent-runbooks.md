@@ -645,8 +645,8 @@ The no-mistakes `test-registration` gate runs this same command automatically.
 
 ## SRQL Fixture Integration Tests
 
-Use the `srql-fixtures-db-tests` skill when `elixir/serviceradar_core` integration tests need
-the shared CNPG/AGE fixture. The full guarded lifecycle is CI-only: it runs in the in-cluster
+This section is the lifecycle `elixir/serviceradar_core` integration tests use for the shared
+CNPG/AGE fixture (upstream also wraps it in a `srql-fixtures-db-tests` skill this fork does not carry). The full guarded lifecycle is CI-only: it runs in the in-cluster
 BuildBuddy workflows (`BazelCI Core Integration`, `BazelCI Web-NG DB`, `LargeIngestionGate`,
 `WorldWorkerScale`, `IntegrationBenchmark*` in `//buildbuddy.yaml`) with typed `SERVICERADAR_ENV=ci` configuration. For a focused workstation
 run, use the skill's scratch-database recipe instead. There is deliberately no orchestration

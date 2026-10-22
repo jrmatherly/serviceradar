@@ -656,8 +656,7 @@ source-membership contract and release-qualification coverage.
 **3. If the test is slow**, profile it as a lane step of the
 [canonical fixture lifecycle](../docs/agent-runbooks.md#srql-fixture-integration-tests), after
 `//rust/integration-db:provision_generation` (or `provision_generation_<lane>` for that lane
-alone) has cloned that lane's database; see
-[the SRQL fixture runbook](../docs/agent-runbooks.md#srql-fixture-integration-tests).
+alone) has cloned that lane's database.
 Built-in slowest reporting enables trace, forces serial execution,
 and disables test timeouts, so explicitly set the profiling cap to one and never use this command
 as latency or concurrency evidence:
@@ -770,7 +769,7 @@ Focused workstation tests against the shared CNPG fixture are an upstream (carve
 workflow: their `srql-fixtures-db-tests` skill owns endpoint discovery, verified TLS,
 scratch-database creation, schema migration, focused Mix execution and cleanup, and it
 needs their `srql-fixtures` cluster, so this fork does not carry it. The lifecycle it
-wraps is in `docs/agent-runbooks.md` (SRQL Fixture Integration Tests). Database-backed
+wraps is in [the SRQL fixture runbook](../docs/agent-runbooks.md#srql-fixture-integration-tests). Database-backed
 tests must use that fixture rather than a local PostgreSQL instance.
 
 The admin DSN must include a non-empty password. `StartupMigrations` discards admin

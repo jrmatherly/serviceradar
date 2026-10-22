@@ -313,9 +313,7 @@ tmp/hpna-local/
 # Local review documents (not for upstream)
 pr-host-net-viz-*.md
 
-# Python bytecode. The repository had no rule for this at all, which is how
-# docker/images/__pycache__/ and scripts/__pycache__/ each came to carry a committed .pyc;
-# both were untracked on 2026-10-22 (a .pyc embeds the absolute path it was compiled from).
+# Python bytecode. Never tracked: a .pyc records the path it was compiled from.
 __pycache__/
 *.py[cod]
 

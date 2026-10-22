@@ -168,7 +168,7 @@ is the §5 aliasing problem in its purest form.
 
 `--test_env` governs `TestRunner` actions only. `//rust/integration-db:prepare_template` is a
 `rust_binary` invoked with `bazel run` (`buildbuddy.yaml:276-277`,
-`.agents/skills/srql-fixtures-db-tests/SKILL.md:140`), which launches the binary in the **Bazel
+upstream's `srql-fixtures-db-tests` skill), which launches the binary in the **Bazel
 client's ambient environment** — no forwarding declaration involved. Its path
 `prepare_template.rs:45` → `template.rs:100` → `admin_url()` reaches the fallback at
 `lib.rs:288`.
