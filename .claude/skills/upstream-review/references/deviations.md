@@ -24,3 +24,6 @@ means ask the owner before adopting the PR.
 An `x` marker means we removed the path, not always that the change is
 irrelevant. Add a line here for every path we remove, with where the content
 went or why it is gone.
+
+- `.agents/skills/{demo-local-rollout,demo-web-ng-fastpath,release-cut-and-demo-roll,demo-cnpg-local-web-ng,fieldsurvey-local-web-ng,srql-fixtures-db-tests,serviceradar-operations}`: need carverauto's demo cluster, Harbor, OpenBao signing role or `srql-fixtures` CNPG, none of which the fork has; moved to the untracked `private/backup/agents-skills/` for reference (2026-10-22). An upstream change there shows `x`: read it for rules worth porting into a fork skill, never restore the directory.
+- `.agents/skills/daisyui`: web-ng disabled the daisyUI plugin (`elixir/web-ng/assets/css/app.css`) and `elixir/web-ng/AGENTS.md` already states the `sr-ui-*` policy; the skill told agents daisyUI was mandatory. Same backup location (2026-10-22).

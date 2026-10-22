@@ -1,6 +1,6 @@
 ---
 name: serviceradar-elixir
-description: Use for ServiceRadar Elixir, Phoenix, LiveView, Ash/Ecto, migrations, external downloads, Hex dependencies, formatting, or Dialyzer work.
+description: ServiceRadar's Elixir rules that differ from stock Phoenix and Ash practice, with the quality commands and the Dialyzer policy. Use before changing any `.ex`, `.exs` or `.heex` file, a migration, a Mix dependency, or a Dialyzer ignore, and when a type-checker warning tempts a workaround.
 user-invocable: false
 metadata:
   internal: true
@@ -10,15 +10,10 @@ metadata:
 
 ## Database migration command
 
-- **Bringing a database up to date: `mix serviceradar.db.migrate`, NOT `mix ecto.migrate`.**
-  An empty database is built from the committed baseline and only newer migrations run;
-  `mix ecto.migrate` replays every migration in the tree instead, which is slow and has
-  failed outright against a remote instance. Pass `--no-baseline` only when you deliberately
-  want the full replay. **The baseline does not work on a database that already carries
-  TimescaleDB hypertables or AGE graphs, which is every real one** — the schema does not
-  round-trip, so the fixture lifecycle replays on an empty database instead. Do not
-  reintroduce baselining there; why it cannot work is in
-  [docs/agent-runbooks.md](docs/agent-runbooks.md).
+- `mix serviceradar.db.migrate`, never `mix ecto.migrate`. The rule and why the
+  baseline cannot work on a real database are in
+  [AGENTS.md, Per-Directory Agent Guides](../../../AGENTS.md#per-directory-agent-guides)
+  and [docs/agent-runbooks.md](../../../docs/agent-runbooks.md).
 
 ## Quality commands
 
@@ -51,24 +46,21 @@ metadata:
   3. If Dialyxir cannot render a warning kind (e.g. `:opaque_compare`), report or
      work around the **formatter**, do not reshape application code for it.
 
-  Historical note: PR #4677 chased Dialyzer counts with apply/opaque barriers and
-  MapSet churn; it was fully reverted in #4679. Do not reintroduce that style.
+  The precedent (PR carverauto/serviceradar#4677, reverted in #4679) is recorded in
+  [AGENTS.md](../../../AGENTS.md#hard-rules-never-violate) under the credential-model rule.
 
 ## External downloads and dependencies
 
-- **Use `ServiceRadar.HTTP.EgressClient` for external artifact downloads.** Its
-  [module documentation](elixir/serviceradar_core/lib/serviceradar/http/egress_client.ex)
-  owns the streaming contract and CONNECT-proxy compatibility rationale. The
-  regression coverage is in
-  `elixir/serviceradar_core/test/serviceradar/http/egress_client_test.exs`.
+- **External artifact downloads go through `ServiceRadar.HTTP.EgressClient`**; the hard
+  rule and the module's contract are in [AGENTS.md](../../../AGENTS.md#hard-rules-never-violate).
 - **Check the workspace Hex closure when Mix and release dependencies differ.**
-  [The Hex build definition](third_party/hex/BUILD.bazel) owns the cross-project
+  [The Hex build definition](../../../third_party/hex/BUILD.bazel) owns the cross-project
   resolution policy; `third_party/hex/hex_packages.bzl` records the generated
   versions shipped by Bazel.
 
 ## Iron Laws
 
-- **LiveView**: no database queries in disconnected mount. Use streams for lists larger than 100 items. Check `connected?/1` before PubSub subscribe.
+- **LiveView**: the disconnected-mount and streams law is in [AGENTS.md, Iron Laws](../../../AGENTS.md#iron-laws).
 - **Ecto**: never use `:float` for money. Always pin values with `^` in queries. Use separate queries for `has_many`, `JOIN` for `belongs_to`.
 - **Oban**: jobs must be idempotent. Args use string keys. Never store structs in args.
 - **Security**: no `String.to_atom/1` with user input. Authorize in every LiveView `handle_event`. Never use `raw/1` with untrusted content.

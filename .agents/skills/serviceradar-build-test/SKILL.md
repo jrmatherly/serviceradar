@@ -1,14 +1,12 @@
 ---
 name: serviceradar-build-test
-description: Use before building, testing, linting, formatting, producing images, or validating ServiceRadar changes locally or before a PR/release.
+description: The build, test, lint and image commands ServiceRadar expects, and which of them CI actually runs. Use before building, testing, linting, formatting, producing images, or validating a change locally, before opening a PR, and before cutting a release, even when the task only says "run the tests".
 user-invocable: false
 metadata:
   internal: true
 ---
 
 # ServiceRadar Build and Test Commands
-
-## Build & Test Commands
 
 - **Every unit test, the way CI runs them: `make test`** — an alias for
   `bazel test -c opt --config=remote //... --test_tag_filters=-integration_test,-acceptance_test`.
@@ -26,7 +24,9 @@ metadata:
 - Focused Go packages: `go test ./go/pkg/...`.
 - SRQL (Rust) integration tests: `cd rust/srql && cargo test`.
 - Bazel images: `bazel run //docker/images:<target>_push`. A worktree without
-  `.bazelrc.remote` is not on RBE — copy the gitignored rc files first (Hard Rules).
+  `.bazelrc.remote` is not on RBE — copy the gitignored rc files first (the
+  `.bazelrc.remote` hard rule in [AGENTS.md](../../../AGENTS.md#hard-rules-never-violate)).
 - First-party Wasm plugins: `make build_wasm_plugins`, `make push_wasm_plugins`, `make verify_wasm_plugins`. Bazel fetches the pinned TinyGo toolchain automatically; local `oras` is still required for publish/inspect workflows. `make push_all` is the container-image path; `make push_all_release` adds the Wasm publish/sign/verify path for release-style runs.
 
-Prefer Bazel targets when modifying code that already has BUILD files. Always run gofmt/cargo fmt where applicable (Go formatting handled by `gofmt`, Rust by `cargo fmt`).
+Formatting and the "prefer Bazel targets" rule are in
+[AGENTS.md, Coding Guidelines](../../../AGENTS.md#coding-guidelines).

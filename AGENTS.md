@@ -260,6 +260,11 @@ ServiceRadar is a multi-component system made up of Go services (core, sync, reg
 
 Before inspecting or editing a subtree, read its closest `AGENTS.md`; `elixir/web-ng/AGENTS.md` is mandatory for `elixir/web-ng/**`.
 
+Repo skills live in `.agents/skills/` (Agent Skills layout) and load in Claude Code
+as the `serviceradar` plugin (`/serviceradar:<name>`) through `.claude/skills/serviceradar`.
+Upstream skills that need carverauto's clusters are not carried; the list is in
+`.claude/skills/upstream-review/references/deviations.md`.
+
 Before writing or changing any test, load the `test-audit` skill when it is
 installed. It is an upstream (carverauto) skill that this fork does not carry
 (checked 2026-10-21: absent from the checkout and every installed plugin); until

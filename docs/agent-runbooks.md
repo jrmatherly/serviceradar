@@ -152,13 +152,10 @@ DATASVC_ENABLED=false SERVICE_HEARTBEAT_ENABLED=false SERVICERADAR_WEB_NG_OBAN_E
   PHX_HOST=localhost SERVICERADAR_DEV_ROUTES=true mix phx.server
 ```
 
-When pointing this loop at the Kubernetes `demo` CNPG instance, use the `$demo-cnpg-local-web-ng` skill instead of hand-rolled port-forwards:
-
-```bash
-.agents/skills/demo-cnpg-local-web-ng/scripts/start-local-web-ng.sh
-```
-
-The skill/script reads `demo/serviceradar-db-credentials`, tries the GitOps-managed `demo/cnpg-rw-internal-lb` VIP (`192.168.6.82:5432`), then falls back to the current CNPG primary node's NodePort paths such as `10.0.2.11:32040` and `10.0.2.11:30455`. If the `192.168.6.82` VIP fails but NodePort works, treat it as a routing/L2 issue outside web-ng/CNPG. Keep the permanent Kubernetes objects in GitOps (`gitops/k8s/demo-cnpg-internal-access/`), not as one-off live changes.
+Pointing this loop at a Kubernetes `demo` CNPG instance is an upstream (carverauto)
+workflow: their `demo-cnpg-local-web-ng` skill reads the `demo/serviceradar-db-credentials`
+secret and picks a reachable CNPG endpoint. This fork has no such cluster and does not
+carry that skill.
 
 If the local CNPG requires TLS, use the standard cert-backed command from the Local Development with Docker CNPG section instead. A repeated `Unknown CA` error means the cert bundle does not match the CNPG server; refresh the local certs before relying on the LiveView route. If Phoenix or CNPG is not needed for the current visual pass, create a temporary ignored harness under `tmp/` that loads `elixir/web-ng/priv/static/assets/css/app.css` and mirrors the rendered dashboard HTML.
 
@@ -189,7 +186,7 @@ npx playwright screenshot --viewport-size=1680,945 file://$PWD/tmp/dashboard-vis
 
 ## Web-NG Remote Dev (CNPG)
 
-Use this playbook to run `elixir/web-ng/` on a workstation while connecting to the existing CNPG instance running on the docker host (example: `192.168.2.134`).
+Use this playbook to run `elixir/web-ng/` on a workstation while connecting to the existing CNPG instance running on the docker host (example: `192.0.2.10`).
 
 ### 1. Publish CNPG on the docker host
 
@@ -200,8 +197,8 @@ Use this playbook to run `elixir/web-ng/` on a workstation while connecting to t
 ### 2. Ensure CNPG TLS cert supports IP-based clients (verify-full)
 
 - If clients will connect by IP with `CNPG_SSL_MODE=verify-full`, add the host IP to the CNPG server cert SAN:
-  - `CNPG_CERT_EXTRA_IPS=192.168.2.134`
-  - Regenerate certs: `CNPG_CERT_EXTRA_IPS=192.168.2.134 docker compose up cert-generator`
+  - `CNPG_CERT_EXTRA_IPS=192.0.2.10`
+  - Regenerate certs: `CNPG_CERT_EXTRA_IPS=192.0.2.10 docker compose up cert-generator`
   - Restart CNPG (and ensure bind env vars are applied): `CNPG_PUBLIC_BIND=0.0.0.0 CNPG_PUBLIC_PORT=5455 docker compose up -d --force-recreate cnpg`
 
 ### 3. Copy workstation client certs (keep out of git)
@@ -216,7 +213,7 @@ Use this playbook to run `elixir/web-ng/` on a workstation while connecting to t
 
 ```bash
 cd elixir/web-ng
-export CNPG_HOST=192.168.2.134
+export CNPG_HOST=192.0.2.10
 export CNPG_PORT=5455
 export CNPG_DATABASE=serviceradar
 export CNPG_USERNAME=serviceradar

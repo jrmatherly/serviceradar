@@ -654,7 +654,7 @@ fit the PR lifecycle budget; cold database bootstrap is the current example and 
 source-membership contract and release-qualification coverage.
 
 **3. If the test is slow**, profile it as a lane step of the
-[canonical fixture lifecycle](../.agents/skills/srql-fixtures-db-tests/SKILL.md), after
+[canonical fixture lifecycle](../docs/agent-runbooks.md#srql-fixture-integration-tests), after
 `//rust/integration-db:provision_generation` (or `provision_generation_<lane>` for that lane
 alone) has cloned that lane's database; see
 [the SRQL fixture runbook](../docs/agent-runbooks.md#srql-fixture-integration-tests).
@@ -766,11 +766,12 @@ for their lifecycle and cleanup contract. These targets resolve the typed CI end
 and ignore `SRQL_TEST_*` endpoint coordinates; a local Docker fixture cannot substitute
 for it.
 
-For focused workstation tests, use
-[the fixture skill's scratch-database recipe](../.agents/skills/srql-fixtures-db-tests/SKILL.md)
-on the shared CNPG fixture. It owns endpoint discovery, verified TLS, scratch-database
-creation, schema migration, focused Mix execution and cleanup. Database-backed tests
-must use that fixture rather than a local PostgreSQL instance.
+Focused workstation tests against the shared CNPG fixture are an upstream (carverauto)
+workflow: their `srql-fixtures-db-tests` skill owns endpoint discovery, verified TLS,
+scratch-database creation, schema migration, focused Mix execution and cleanup, and it
+needs their `srql-fixtures` cluster, so this fork does not carry it. The lifecycle it
+wraps is in `docs/agent-runbooks.md` (SRQL Fixture Integration Tests). Database-backed
+tests must use that fixture rather than a local PostgreSQL instance.
 
 The admin DSN must include a non-empty password. `StartupMigrations` discards admin
 credentials with an empty password and falls back to the application role, which can

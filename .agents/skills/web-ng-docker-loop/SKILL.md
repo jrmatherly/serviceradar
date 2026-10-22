@@ -36,8 +36,8 @@ After rebuilding a dashboard package, import it into the Docker-backed database 
 
 ```bash
 .agents/skills/web-ng-docker-loop/scripts/import-dashboard-package.sh \
-  /home/mfreeman/src/example-dashboard/dist/manifest.json \
-  /home/mfreeman/src/example-dashboard/dist/renderer.js
+  path/to/example-dashboard/dist/manifest.json \
+  path/to/example-dashboard/dist/renderer.js
 ```
 
 This imports and enables the package through the running Docker web-ng release RPC, then prints the enabled content hash.
@@ -45,7 +45,7 @@ Restart the local loop, or rerun it with the default plugin-storage sync enabled
 
 ## Browser Checks
 
-Use `$playwright-cli` for interactive inspection and screenshots:
+Use the `playwright-cli` skill for interactive inspection and screenshots:
 
 ```bash
 playwright-cli open http://localhost:4000/dashboards/wifi-network-map
@@ -59,5 +59,5 @@ If authentication is required, obtain the admin password from `docker compose lo
 
 - Keep generated certs and screenshots under `tmp/`; do not commit them.
 - Stop stale local Phoenix servers before starting a new one: `pkill -f 'mix phx.server'`.
-- Use the Docker route (`https://192.168.2.134/...`) only for final parity after local checks pass.
+- Use the Docker route (`https://<SERVICERADAR_HOST from .env>/...`) only for final parity after local checks pass.
 - Run `npm run build:js && npm run build:css` in `elixir/web-ng/assets` after JS/CSS changes before browser checks.
