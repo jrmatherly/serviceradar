@@ -30,19 +30,25 @@ esac
 
 mkdir -p "${install_dir}"
 sfw_path="${install_dir}/sfw"
+# Verify before anything reaches ${sfw_path}: a failed download or checksum must not
+# replace a previously installed binary.
+download="$(mktemp "${install_dir}/.sfw.XXXXXX")"
+trap 'rm -f "${download}"' EXIT
 
 curl -fsSL --retry 3 \
   "https://github.com/SocketDev/sfw-free/releases/download/${version}/${asset}" \
-  -o "${sfw_path}"
+  -o "${download}"
 
 if command -v sha256sum >/dev/null 2>&1; then
-  printf '%s  %s\n' "${sha256}" "${sfw_path}" | sha256sum -c -
+  printf '%s  %s\n' "${sha256}" "${download}" | sha256sum -c -
 else
-  actual="$(shasum -a 256 "${sfw_path}" | awk '{print $1}')"
+  actual="$(shasum -a 256 "${download}" | awk '{print $1}')"
   test "${actual}" = "${sha256}"
 fi
 
-chmod +x "${sfw_path}"
+chmod +x "${download}"
+mv -f "${download}" "${sfw_path}"
+trap - EXIT
 
 if [ -n "${GITHUB_PATH:-}" ]; then
   echo "${install_dir}" >> "${GITHUB_PATH}"
