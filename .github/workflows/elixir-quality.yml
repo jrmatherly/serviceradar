@@ -57,7 +57,7 @@ env:
 jobs:
   quality:
     name: Elixir Quality (${{ matrix.name }})
-    runs-on: arc-runner-set
+    runs-on: ubuntu-24.04
     strategy:
       # One project's lint failure should not hide the other six.
       fail-fast: false
@@ -252,7 +252,7 @@ jobs:
   # toolchain and no cache, and does not belong behind a seven-way compile matrix.
   db-checks:
     name: Baseline metadata and migration startup safety
-    runs-on: arc-runner-set
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:

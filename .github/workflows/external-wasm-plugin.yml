@@ -22,7 +22,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: arc-runner-set
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     outputs:
       source_commit: ${{ steps.source.outputs.commit }}
@@ -215,7 +215,7 @@ jobs:
 
   publish:
     needs: build
-    runs-on: serviceradar-signing
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
       contents: write

@@ -333,7 +333,7 @@ jobs:
     # and the Windows installers built, and attach the macOS installer only when its
     # job succeeded.
     if: ${{ !cancelled() && needs.source.result == 'success' && needs.windows-msi.result == 'success' }}
-    runs-on: serviceradar-signing
+    runs-on: ubuntu-24.04
     outputs:
       tag: ${{ steps.release.outputs.tag }}
       version: ${{ steps.release.outputs.version }}
@@ -385,10 +385,9 @@ jobs:
       # (Wasm plugin upload-signing secrets moved to wasm-plugins.yml, which now owns
       # publishing the plugins on `v*` tags.)
       BAZELISK_HOME: ${{ github.workspace }}/.cache/bazelisk
-      # serviceradar-signing does not mount /bazel-cache (that path is the ARC
-      # workflow-runner volume). --config=ci therefore dies with Permission
-      # denied on the repo-contents cache. --config=remote is the same
-      # remote_base RBE graph with $HOME caches.
+      # Hosted runners have no /bazel-cache volume, so --config=ci (which needs it)
+      # is unusable here; --config=remote is the same remote_base graph with $HOME
+      # caches.
       # Release builds must consume the committed lockfile without rewriting source.
       BAZEL_BUILD_FLAGS: -c opt --config=remote --remote_download_outputs=all --lockfile_mode=error
     steps:
@@ -502,6 +501,7 @@ jobs:
           RELEASE_COMMIT: ${{ steps.source.outputs.commit }}
         run: |
           set -euo pipefail
+          # shellcheck disable=SC2086
           bazel run ${BAZEL_BUILD_FLAGS} //build/ci:wait_for_large_ingestion_gate -- \
             --repository "${GITHUB_REPOSITORY}" \
             --commit "${RELEASE_COMMIT}" \
@@ -620,6 +620,7 @@ jobs:
           # the same configuration as everything else instead of needing a host Go toolchain.
           # The tool still EXECUTES locally, so the signing secret in this step's env reaches
           # it and never leaves the runner. Same pattern as native-addons.yml.
+          # shellcheck disable=SC2086
           public_key="$(bazel run ${BAZEL_BUILD_FLAGS} \
             //tools/go/derive_agent_release_public_key 2>/dev/null | tail -n1)"
           if [[ -z "${public_key}" ]]; then
@@ -704,6 +705,7 @@ jobs:
             exit 1
           fi
 
+          # shellcheck disable=SC2086
           ./scripts/verify-agent-release-key-stamp.sh ${BAZEL_BUILD_FLAGS}
 
       # Alpine replaces package revisions in-place on a stable branch. A yanked
@@ -772,6 +774,7 @@ jobs:
           if [[ "${skip_push}" != "true" ]]; then
             # BAZEL_BUILD_FLAGS is defined once at job level -- see the comment there.
             run_remote_publish() {
+              # shellcheck disable=SC2086
               bazel run ${BAZEL_BUILD_FLAGS} //:push "${extra_args[@]}"
             }
 
@@ -996,6 +999,7 @@ jobs:
           #
           # No local fallback here either, for the reasons given at the image-publish step: this
           # job signs what it builds.
+          # shellcheck disable=SC2086
           bazel run \
             ${BAZEL_BUILD_FLAGS} \
             //build/release:publish_packages \

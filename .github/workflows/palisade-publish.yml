@@ -49,7 +49,7 @@ env:
 jobs:
   publish:
     name: Publish palisade to hex.pm
-    runs-on: arc-runner-set
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: elixir/palisade
