@@ -84,6 +84,43 @@ a reason that looks environmental. It checks the toolchains `.tool-versions` and
 `.bazelrc.remote` and the commit identity. Each `FAIL` and `WARN` line names its fix; run
 it and re-run `make doctor` until no `FAIL` remains. It exits 1 while any `FAIL` remains.
 
+### Local test database (fork)
+
+The fork cannot reach the upstream `srql-fixtures` cluster, so the DB-backed
+`elixir/serviceradar_core` tests run against a disposable CNPG container on this machine
+(`docker/compose/test-db/`, the digest-pinned `serviceradar-cnpg` image on
+`127.0.0.1:55432`; 5455 stays with the mTLS dev stack). From the repo root:
+
+```bash
+make test-db-up        # start it; first start runs initdb and writes tmp/test-db/{.env,ca.pem}
+make test-db-migrate   # mix serviceradar.db.migrate --no-baseline into sr_core_test_local
+make test-core-db TEST_ARGS=test/serviceradar/observability/plugin_result_ingestor_ordering_test.exs
+make test-db-down      # stop it; the volume and the migrated schema survive
+```
+
+- `make test-core-db` with no `TEST_ARGS` runs only the DB tier (`SERVICERADAR_ONLY_INTEGRATION=1`,
+  one module at a time). That run took more than 20 minutes on an arm64 Mac (the image runs
+  under amd64 emulation), so prefer focused files. With `TEST_ARGS` it runs everything the
+  arguments select, unit tests included.
+- It is one long-lived database, not the per-lane clones CI makes. A test that leaks rows
+  breaks the next run, so "A test that commits data must delete it" in `AGENTS.md` applies in
+  full. `make test-db-reset` deletes the volume and `tmp/test-db`; then run `make test-db-up`
+  and `make test-db-migrate` again.
+- The container presents the srql-fixtures TLS name with a throwaway CA it generates on first
+  start, which is what `config/test_database_guard.exs` requires (IP host,
+  `SERVICERADAR_TEST_DATABASE_SERVER_NAME`, `sslmode=verify-full`, an `sr_core_test_*`
+  database). The `srql` password is generated into `tmp/test-db/.env` (gitignored) and the
+  Make targets never print it. To run `mix` by hand, source that file and export
+  `SERVICERADAR_TEST_DATABASE_CA_CERT_FILE="$PWD/tmp/test-db/ca.pem"`.
+- Only the `--no-baseline` replay is verified here (573 migrations on 2026-10-22). The baseline
+  path is untested on this database, which carries the AGE graphs before the first migration;
+  the `mix serviceradar.db.migrate` notes below explain why the baseline does not round-trip
+  such a schema. After new migrations land, `make test-db-migrate` applies just the pending
+  ones.
+- This is the fork's focused-run path. It is not the guarded Bazel lifecycle in
+  [SRQL Fixture Integration Tests](#srql-fixture-integration-tests), and a green run here is not
+  evidence about CI's lanes, which use other concurrency and pool settings.
+
 ## Local Development with Docker CNPG
 
 Use this quick playbook when running `mix phx.server` locally and connecting to the CNPG instance in Docker on the same machine. This is the fastest iteration loop for testing changes. It is for running the dev server only; database-backed tests use the `srql-fixtures` CNPG, never this instance (see the SRQL Fixture Integration Tests section of `AGENTS.md`).

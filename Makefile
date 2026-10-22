@@ -155,6 +155,42 @@ doctor: ## Check this machine has the toolchains, hooks and local files the fork
 compose-up: ## Start Docker Compose stack
 	@docker compose up -d
 
+TEST_DB_COMPOSE := docker compose -f docker/compose/test-db/compose.yml
+TEST_DB_DIR := $(CURDIR)/tmp/test-db
+TEST_DB_ENV := test -s "$(TEST_DB_DIR)/.env" || { echo "No tmp/test-db/.env; run make test-db-up first." >&2; exit 1; }; \
+	set -a; . "$(TEST_DB_DIR)/.env"; set +a; \
+	export SERVICERADAR_TEST_DATABASE_CA_CERT_FILE="$(TEST_DB_DIR)/ca.pem"
+
+.PHONY: test-db-up
+test-db-up: ## Start the fork-local disposable test database on 127.0.0.1:55432
+	@mkdir -p "$(TEST_DB_DIR)"
+	@$(TEST_DB_COMPOSE) up -d --wait --wait-timeout 600
+	@test -s "$(TEST_DB_DIR)/.env" && echo "test-db is healthy; connection values are in tmp/test-db/.env"
+
+.PHONY: test-db-down
+test-db-down: ## Stop the local test database, keeping its volume
+	@$(TEST_DB_COMPOSE) down
+
+.PHONY: test-db-reset
+test-db-reset: ## Delete the local test database volume and tmp/test-db
+	@$(TEST_DB_COMPOSE) down -v
+	@rm -rf "$(TEST_DB_DIR)"
+
+.PHONY: test-db-migrate
+test-db-migrate: ## Replay the core migrations into the local test database
+	@$(TEST_DB_ENV); cd elixir/serviceradar_core && MIX_ENV=test mix serviceradar.db.migrate --no-baseline
+
+# With no TEST_ARGS, run only the DB tier (test_helper.exs SERVICERADAR_ONLY_INTEGRATION), one
+# module at a time, since every module shares this one database. With TEST_ARGS, run everything
+# the arguments select, so a focused file's untagged unit tests are not silently excluded.
+TEST_CORE_DB_SELECTION = $(if $(TEST_ARGS),,SERVICERADAR_ONLY_INTEGRATION=1 \
+	SERVICERADAR_INTEGRATION_MAX_CASES=1 SERVICERADAR_TEST_DATABASE_POOL_SIZE=12)
+
+.PHONY: test-core-db
+test-core-db: ## Run the DB-backed core tests against the local test database (TEST_ARGS=<file>)
+	@$(TEST_DB_ENV); cd elixir/serviceradar_core && MIX_ENV=test $(TEST_CORE_DB_SELECTION) \
+		mix test $(TEST_ARGS)
+
 .PHONY: compose-upgrade
 compose-upgrade: ## Pull images and recreate containers without destroying volumes
 	@docker compose pull

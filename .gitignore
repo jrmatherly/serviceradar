@@ -308,6 +308,9 @@ pkg/cpufreq/hostfreq_darwin_embed.o
 .local-dev-certs/
 .playwright-cli/
 tmp/fieldsurvey-local/
+tmp/test-db/
+# ExUnit tmp_dir output from the core suite.
+elixir/serviceradar_core/tmp/
 tmp/hpna-local/
 
 # Local review documents (not for upstream)
