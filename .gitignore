@@ -333,3 +333,6 @@ __pycache__/
 .local-fixture-certs/
 .local-secrets/
 *.beam
+
+# Local working notes (findings, plans, scratch); never tracked
+private/

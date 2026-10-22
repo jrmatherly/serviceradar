@@ -101,8 +101,9 @@ one log.
 - Rebrand step: when `scripts/rebrand/apply.sh` exists, run it on every file a
   pick touched and `scripts/rebrand/check-repo.sh` before validation. Until
   the rebrand lands this step is a no-op; `references/deviations.md` tracks it.
-- Version, changelog and dependency-only PRs: no rule yet. See the open row in
-  `references/deviations.md` and ask the owner before adopting one.
+- Version, changelog and dependency-only PRs: ADOPT while their files show `=`;
+  at the first `~` the file is ours, so SKIP and take only the versions the PR
+  names, never the hunk (the row in `references/deviations.md` has the commands).
 - A deviation we decide gets a row in `references/deviations.md`; a path we
   remove gets a line under "Deleted or moved paths" there. Read that file
   before classifying any `~` or `x` file.
