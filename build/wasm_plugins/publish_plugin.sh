@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# shellcheck source=scripts/lib/fork-registry.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/scripts/lib/fork-registry.sh"
 
 bundle=""
 metadata=""
@@ -148,8 +150,8 @@ artifact_type="${meta[2]}"
 bundle_media_type="${meta[3]}"
 upload_signature_media_type="${meta[4]}"
 
-registry="${OCI_REGISTRY:-ghcr.io}"
-project="${OCI_PROJECT:-jrmatherly}"
+registry="${OCI_REGISTRY}"
+project="${OCI_PROJECT}"
 repo="${registry}/${project}/${repository_name}"
 if [[ -z "${commit_sha}" ]]; then
   commit_sha="$(git -C "${BUILD_WORKSPACE_DIRECTORY:-$(pwd)}" rev-parse HEAD)"

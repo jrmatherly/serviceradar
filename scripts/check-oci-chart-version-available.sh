@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# shellcheck source=scripts/lib/fork-registry.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/fork-registry.sh"
 
 if [[ "$#" -ne 1 ]]; then
   echo "usage: $0 <chart-version>" >&2
@@ -10,8 +12,8 @@ version="$1"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 "${script_dir}/validate-release-tag.sh" "v${version}"
 
-oci_registry="${OCI_REGISTRY:-ghcr.io}"
-oci_chart_repository="${OCI_CHART_REPOSITORY:-jrmatherly/charts}"
+oci_registry="${OCI_REGISTRY}"
+oci_chart_repository="${OCI_CHART_REPOSITORY:-${OCI_PROJECT}/charts}"
 oci_chart_name="${OCI_CHART_NAME:-serviceradar}"
 helm_runner="${SERVICERADAR_HELM_RUNNER:-}"
 

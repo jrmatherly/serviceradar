@@ -66,8 +66,10 @@ echo "STABLE_VERSION $version"
 #echo "STABLE_VERSION_TAG $latest_version_tag"
 echo "STABLE_COMMIT_SHA $commit_sha"
 # Where oci_push targets publish. The CI workflows export OCI_REGISTRY/OCI_PROJECT.
-echo "STABLE_OCI_REGISTRY ${OCI_REGISTRY:-ghcr.io}"
-echo "STABLE_OCI_PROJECT ${OCI_PROJECT:-jrmatherly}"
+# shellcheck source=scripts/lib/fork-registry.sh
+source "${SCRIPT_DIR}/lib/fork-registry.sh"
+echo "STABLE_OCI_REGISTRY ${OCI_REGISTRY}"
+echo "STABLE_OCI_PROJECT ${OCI_PROJECT}"
 emit_agent_release_public_key
 
 build_id="${BUILD_ID:-}"

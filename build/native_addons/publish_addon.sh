@@ -12,6 +12,8 @@
 # oras stamps each layer's org.opencontainers.image.title with the file name, so
 # the index/verify/importer recover the (os, arch) from the tarball file name.
 set -euo pipefail
+# shellcheck source=scripts/lib/fork-registry.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/scripts/lib/fork-registry.sh"
 
 _ARTIFACT_MEDIA_TYPE="application/vnd.serviceradar.native-addon.artifact.v1+gzip"
 _ARTIFACT_SIGNATURE_MEDIA_TYPE="application/vnd.serviceradar.native-addon.artifact-signature.v1+hex"
@@ -94,8 +96,8 @@ repository_name="${meta[1]}"
 artifact_type="${meta[2]}"
 bundle_media_type="${meta[3]}"
 
-registry="${OCI_REGISTRY:-ghcr.io}"
-project="${OCI_PROJECT:-jrmatherly}"
+registry="${OCI_REGISTRY}"
+project="${OCI_PROJECT}"
 repo="${registry}/${project}/${repository_name}"
 commit_sha="$(git -C "${BUILD_WORKSPACE_DIRECTORY:-$(pwd)}" rev-parse HEAD)"
 tags=("sha-${commit_sha}")

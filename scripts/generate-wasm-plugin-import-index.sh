@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# shellcheck source=scripts/lib/fork-registry.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/fork-registry.sh"
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "error: jq is required" >&2
@@ -17,8 +19,7 @@ fi
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 wasm_plugin_publish_init "${REPO_ROOT}"
-REGISTRY_HOST="${OCI_REGISTRY:-ghcr.io}"
-OCI_PROJECT="${OCI_PROJECT:-jrmatherly}"
+REGISTRY_HOST="${OCI_REGISTRY}"
 OUTPUT="${OUTPUT:-${REPO_ROOT}/serviceradar-wasm-plugin-index.json}"
 GENERATED_AT="${GENERATED_AT:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
 

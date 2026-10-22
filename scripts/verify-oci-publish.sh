@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# shellcheck source=scripts/lib/fork-registry.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/fork-registry.sh"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1090,SC1091
@@ -10,8 +12,7 @@ trap cosign_cleanup_temp_files EXIT
 # image_inventory.bzl is not resolved as $RUNNER_TEMP/../docker/images/...
 REPO_ROOT="${SERVICERADAR_REPO_ROOT:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 INVENTORY="${SERVICERADAR_IMAGE_INVENTORY:-${REPO_ROOT}/docker/images/image_inventory.bzl}"
-REGISTRY_HOST="${OCI_REGISTRY:-ghcr.io}"
-OCI_PROJECT="${OCI_PROJECT:-jrmatherly}"
+REGISTRY_HOST="${OCI_REGISTRY}"
 OCI_REPOSITORY_BASE="${REGISTRY_HOST}/${OCI_PROJECT}"
 
 if ! command -v python3 >/dev/null 2>&1; then

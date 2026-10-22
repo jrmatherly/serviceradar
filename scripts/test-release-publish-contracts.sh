@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# shellcheck source=scripts/lib/fork-registry.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/fork-registry.sh"
 
 if [[ -n "${TEST_SRCDIR:-}" && -n "${TEST_WORKSPACE:-}" ]]; then
   repo_root="${TEST_SRCDIR}/${TEST_WORKSPACE}"
@@ -42,7 +44,7 @@ if SERVICERADAR_IMAGE_INVENTORY="${tmp_dir}/partial-inventory.bzl" \
   exit 1
 fi
 
-repository_base="${OCI_REGISTRY:-ghcr.io}/${OCI_PROJECT:-jrmatherly}"
+repository_base="${OCI_REGISTRY}/${OCI_PROJECT}"
 python3 - "${inventory}" "${repository_base}" > "${tmp_dir}/expected-specs" <<'PY'
 import ast
 import re

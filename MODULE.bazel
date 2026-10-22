@@ -550,30 +550,6 @@ oci_ext.pull(
     ],
 )
 oci_ext.pull(
-    name = "actions_runner",
-    digest = "sha256:97b86689bb0571ca04b858e460190c8359c346c2fb4d093f0f88e40906e0b3c4",
-    # Mirrored into the fork's GHCR namespace by scripts/ci/mirror-base-images.sh (digest
-    # preserved, verified byte-identical to the ghcr.io source). The direct ghcr.io
-    # pull was dropped because actions-runner has a 301.7 MB layer and Harbor expires an upload
-    # session at ~10 min: from outside the datacenter the push restarted from zero every time
-    # (8 expired sessions, 0 blobs pushed, in one hour). arc-runner is layered on it and shares
-    # that blob. The mirror was populated from a host that could complete the transfer.
-    image = "ghcr.io/jrmatherly/mirror/actions/actions-runner",
-    platforms = [
-        "linux/amd64",
-    ],
-)
-oci_ext.pull(
-    name = "arc_runner",
-    digest = "sha256:cd933c5c1e917d0e3ad96b81eb02f8dc9ce8ba9043eab7611c457dacf370f26f",
-    # Mirrored into the fork's GHCR namespace by scripts/ci/mirror-base-images.sh (digest
-    # preserved, verified byte-identical to the ghcr.io source). See actions_runner above.
-    image = "ghcr.io/jrmatherly/mirror/carverauto/arc-runner",
-    platforms = [
-        "linux/amd64",
-    ],
-)
-oci_ext.pull(
     name = "alpine_3_20",
     digest = "sha256:a4f4213abb84c497377b8544c81b3564f313746700372ec4fe84653e4fb03805",
     image = "ghcr.io/jrmatherly/mirror/library/alpine:3.20",
@@ -625,17 +601,6 @@ oci_ext.pull(
         "linux/amd64",
     ],
 )
-oci_ext.pull(
-    name = "serviceradar_tools",
-    # v1.4.29. The previous pin (c9b4e23e...) no longer exists in Harbor -- the artifact was
-    # gone while the tags v1.4.3..v1.4.29 remained, so a fresh checkout failed the loading
-    # phase with NOT_FOUND while cached workspaces kept working.
-    digest = "sha256:dbd070a74d1e3ea67f3d560018080d35adf06415233504d52111bcbbd8d0cd32",
-    image = "ghcr.io/jrmatherly/mirror/serviceradar/serviceradar-tools",
-    platforms = [
-        "linux/amd64",
-    ],
-)
 
 # Pinned by digest: a tag pull re-resolves against ghcr.io on every refetch, and anonymous
 # token requests are rate limited -- a throttled one fails Bazel's loading phase.
@@ -669,16 +634,12 @@ oci_ext.pull(
 )
 use_repo(
     oci_ext,
-    "actions_runner",
-    "actions_runner_linux_amd64",
     "alpine_3_20",
     "alpine_3_20_linux_amd64",
     "alpine_3_20_linux_arm64_v8",
     "alpine_3_24",
     "alpine_3_24_linux_amd64",
     "alpine_3_24_linux_arm64_v8",
-    "arc_runner",
-    "arc_runner_linux_amd64",
     "cloudnativepg_postgresql_18",
     "cloudnativepg_postgresql_18_linux_amd64",
     "debian_bookworm_slim",
@@ -690,8 +651,6 @@ use_repo(
     "node_20_alpine_linux_amd64",
     "pgduckdb_18",
     "pgduckdb_18_linux_amd64",
-    "serviceradar_tools",
-    "serviceradar_tools_linux_amd64",
     "ubuntu_jammy",
     "ubuntu_jammy_linux_amd64",
     "ubuntu_noble",

@@ -2,14 +2,9 @@
 # Format: <mirror path under ghcr.io/<owner>/mirror/> <origin reference>
 # scripts/ci/mirror-base-images.sh copies origin@<digest from MODULE.bazel> into the
 # fork's mirror, so builds never contact these registries; only this workflow does.
-# Entries whose origin is upstream's registry are images upstream built itself; the
-# fork should rebuild them from source eventually (see docs/fork-ci.md).
 library/ubuntu docker.io/library/ubuntu
-actions/actions-runner ghcr.io/actions/actions-runner
-carverauto/arc-runner registry.carverauto.dev/mirror/carverauto/arc-runner
 library/alpine docker.io/library/alpine
 library/debian docker.io/library/debian
 library/node docker.io/library/node
-serviceradar/serviceradar-tools registry.carverauto.dev/serviceradar/serviceradar-tools
 cloudnative-pg/postgresql ghcr.io/cloudnative-pg/postgresql
 pgduckdb/pgduckdb docker.io/pgduckdb/pgduckdb

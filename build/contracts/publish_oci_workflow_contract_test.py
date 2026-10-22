@@ -261,16 +261,22 @@ esac
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(summary.count(VALID_DIGEST), 2)
 
-    def test_release_environment_uses_canonical_harbor_credentials(self):
+    def test_release_environment_uses_the_fork_registry_credentials(self):
         self.assertIn("    environment: release", self.workflow)
+        # GHCR via GITHUB_TOKEN unless both OCI_* secrets are set; a half-set pair must fail.
         self.assertIn(
-            "      OCI_USERNAME: ${{ secrets.HARBOR_ROBOT_USERNAME }}",
+            "      OCI_USERNAME: ${{ secrets.OCI_USERNAME || github.actor }}",
             self.workflow,
         )
         self.assertIn(
-            "      OCI_TOKEN: ${{ secrets.HARBOR_ROBOT_SECRET }}",
+            "      OCI_TOKEN: ${{ secrets.OCI_TOKEN || secrets.GITHUB_TOKEN }}",
             self.workflow,
         )
+        self.assertIn(
+            '          if [[ "${OCI_USERNAME_SET}" != "${OCI_TOKEN_SET}" ]]; then',
+            self.workflow,
+        )
+        self.assertNotIn("HARBOR_", self.workflow)
 
 
 if __name__ == "__main__":

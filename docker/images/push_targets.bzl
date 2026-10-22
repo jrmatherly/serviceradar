@@ -3,6 +3,7 @@
 load("@rules_oci//oci:defs.bzl", "oci_push")
 load("@aspect_bazel_lib//lib:expand_template.bzl", "expand_template")
 load("//docker/images:container_tags.bzl", "immutable_push_tags")
+load("//docker/images:fork_registry.bzl", "FORK_OCI_PROJECT", "FORK_OCI_REGISTRY")
 load("//docker/images:image_inventory.bzl", "PUBLISHABLE_IMAGES")
 load("@rules_multirun//:defs.bzl", "command", "multirun")
 
@@ -46,8 +47,8 @@ def declare_oci_push_targets():
             name = "{}_repository".format(image),
             template = ["{{STABLE_OCI_REGISTRY}}/{{STABLE_OCI_PROJECT}}/" + image_name],
             substitutions = {
-                "{{STABLE_OCI_REGISTRY}}": "ghcr.io",
-                "{{STABLE_OCI_PROJECT}}": "jrmatherly",
+                "{{STABLE_OCI_REGISTRY}}": FORK_OCI_REGISTRY,
+                "{{STABLE_OCI_PROJECT}}": FORK_OCI_PROJECT,
             },
             stamp = 1,
             stamp_substitutions = {

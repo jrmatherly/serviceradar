@@ -36,6 +36,21 @@ API key is what the smoke test used and is the default endpoint.
 | hex.pm | Free, but `palisade` is owned by upstream. | `palisade-publish.yml`, blocked until the rebrand. |
 | Apple notarization | Not free (Apple Developer Program). | Signed macOS installers, off until `MACOS_SIGNING_ENABLED`. |
 
+## Fork identity in code
+
+The fork's registry and owner have two sources, kept in agreement:
+`docker/images/fork_registry.bzl` (Starlark: oci_push defaults, local `docker load`
+tags, base-image annotations) and `scripts/lib/fork-registry.sh` (shell: defaults for
+`OCI_REGISTRY`/`OCI_PROJECT` in every publish, sign, verify and index script, and in
+`scripts/workspace_status.sh`, which stamps them into Bazel). Literal references that
+cannot read either live in `MODULE.bazel` (the `ghcr.io/<owner>/mirror/...` pulls and
+the BuildBuddy toolchain image), `build/rbe/BUILD` (the RBE executor image) and
+`BUILD.md`. The rebrand changes those two sources and those three files.
+
+The ARC runner images and upstream's prebuilt `serviceradar-tools` pull are gone
+from `MODULE.bazel`: the fork has no self-hosted runner pool, and `serviceradar-tools`
+is built from source by `//docker/images:tools_image_amd64`.
+
 ## Fork contract: variables and secrets
 
 Repository variables unless marked. Secrets live in the `release` environment

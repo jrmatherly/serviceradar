@@ -32,6 +32,11 @@ class PushTargetsTest(unittest.TestCase):
             "multirun": lambda **_kwargs: None,
             "oci_push": lambda **kwargs: self.push_calls.append(kwargs),
         }
+        exec(
+            compile(Path(__file__).with_name("fork_registry.bzl").read_text(), "fork_registry.bzl", "exec"),
+            namespace,
+        )
+        self.fork = {k: namespace[k] for k in ("FORK_OCI_REGISTRY", "FORK_OCI_PROJECT")}
         source = Path(__file__).with_name("push_targets.bzl").read_text()
         exec(compile(source, "push_targets.bzl", "exec"), namespace)
         namespace["declare_oci_push_targets"]()
@@ -88,7 +93,10 @@ class PushTargetsTest(unittest.TestCase):
         # Unstamped builds still produce a usable, fork-owned default.
         self.assertEqual(
             alpha["substitutions"],
-            {"{{STABLE_OCI_REGISTRY}}": "ghcr.io", "{{STABLE_OCI_PROJECT}}": "jrmatherly"},
+            {
+                "{{STABLE_OCI_REGISTRY}}": self.fork["FORK_OCI_REGISTRY"],
+                "{{STABLE_OCI_PROJECT}}": self.fork["FORK_OCI_PROJECT"],
+            },
         )
         for call in self.push_calls:
             self.assertNotIn("repository", call)

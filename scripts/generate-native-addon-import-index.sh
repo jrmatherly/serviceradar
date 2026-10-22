@@ -7,6 +7,8 @@
 # so the importer can mirror and record each per-arch artifact + its agent-release
 # signature on the AddonPackage.
 set -euo pipefail
+# shellcheck source=scripts/lib/fork-registry.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/fork-registry.sh"
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "error: jq is required" >&2
@@ -29,8 +31,7 @@ BAZEL_BIN="${BAZEL_BIN:-bazel}"
 read -r -a BAZEL_BUILD_FLAGS <<<"${BAZEL_BUILD_FLAGS:--c opt}"
 BAZEL_BIN_DIR="${BAZEL_BIN_DIR:-$("${BAZEL_BIN}" info "${BAZEL_BUILD_FLAGS[@]}" bazel-bin 2>/dev/null)}"
 METADATA_DIR="${METADATA_DIR:-${BAZEL_BIN_DIR}/build/native_addons}"
-REGISTRY_HOST="${OCI_REGISTRY:-ghcr.io}"
-OCI_PROJECT="${OCI_PROJECT:-jrmatherly}"
+REGISTRY_HOST="${OCI_REGISTRY}"
 OUTPUT="${OUTPUT:-${REPO_ROOT}/serviceradar-native-addon-index.json}"
 GENERATED_AT="${GENERATED_AT:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
 

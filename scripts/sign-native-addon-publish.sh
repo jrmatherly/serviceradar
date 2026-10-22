@@ -8,6 +8,8 @@
 # (build/native_addons/publish_addon.sh); the bundle is covered by the Cosign
 # signature over the OCI artifact.
 set -euo pipefail
+# shellcheck source=scripts/lib/fork-registry.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/fork-registry.sh"
 
 # shellcheck source=scripts/cosign_common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/cosign_common.sh"
@@ -30,8 +32,7 @@ BAZEL_BIN="${BAZEL_BIN:-bazel}"
 read -r -a BAZEL_BUILD_FLAGS <<<"${BAZEL_BUILD_FLAGS:--c opt}"
 BAZEL_BIN_DIR="${BAZEL_BIN_DIR:-$("${BAZEL_BIN}" info "${BAZEL_BUILD_FLAGS[@]}" bazel-bin 2>/dev/null)}"
 METADATA_DIR="${METADATA_DIR:-${BAZEL_BIN_DIR}/build/native_addons}"
-REGISTRY_HOST="${OCI_REGISTRY:-ghcr.io}"
-OCI_PROJECT="${OCI_PROJECT:-jrmatherly}"
+REGISTRY_HOST="${OCI_REGISTRY}"
 COMMIT_TAG="sha-$(git -C "${REPO_ROOT}" rev-parse HEAD)"
 export COSIGN_DOCKER_MEDIA_TYPES="${COSIGN_DOCKER_MEDIA_TYPES:-1}"
 COSIGN_REFERRERS_MODE="${COSIGN_REFERRERS_MODE:-oci-1-1}"

@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# shellcheck source=scripts/lib/fork-registry.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/fork-registry.sh"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1090,SC1091
@@ -27,8 +29,7 @@ if ! command -v curl >/dev/null 2>&1; then
 fi
 
 REPO_ROOT="${SERVICERADAR_REPO_ROOT:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
-REGISTRY_HOST="${OCI_REGISTRY:-ghcr.io}"
-OCI_PROJECT="${OCI_PROJECT:-jrmatherly}"
+REGISTRY_HOST="${OCI_REGISTRY}"
 SIGN_REGISTRY_TAG="${SERVICERADAR_SIGN_REGISTRY_TAG:-}"
 
 if [[ -n "${SIGN_REGISTRY_TAG}" ]]; then
