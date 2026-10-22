@@ -770,7 +770,9 @@ workflow: their `srql-fixtures-db-tests` skill owns endpoint discovery, verified
 scratch-database creation, schema migration, focused Mix execution and cleanup, and it
 needs their `srql-fixtures` cluster, so this fork does not carry it. The lifecycle it
 wraps is in [the SRQL fixture runbook](../docs/agent-runbooks.md#srql-fixture-integration-tests). Database-backed
-tests must use that fixture rather than a local PostgreSQL instance.
+tests must use that fixture rather than a local PostgreSQL instance. This fork has no access
+to that cluster, so it runs them against the disposable local CNPG described in
+[Local test database (fork)](../docs/agent-runbooks.md#local-test-database-fork).
 
 The admin DSN must include a non-empty password. `StartupMigrations` discards admin
 credentials with an empty password and falls back to the application role, which can

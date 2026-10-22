@@ -1,0 +1,30 @@
+# Fork-local disposable CNPG for the DB-backed elixir/serviceradar_core tests.
+# Drive it with make test-db-up / test-db-migrate / test-core-db / test-db-down /
+# test-db-reset; docs/agent-runbooks.md "Local test database (fork)" explains it.
+# Port 5455 belongs to the mTLS dev stack, so this one listens on 55432.
+name: serviceradar-test-db
+
+services:
+  test-db:
+    image: ghcr.io/carverauto/serviceradar-cnpg@sha256:59e442dec59fac3149e3a3c49ba0cc2987bfb052bca1a0ea8c01b4bb31427d1d
+    platform: linux/amd64
+    entrypoint: ["/bin/sh", "/test-db/entrypoint.sh"]
+    environment:
+      TEST_DB_PORT: ${TEST_DB_PORT:-55432}
+    ports:
+      - "127.0.0.1:${TEST_DB_PORT:-55432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql
+      - ./entrypoint.sh:/test-db/entrypoint.sh:ro
+      - ./init.sql:/test-db/init.sql:ro
+      - ../../../tmp/test-db:/out
+    stop_signal: SIGINT
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-p", "5432", "-d", "sr_core_test_local", "-U", "srql"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 300s
+
+volumes:
+  pgdata:

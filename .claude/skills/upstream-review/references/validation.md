@@ -14,6 +14,7 @@ project fails the whole gate; `datasvc` was the one missed on 2026-10-22), and a
 `.bazelrc.remote` for the Bazel rows. Write `.bazelrc.remote` with the BuildBuddy key read
 from the terminal, so it stays out of shell history:
 `read -rs BUILDBUDDY_ORG_API_KEY && export BUILDBUDDY_ORG_API_KEY && scripts/ci/configure-bazel-remote.sh; unset BUILDBUDDY_ORG_API_KEY`.
+`make doctor` checks every prerequisite here and prints the fix for each one missing.
 Under mise, `MIX_HOME` is `~/.local/share/mise/installs/elixir/<ver>/.mix`; the `Makefile`
 reads that variable for `protoc-gen-elixir`, so export it (mise does) rather than assuming
 `~/.mix`.
