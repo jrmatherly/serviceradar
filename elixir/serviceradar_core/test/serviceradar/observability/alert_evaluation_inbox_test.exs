@@ -1332,6 +1332,8 @@ defmodule ServiceRadar.Observability.AlertEvaluationInboxTest do
       ["ServiceRadar.Observability.StatefulAlertEngine.EvaluationWorker", ids]
     )
 
+    Repo.query!("DELETE FROM platform.api_events WHERE record_id::text = ANY($1::text[])", [ids])
+
     for table <-
           ~w(alert_evaluation_work alert_evaluation_receipts alert_evaluation_lanes stateful_alert_rule_histories stateful_alert_rule_states) do
       Repo.query!("DELETE FROM platform.#{table} WHERE rule_id::text = ANY($1::text[])", [ids])

@@ -833,6 +833,11 @@ defmodule ServiceRadar.Inventory.IdentityReconcilerMergeGuardTest do
     end
 
     test "a blocked merge is still logged at info level", %{actor: actor} do
+      # config/test.exs sets the primary level to :warning under mix, which drops info before capture.
+      previous_level = Logger.level()
+      Logger.configure(level: :info)
+      on_exit(fn -> Logger.configure(level: previous_level) end)
+
       {:ok, device_a} = create_device(actor, "log-info-host-a")
       {:ok, device_b} = create_device(actor, "log-info-host-b")
       {:ok, _} = register_identifier(actor, device_a.uid, :agent_id, unique("log-info-agent-a"))
