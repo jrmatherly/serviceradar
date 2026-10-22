@@ -1,6 +1,6 @@
 //! Which source an identity reads from.
 
-use serviceradar_config_manager::{Identity, Source, MOUNTED_INSTANCE_PATH};
+use serviceradar_config_manager::{Identity, MOUNTED_INSTANCE_PATH, Source};
 
 fn identity(value: &str) -> Identity {
     Identity::parse(Some(value)).unwrap()
@@ -14,7 +14,9 @@ fn kinds_without_a_platform_carry_their_instance() {
     for value in ["localhost", "ci"] {
         assert_eq!(
             Source::for_identity(&identity(value)),
-            Source::BuiltIn { name: value.to_string() }
+            Source::BuiltIn {
+                name: value.to_string()
+            }
         );
     }
 }
@@ -24,7 +26,9 @@ fn deployed_kinds_read_the_mount() {
     for value in ["saas", "demo", "onprem:untd"] {
         assert_eq!(
             Source::for_identity(&identity(value)),
-            Source::Mounted { path: MOUNTED_INSTANCE_PATH.to_string() },
+            Source::Mounted {
+                path: MOUNTED_INSTANCE_PATH.to_string()
+            },
             "{value}"
         );
     }
@@ -32,7 +36,10 @@ fn deployed_kinds_read_the_mount() {
 
 #[test]
 fn display_names_a_built_in_by_identity_and_a_mount_by_path() {
-    assert_eq!(Source::for_identity(&identity("ci")).to_string(), "built-in:ci");
+    assert_eq!(
+        Source::for_identity(&identity("ci")).to_string(),
+        "built-in:ci"
+    );
     assert_eq!(
         Source::for_identity(&identity("saas")).to_string(),
         MOUNTED_INSTANCE_PATH

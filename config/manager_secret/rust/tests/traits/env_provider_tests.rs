@@ -1,6 +1,6 @@
 //! `EnvProvider` reads secrets from the process environment.
 
-use serviceradar_secret_manager::{EnvProvider, SecretProvider, SECRET_ENV_PREFIX};
+use serviceradar_secret_manager::{EnvProvider, SECRET_ENV_PREFIX, SecretProvider};
 
 /// The whole point of the transform: a caller that knows the logical name can compute the
 /// variable, so no mapping table exists to disagree with the manifest.
@@ -18,16 +18,24 @@ fn the_variable_is_derived_from_the_logical_name() {
 
 #[test]
 fn every_separator_becomes_an_underscore() {
-    assert_eq!(EnvProvider::variable_for("a.b-c/d"), format!("{SECRET_ENV_PREFIX}A_B_C_D"));
+    assert_eq!(
+        EnvProvider::variable_for("a.b-c/d"),
+        format!("{SECRET_ENV_PREFIX}A_B_C_D")
+    );
 }
 
 #[test]
 fn an_unset_variable_is_unresolvable_and_names_the_provider() {
     let provider = EnvProvider::new();
-    let error = provider.resolve("database.password").expect_err("nothing set it");
+    let error = provider
+        .resolve("database.password")
+        .expect_err("nothing set it");
     let rendered = error.to_string();
     assert!(rendered.contains("database.password"), "{rendered}");
-    assert!(rendered.contains("env("), "the error must name the store consulted: {rendered}");
+    assert!(
+        rendered.contains("env("),
+        "the error must name the store consulted: {rendered}"
+    );
 }
 
 /// A set-but-blank secret is the failure this guards: it authenticates as nobody and the
@@ -40,7 +48,10 @@ fn an_empty_variable_is_absent_not_an_empty_credential() {
     unsafe { std::env::set_var(&variable, "") };
     let outcome = EnvProvider::new().resolve(name);
     unsafe { std::env::remove_var(&variable) };
-    assert!(outcome.is_err(), "an empty variable must not resolve to an empty secret");
+    assert!(
+        outcome.is_err(),
+        "an empty variable must not resolve to an empty secret"
+    );
 }
 
 #[test]

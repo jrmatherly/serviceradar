@@ -22,8 +22,12 @@ pub enum Source {
 impl Source {
     pub fn for_identity(identity: &Identity) -> Self {
         match identity.kind() {
-            "localhost" | "ci" => Self::BuiltIn { name: identity.to_string() },
-            _ => Self::Mounted { path: MOUNTED_INSTANCE_PATH.to_string() },
+            "localhost" | "ci" => Self::BuiltIn {
+                name: identity.to_string(),
+            },
+            _ => Self::Mounted {
+                path: MOUNTED_INSTANCE_PATH.to_string(),
+            },
         }
     }
 }

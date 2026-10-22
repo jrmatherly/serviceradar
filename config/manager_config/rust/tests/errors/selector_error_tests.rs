@@ -18,7 +18,11 @@ fn the_unset_message_names_the_variable_and_says_nothing_can_start() {
 
 #[test]
 fn the_unset_message_says_there_is_no_default() {
-    assert!(unset_message().contains("NO DEFAULT"), "{}", unset_message());
+    assert!(
+        unset_message().contains("NO DEFAULT"),
+        "{}",
+        unset_message()
+    );
 }
 
 #[test]
@@ -40,7 +44,19 @@ fn the_unset_message_shows_how_to_set_it_on_every_platform() {
 
 #[test]
 fn every_other_selector_error_quotes_the_offending_value() {
-    assert!(SelectorError::UnknownKind("CI-staging".into()).to_string().contains("CI-staging"));
-    assert!(SelectorError::InstanceRequired("onprem".into()).to_string().contains("onprem"));
-    assert!(SelectorError::InstanceNotAccepted("saas".into()).to_string().contains("saas"));
+    assert!(
+        SelectorError::UnknownKind("CI-staging".into())
+            .to_string()
+            .contains("CI-staging")
+    );
+    assert!(
+        SelectorError::InstanceRequired("onprem".into())
+            .to_string()
+            .contains("onprem")
+    );
+    assert!(
+        SelectorError::InstanceNotAccepted("saas".into())
+            .to_string()
+            .contains("saas")
+    );
 }

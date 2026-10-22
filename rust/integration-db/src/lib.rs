@@ -109,12 +109,7 @@ const REQUIRED_GRAPHS: &[&str] = &["serviceradar_topology", "serviceradar", "pla
 /// drop any other database older than the cutoff: cancelled CI clones are
 /// `sr_core_test_*`, but workstation leftovers use other prefixes and used to
 /// accumulate until Timescale workers exhausted the instance.
-const PROTECTED_DATABASES: &[&str] = &[
-    "postgres",
-    "template0",
-    "template1",
-    "srql_fixture",
-];
+const PROTECTED_DATABASES: &[&str] = &["postgres", "template0", "template1", "srql_fixture"];
 
 /// Find disposable databases whose own data-directory marker is older than the cutoff.
 ///

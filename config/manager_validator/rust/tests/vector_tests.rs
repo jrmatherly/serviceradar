@@ -12,8 +12,8 @@
 
 use prost::Message;
 use serviceradar_config_schema::{FixtureSet, RuleSet};
-use serviceradar_config_validator::validate;
 use serviceradar_config_validator::utils_tests::data_path;
+use serviceradar_config_validator::validate;
 
 fn load<T: Message + Default>(relative: &str) -> T {
     let path = data_path(relative);
@@ -34,7 +34,10 @@ fn fixtures() -> FixtureSet {
 fn every_fixture_produces_exactly_its_expected_violations() {
     let rules = rules();
     let fixtures = fixtures();
-    assert!(!fixtures.fixtures.is_empty(), "the fixture set decoded empty");
+    assert!(
+        !fixtures.fixtures.is_empty(),
+        "the fixture set decoded empty"
+    );
 
     let mut failures = Vec::new();
     for fixture in &fixtures.fixtures {
@@ -47,7 +50,10 @@ fn every_fixture_produces_exactly_its_expected_violations() {
         let actual: Vec<(String, String)> = match validate(&rules, instance) {
             Ok(v) => v.into_iter().map(|v| (v.code, v.field_path)).collect(),
             Err(e) => {
-                failures.push(format!("{name}: rule names a field the schema lacks: {}", e.0));
+                failures.push(format!(
+                    "{name}: rule names a field the schema lacks: {}",
+                    e.0
+                ));
                 continue;
             }
         };
@@ -58,11 +64,17 @@ fn every_fixture_produces_exactly_its_expected_violations() {
             .collect();
 
         if actual != expected {
-            failures.push(format!("{name}:\n    expected {expected:?}\n    actual   {actual:?}"));
+            failures.push(format!(
+                "{name}:\n    expected {expected:?}\n    actual   {actual:?}"
+            ));
         }
     }
 
-    assert!(failures.is_empty(), "fixture mismatches:\n  {}", failures.join("\n  "));
+    assert!(
+        failures.is_empty(),
+        "fixture mismatches:\n  {}",
+        failures.join("\n  ")
+    );
 }
 
 /// The invariant the rule set file states in its own header and that nothing enforced: every
@@ -107,8 +119,11 @@ fn every_rule_is_violated_by_at_least_one_fixture() {
 #[test]
 #[ignore = "needs artifacts built by Bazel (protoc-compiled .binpb); run //config/manager_validator/rust/tests, which passes --include-ignored"]
 fn every_expected_violation_names_a_rule_that_exists() {
-    let codes: std::collections::BTreeSet<String> =
-        rules().rules.iter().filter_map(|r| r.code.clone()).collect();
+    let codes: std::collections::BTreeSet<String> = rules()
+        .rules
+        .iter()
+        .filter_map(|r| r.code.clone())
+        .collect();
 
     let dangling: Vec<String> = fixtures()
         .fixtures
@@ -123,5 +138,8 @@ fn every_expected_violation_names_a_rule_that_exists() {
         .map(|(fixture, code)| format!("{fixture} expects {code}"))
         .collect();
 
-    assert!(dangling.is_empty(), "fixtures expecting undefined codes: {dangling:#?}");
+    assert!(
+        dangling.is_empty(),
+        "fixtures expecting undefined codes: {dangling:#?}"
+    );
 }

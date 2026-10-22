@@ -39,9 +39,10 @@ impl Identity {
 
         if kind == ONPREM {
             return match instance {
-                Some(i) if !i.is_empty() => {
-                    Ok(Self { kind: kind.to_string(), instance: Some(i) })
-                }
+                Some(i) if !i.is_empty() => Ok(Self {
+                    kind: kind.to_string(),
+                    instance: Some(i),
+                }),
                 _ => Err(SelectorError::InstanceRequired(ONPREM.to_string())),
             };
         }
@@ -51,7 +52,10 @@ impl Identity {
         if instance.is_some() {
             return Err(SelectorError::InstanceNotAccepted(kind.to_string()));
         }
-        Ok(Self { kind: kind.to_string(), instance: None })
+        Ok(Self {
+            kind: kind.to_string(),
+            instance: None,
+        })
     }
 
     /// Reads the one variable from the process environment.

@@ -19,7 +19,9 @@ impl Manifest {
         I: IntoIterator<Item = S>,
         S: Into<String>,
     {
-        Self { names: names.into_iter().map(Into::into).collect() }
+        Self {
+            names: names.into_iter().map(Into::into).collect(),
+        }
     }
 
     pub fn declares(&self, name: &str) -> bool {

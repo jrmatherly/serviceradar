@@ -34,7 +34,9 @@ impl Default for EnvProvider {
 
 impl EnvProvider {
     pub fn new() -> Self {
-        Self { label: format!("env({SECRET_ENV_PREFIX}*)") }
+        Self {
+            label: format!("env({SECRET_ENV_PREFIX}*)"),
+        }
     }
 
     /// The variable a logical name is read from: `database.password` ->
@@ -69,7 +71,10 @@ impl SecretProvider for EnvProvider {
         // error from the server instead of a clear one from here.
         match std::env::var(&variable) {
             Ok(value) => Secret::new(value.trim_end_matches(['\n', '\r'])).ok_or_else(|| {
-                SecretError::Unresolvable { name: name.to_string(), provider: self.label.clone() }
+                SecretError::Unresolvable {
+                    name: name.to_string(),
+                    provider: self.label.clone(),
+                }
             }),
             Err(_) => Err(SecretError::Unresolvable {
                 name: name.to_string(),

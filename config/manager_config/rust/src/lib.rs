@@ -28,4 +28,6 @@ pub use secrets::{
 };
 pub use traits::{Filesystem, ReadSource};
 pub use types::config_manager::BuiltIns;
-pub use types::{ConfigManager, Dsn, Entry, Explanation, Identity, Source, ENV_VAR, MOUNTED_INSTANCE_PATH};
+pub use types::{
+    ConfigManager, Dsn, ENV_VAR, Entry, Explanation, Identity, MOUNTED_INSTANCE_PATH, Source,
+};

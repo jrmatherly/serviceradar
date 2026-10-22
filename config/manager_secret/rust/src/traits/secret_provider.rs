@@ -40,7 +40,10 @@ pub struct FileProvider {
 
 impl FileProvider {
     pub fn new(dir: impl Into<String>, label: impl Into<String>) -> Self {
-        Self { dir: dir.into(), label: label.into() }
+        Self {
+            dir: dir.into(),
+            label: label.into(),
+        }
     }
 
     pub fn mounted() -> Self {
@@ -96,12 +99,10 @@ impl SecretProvider for FileProvider {
                     provider: self.label.clone(),
                 }
             }),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                Err(SecretError::Unresolvable {
-                    name: name.to_string(),
-                    provider: self.label.clone(),
-                })
-            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Err(SecretError::Unresolvable {
+                name: name.to_string(),
+                provider: self.label.clone(),
+            }),
             Err(e) => Err(SecretError::Provider {
                 name: name.to_string(),
                 provider: self.label.clone(),

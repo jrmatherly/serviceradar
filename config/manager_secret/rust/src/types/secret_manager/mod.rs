@@ -37,7 +37,12 @@ impl<P: SecretProvider> SecretManager<P> {
         if !self.manifest.declares(name) {
             return Err(SecretError::Undeclared {
                 name: name.to_string(),
-                declared: self.manifest.declared().into_iter().map(str::to_string).collect(),
+                declared: self
+                    .manifest
+                    .declared()
+                    .into_iter()
+                    .map(str::to_string)
+                    .collect(),
             });
         }
         self.provider.resolve(name)

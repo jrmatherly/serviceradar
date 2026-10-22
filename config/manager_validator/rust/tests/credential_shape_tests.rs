@@ -4,8 +4,8 @@
 //! scanned and no comment is. See serviceradar_config_validator::credentials.
 
 use serviceradar_config_validator::credentials::scan;
-use serviceradar_config_validator::text::{flatten, Pair};
-use serviceradar_config_validator::utils_tests::{read, INSTANCES};
+use serviceradar_config_validator::text::{Pair, flatten};
+use serviceradar_config_validator::utils_tests::{INSTANCES, read};
 
 fn instance(name: &str) -> Vec<Pair> {
     let src = read(&format!("config/environments/{name}.canonical.textproto"));
@@ -15,7 +15,10 @@ fn instance(name: &str) -> Vec<Pair> {
 fn pairs(items: &[(&str, &str)]) -> Vec<Pair> {
     items
         .iter()
-        .map(|(path, value)| Pair { path: (*path).into(), value: (*value).into() })
+        .map(|(path, value)| Pair {
+            path: (*path).into(),
+            value: (*value).into(),
+        })
         .collect()
 }
 
@@ -32,7 +35,10 @@ fn no_committed_instance_contains_a_credential() {
             eprintln!("{name}: {} -- {}", finding.path, finding.reason);
         }
     }
-    assert!(!failed, "committed instances contain credential-shaped values (see above)");
+    assert!(
+        !failed,
+        "committed instances contain credential-shaped values (see above)"
+    );
 }
 
 /// The negative control, one case per shape. A scanner that finds nothing in four clean files
@@ -90,14 +96,23 @@ fn a_credential_named_field_is_rejected_regardless_of_value() {
 #[ignore = "needs artifacts built by Bazel (protoc-compiled .binpb); run //config/manager_validator/rust/tests, which passes --include-ignored"]
 fn legitimate_configuration_values_are_not_flagged() {
     let clean = pairs(&[
-        ("database.host", "\"cnpg-rw.serviceradar.svc.cluster.local\""),
+        (
+            "database.host",
+            "\"cnpg-rw.serviceradar.svc.cluster.local\"",
+        ),
         ("database.connecting_role", "\"serviceradar\""),
         ("database.search_path", "\"platform, ag_catalog\""),
         ("database.port", "5432"),
-        ("nats.url", "\"tls://serviceradar-nats.demo.svc.cluster.local:4222\""),
+        (
+            "nats.url",
+            "\"tls://serviceradar-nats.demo.svc.cluster.local:4222\"",
+        ),
         ("core.api_url", "\"http://serviceradar-core:8090\""),
         ("core.address", "\"serviceradar-core:50052\""),
-        ("core.server_spiffe_id", "\"spiffe://serviceradar.cloud/ns/demo/sa/core\""),
+        (
+            "core.server_spiffe_id",
+            "\"spiffe://serviceradar.cloud/ns/demo/sa/core\"",
+        ),
         ("core.trust_domain", "\"serviceradar.cloud\""),
         ("dgraph.host", "\"dgraph.serviceradar.svc.cluster.local\""),
         ("kind", "ENVIRONMENT_KIND_DEMO"),

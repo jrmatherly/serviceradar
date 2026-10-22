@@ -51,7 +51,9 @@ fn strip_comment(line: &str) -> &str {
 
 fn is_identifier(s: &str) -> bool {
     !s.is_empty()
-        && s.chars().next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+        && s.chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
         && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
@@ -69,31 +71,49 @@ pub fn flatten(src: &str) -> Result<Vec<Pair>, TextError> {
 
         if line == "}" {
             if stack.pop().is_none() {
-                return Err(TextError { line: n, detail: "unmatched '}'".into() });
+                return Err(TextError {
+                    line: n,
+                    detail: "unmatched '}'".into(),
+                });
             }
         } else if let Some(name) = line.strip_suffix('{') {
             let name = name.trim();
             if !is_identifier(name) {
-                return Err(TextError { line: n, detail: format!("bad message name {name:?}") });
+                return Err(TextError {
+                    line: n,
+                    detail: format!("bad message name {name:?}"),
+                });
             }
             stack.push(name);
         } else if let Some((key, value)) = line.split_once(':') {
             let key = key.trim();
             let value = value.trim();
             if !is_identifier(key) {
-                return Err(TextError { line: n, detail: format!("bad field name {key:?}") });
+                return Err(TextError {
+                    line: n,
+                    detail: format!("bad field name {key:?}"),
+                });
             }
             if value.is_empty() {
-                return Err(TextError { line: n, detail: format!("field {key:?} has no value") });
+                return Err(TextError {
+                    line: n,
+                    detail: format!("field {key:?} has no value"),
+                });
             }
             let mut path = stack.join(".");
             if !path.is_empty() {
                 path.push('.');
             }
             path.push_str(key);
-            out.push(Pair { path, value: value.to_string() });
+            out.push(Pair {
+                path,
+                value: value.to_string(),
+            });
         } else {
-            return Err(TextError { line: n, detail: format!("unrecognised syntax: {line:?}") });
+            return Err(TextError {
+                line: n,
+                detail: format!("unrecognised syntax: {line:?}"),
+            });
         }
     }
 

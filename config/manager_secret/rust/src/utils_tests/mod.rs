@@ -23,7 +23,10 @@ impl MapProvider {
         V: Into<String>,
     {
         Self {
-            entries: entries.into_iter().map(|(k, v)| (k.into(), v.into())).collect(),
+            entries: entries
+                .into_iter()
+                .map(|(k, v)| (k.into(), v.into()))
+                .collect(),
             label: "test-map".to_string(),
         }
     }

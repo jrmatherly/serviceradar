@@ -3,19 +3,32 @@
 use serviceradar_config_manager::{LoadError, Source};
 
 fn mounted() -> Source {
-    Source::Mounted { path: "/etc/serviceradar/environment.binpb".into() }
+    Source::Mounted {
+        path: "/etc/serviceradar/environment.binpb".into(),
+    }
 }
 
 #[test]
 fn a_read_failure_names_the_path_and_the_cause() {
-    let text = LoadError::Read { source: mounted(), detail: "permission denied".into() }.to_string();
-    assert!(text.contains("/etc/serviceradar/environment.binpb"), "{text}");
+    let text = LoadError::Read {
+        source: mounted(),
+        detail: "permission denied".into(),
+    }
+    .to_string();
+    assert!(
+        text.contains("/etc/serviceradar/environment.binpb"),
+        "{text}"
+    );
     assert!(text.contains("permission denied"), "{text}");
 }
 
 #[test]
 fn a_decode_failure_says_what_the_bytes_were_expected_to_be() {
-    let text = LoadError::Decode { source: mounted(), detail: "bad wire type".into() }.to_string();
+    let text = LoadError::Decode {
+        source: mounted(),
+        detail: "bad wire type".into(),
+    }
+    .to_string();
     assert!(text.contains("EnvironmentConfig"), "{text}");
 }
 

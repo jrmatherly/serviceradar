@@ -4,4 +4,6 @@ pub mod secret_provider;
 
 pub use env_provider::{EnvProvider, SECRET_ENV_PREFIX};
 pub use environment_provider::EnvironmentProvider;
-pub use secret_provider::{FileProvider, SecretProvider, LOCAL_SECRETS_SUBDIR, MOUNTED_SECRETS_DIR};
+pub use secret_provider::{
+    FileProvider, LOCAL_SECRETS_SUBDIR, MOUNTED_SECRETS_DIR, SecretProvider,
+};

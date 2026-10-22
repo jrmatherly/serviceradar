@@ -81,10 +81,7 @@ fn default_state_dir() -> PathBuf {
 }
 
 fn api_token_from_env() -> Option<String> {
-    select_api_token(
-        None,
-        std::env::var("SERVICERADAR_SIDEKICK_API_TOKEN").ok(),
-    )
+    select_api_token(None, std::env::var("SERVICERADAR_SIDEKICK_API_TOKEN").ok())
 }
 
 fn select_api_token(configured: Option<String>, environment: Option<String>) -> Option<String> {
@@ -99,9 +96,7 @@ fn normalize_api_token(token: Option<String>) -> Option<String> {
         .flat_map(char::to_lowercase)
         .collect();
 
-    if token.is_empty()
-        || matches!(normalized.as_str(), "changeme" | "changeit" | "placeholder")
-    {
+    if token.is_empty() || matches!(normalized.as_str(), "changeme" | "changeit" | "placeholder") {
         None
     } else {
         Some(token)

@@ -1,6 +1,6 @@
 //! `Display` redacts, so interpolating a secret into a message cannot leak it.
 
-use crate::types::secret::{Secret, REDACTED};
+use crate::types::secret::{REDACTED, Secret};
 use std::fmt;
 
 impl fmt::Display for Secret {

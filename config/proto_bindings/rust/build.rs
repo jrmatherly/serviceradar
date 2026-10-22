@@ -20,7 +20,10 @@ fn schema_root() -> PathBuf {
         }
         dir = dir.join("..");
     }
-    panic!("config/proto/config.proto not found within 8 levels of {:?}", std::env::current_dir());
+    panic!(
+        "config/proto/config.proto not found within 8 levels of {:?}",
+        std::env::current_dir()
+    );
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -28,8 +31,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config_proto = root.join("config/proto/config.proto");
     let rules_proto = root.join("config/proto/rules.proto");
 
-    prost_build::Config::new()
-        .compile_protos(&[Path::new(&config_proto), Path::new(&rules_proto)], &[&root])?;
+    prost_build::Config::new().compile_protos(
+        &[Path::new(&config_proto), Path::new(&rules_proto)],
+        &[&root],
+    )?;
 
     println!("cargo:rerun-if-changed={}", config_proto.display());
     println!("cargo:rerun-if-changed={}", rules_proto.display());

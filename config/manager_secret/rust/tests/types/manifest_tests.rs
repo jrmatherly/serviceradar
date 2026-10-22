@@ -14,7 +14,10 @@ fn a_manifest_reports_what_it_declares() {
 #[test]
 fn declared_names_are_sorted() {
     let manifest = Manifest::new(["nats.creds", "database.password", "core.key"]);
-    assert_eq!(manifest.declared(), vec!["core.key", "database.password", "nats.creds"]);
+    assert_eq!(
+        manifest.declared(),
+        vec!["core.key", "database.password", "nats.creds"]
+    );
 }
 
 /// A component that declares nothing can request nothing -- the default is no access, not all.

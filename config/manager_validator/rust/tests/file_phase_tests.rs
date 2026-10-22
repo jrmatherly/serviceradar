@@ -8,8 +8,8 @@
 //! loads, so validating anything else would be checking a different artifact.
 
 use serviceradar_config_schema::{EnvironmentConfig, RuleSet};
+use serviceradar_config_validator::utils_tests::{INSTANCES, data_path};
 use serviceradar_config_validator::validate;
-use serviceradar_config_validator::utils_tests::{data_path, INSTANCES};
 
 use prost::Message;
 
@@ -47,7 +47,10 @@ fn every_committed_instance_satisfies_the_file_phase_rules() {
             }
         }
     }
-    assert!(!failed, "committed instances violate the rule set (see above)");
+    assert!(
+        !failed,
+        "committed instances violate the rule set (see above)"
+    );
 }
 
 /// The negative control. A rule set that never fires is indistinguishable from one that is
@@ -73,13 +76,19 @@ fn a_deliberately_broken_instance_is_rejected() {
         "DATABASE_PORT_RANGE",
         "DATABASE_TLS_MODE_VERIFIED_OUTSIDE_LOCALHOST",
     ] {
-        assert!(codes.contains(&expected), "missing {expected}, got {codes:?}");
+        assert!(
+            codes.contains(&expected),
+            "missing {expected}, got {codes:?}"
+        );
     }
 
     // Ordering is part of the contract: cross-language vectors compare sequences.
     let mut sorted = violations.clone();
     sorted.sort();
-    assert_eq!(violations, sorted, "violations must be ordered by (field_path, code)");
+    assert_eq!(
+        violations, sorted,
+        "violations must be ordered by (field_path, code)"
+    );
 }
 
 /// Absence reports once, not once per predicate on the same field. database.port carries both

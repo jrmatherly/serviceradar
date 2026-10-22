@@ -49,12 +49,13 @@ fn an_artifact_describing_another_environment_is_rejected() {
     let mut saas = valid_ci();
     saas.kind = Some(EnvironmentKind::Saas as i32);
 
-    let err = ConfigManager::load(&identity("demo"), NO_BUILT_INS, &Mounted(encode(&saas)),
-    )
-    .expect_err("the artifact says saas; the selector says demo");
+    let err = ConfigManager::load(&identity("demo"), NO_BUILT_INS, &Mounted(encode(&saas)))
+        .expect_err("the artifact says saas; the selector says demo");
 
     match err {
-        LoadError::IdentityMismatch { selected, found, .. } => {
+        LoadError::IdentityMismatch {
+            selected, found, ..
+        } => {
             assert_eq!(selected, "demo");
             assert_eq!(found, "saas");
         }
@@ -69,7 +70,10 @@ fn a_different_onprem_instance_is_rejected() {
     other.kind = Some(EnvironmentKind::Onprem as i32);
     other.instance = Some("someone-else".into());
 
-    let err = ConfigManager::load(&identity("onprem:untd"), NO_BUILT_INS, &Mounted(encode(&other)),
+    let err = ConfigManager::load(
+        &identity("onprem:untd"),
+        NO_BUILT_INS,
+        &Mounted(encode(&other)),
     )
     .unwrap_err();
 
@@ -92,7 +96,9 @@ fn an_invalid_instance_is_rejected_at_load_and_yields_nothing() {
 
     match err {
         LoadError::Invalid { violations, .. } => assert!(
-            violations.iter().any(|v| v.code == "DATABASE_TLS_MODE_VERIFIED_OUTSIDE_LOCALHOST"),
+            violations
+                .iter()
+                .any(|v| v.code == "DATABASE_TLS_MODE_VERIFIED_OUTSIDE_LOCALHOST"),
             "{violations:?}"
         ),
         other => panic!("expected Invalid, got {other:?}"),
@@ -104,8 +110,7 @@ fn an_unknown_built_in_lists_what_the_release_carries() {
     let bytes = encode(&valid_ci());
     let built_ins: &[(&str, &[u8])] = &[("ci", &bytes)];
 
-    let err = ConfigManager::load(&identity("localhost"), built_ins, &Missing)
-        .unwrap_err();
+    let err = ConfigManager::load(&identity("localhost"), built_ins, &Missing).unwrap_err();
 
     let text = err.to_string();
     assert!(text.contains("localhost"), "{text}");
@@ -116,8 +121,7 @@ fn an_unknown_built_in_lists_what_the_release_carries() {
 /// nothing retains bytes across a call.
 #[test]
 fn a_missing_mount_is_fatal_and_names_the_source() {
-    let err =
-        ConfigManager::load(&identity("saas"), NO_BUILT_INS, &Missing).unwrap_err();
+    let err = ConfigManager::load(&identity("saas"), NO_BUILT_INS, &Missing).unwrap_err();
 
     match err {
         LoadError::Read { source, .. } => {
@@ -136,11 +140,13 @@ fn a_well_formed_message_of_another_type_is_rejected() {
     // mistake -- a ConfigMap holding the rules rather than an instance.
     prost::Message::encode(serviceradar_config_manager::rules::embedded(), &mut buf).unwrap();
 
-    let err =
-        ConfigManager::load(&identity("saas"), NO_BUILT_INS, &Mounted(buf)).unwrap_err();
+    let err = ConfigManager::load(&identity("saas"), NO_BUILT_INS, &Mounted(buf)).unwrap_err();
 
     assert!(
-        matches!(err, LoadError::Decode { .. } | LoadError::IdentityMismatch { .. }),
+        matches!(
+            err,
+            LoadError::Decode { .. } | LoadError::IdentityMismatch { .. }
+        ),
         "{err:?}"
     );
 }

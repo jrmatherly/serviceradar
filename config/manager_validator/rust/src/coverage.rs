@@ -4,7 +4,7 @@
 //! only list that cannot fall behind the schema is the one protoc emits from it. A hand-kept
 //! list would be one more place to forget, which is the exact failure the meta-rule catches.
 
-use prost_types::{field_descriptor_proto::Type, DescriptorProto, FileDescriptorSet};
+use prost_types::{DescriptorProto, FileDescriptorSet, field_descriptor_proto::Type};
 
 const UNSPECIFIED_SUFFIX: &str = "_UNSPECIFIED";
 
@@ -49,8 +49,11 @@ fn walk(
 /// recursion rather than by listing the four sections means a new section is covered the moment
 /// it is added to the schema.
 pub fn leaf_field_paths(descriptor: &FileDescriptorSet) -> Result<Vec<String>, SchemaError> {
-    let messages: Vec<DescriptorProto> =
-        descriptor.file.iter().flat_map(|f| f.message_type.clone()).collect();
+    let messages: Vec<DescriptorProto> = descriptor
+        .file
+        .iter()
+        .flat_map(|f| f.message_type.clone())
+        .collect();
     let root = find(&messages, ROOT)
         .ok_or_else(|| SchemaError(format!("no {ROOT} in the descriptor set")))?;
 
@@ -66,8 +69,11 @@ pub fn leaf_field_paths(descriptor: &FileDescriptorSet) -> Result<Vec<String>, S
 /// everywhere; demanding it in a conditional trigger set as well would require every such rule
 /// to restate a constraint the vocabulary handles once.
 pub fn enum_values_at(descriptor: &FileDescriptorSet, path: &str) -> Option<Vec<String>> {
-    let messages: Vec<DescriptorProto> =
-        descriptor.file.iter().flat_map(|f| f.message_type.clone()).collect();
+    let messages: Vec<DescriptorProto> = descriptor
+        .file
+        .iter()
+        .flat_map(|f| f.message_type.clone())
+        .collect();
 
     let mut message = find(&messages, ROOT)?;
     let mut segments = path.split('.').peekable();
@@ -85,7 +91,11 @@ pub fn enum_values_at(descriptor: &FileDescriptorSet, path: &str) -> Option<Vec<
         message = find(&messages, leaf)?;
     };
 
-    let enums: Vec<_> = descriptor.file.iter().flat_map(|f| f.enum_type.clone()).collect();
+    let enums: Vec<_> = descriptor
+        .file
+        .iter()
+        .flat_map(|f| f.enum_type.clone())
+        .collect();
     let found = enums.iter().find(|e| e.name() == type_name)?;
     Some(
         found

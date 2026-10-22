@@ -58,10 +58,16 @@ impl fmt::Display for SelectorError {
                 SINGLE_INSTANCE_KINDS.join(", ")
             ),
             Self::InstanceRequired(k) => {
-                write!(f, "{ENV_VAR}={k:?} requires an instance identifier, as {k}:<instance>.")
+                write!(
+                    f,
+                    "{ENV_VAR}={k:?} requires an instance identifier, as {k}:<instance>."
+                )
             }
             Self::InstanceNotAccepted(k) => {
-                write!(f, "{ENV_VAR} kind {k:?} does not accept an instance identifier.")
+                write!(
+                    f,
+                    "{ENV_VAR} kind {k:?} does not accept an instance identifier."
+                )
             }
         }
     }
