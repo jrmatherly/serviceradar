@@ -12,6 +12,13 @@ means ask the owner before adopting the PR.
 | Rust formatting: upstream has no rustfmt gate and carries unformatted workspace files | `cargo fmt --all` applied across the workspace, enforced by the Rustfmt job in `rust-checks.yml` | landed 2026-10-22 | a `.rs` file shows `~` once we reformatted it. Pick the upstream commit, resolve any conflict toward upstream's code, then rerun `cargo fmt --all` and amend; never hand-merge formatting |
 | `.tool-versions` pins Erlang and Elixir only | adds `golang` matching `go.mod` | landed 2026-10-22 | keeps a newer system Go out of the repo, so `make lint-go` and Go tests run on the pinned toolchain; bump it with `go.mod` |
 
+| `Makefile`: `tidy` runs bare `rustfmt` per crate and `PROTOC_GEN_ELIXIR` is hard-coded to `$(HOME)/.mix` | `tidy` runs `cargo fmt --all` (the crates are edition 2024, so bare `rustfmt` reorders imports against the CI gate); `PROTOC_GEN_ELIXIR` derives from `MIX_HOME` | landed 2026-10-22 | upstream has the identical `tidy` target and path; both are candidates for an upstream PR. A `~` on `Makefile` is expected; resolve toward upstream everywhere else |
+| `.agents/skills/` (Agent Skills layout, 15 skills) is invisible to Claude Code, which reads `.claude/skills/` | `.agents/.claude-plugin/plugin.json` plus the symlink `.claude/skills/serviceradar -> ../../.agents` load the tree as the `serviceradar@skills-dir` plugin (`/serviceradar:<skill>`); the skills stay where upstream and `.backpassrc.json` expect them | landed 2026-10-22 | an upstream skill added under `.agents/skills/` loads here with no further change. `claude plugin list` must show `serviceradar@skills-dir ... loaded` |
+
+## Open
+
+- Upstream `staging` carries 15 Go files that `gofmt` realigns (whitespace only; `go/pkg/models/*.go`, `go/pkg/k8sinventory/{metrics,spool}.go`, `go/pkg/db/interfaces.go`, `go/pkg/logger/errors.go`, `go/pkg/natsutil/events_test.go`, `config/manager_config/go/fixtures_test.go`), and neither side runs a `gofmt` gate (`.golangci.yml` has no `gofmt` linter; CI only checks `go mod tidy`). Not fixed on the fork: it would turn 15 files `~` for alignment noise. Candidate upstream PR: `go fmt ./...` plus the `gofmt` linter. Found 2026-10-22.
+
 ## Deleted or moved paths
 
 An `x` marker means we removed the path, not always that the change is

@@ -1,0 +1,6 @@
+{
+  "name": "serviceradar",
+  "description": "ServiceRadar's repo-authored skills from .agents/skills (Agent Skills layout shared with other tools), loaded into Claude Code as the serviceradar@skills-dir plugin through the .claude/skills/serviceradar symlink.",
+  "version": "0.1.0",
+  "author": { "name": "ServiceRadar fork maintainers" }
+}
