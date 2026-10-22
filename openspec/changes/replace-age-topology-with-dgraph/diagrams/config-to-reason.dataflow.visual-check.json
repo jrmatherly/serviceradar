@@ -6,7 +6,7 @@
   "status": "pass",
   "visualReview": "pending",
   "artifact": {
-    "path": "/Users/mfreeman/src/serviceradar/openspec/changes/replace-age-topology-with-dgraph/diagrams/config-to-reason.dataflow.html",
+    "path": "openspec/changes/replace-age-topology-with-dgraph/diagrams/config-to-reason.dataflow.html",
     "sha256": "e25440ecc7b2ae0c1acc8dd8bd6be9d8d6628b6eb3138b6ffce9ed5a94328a09",
     "bytes": 711102
   },

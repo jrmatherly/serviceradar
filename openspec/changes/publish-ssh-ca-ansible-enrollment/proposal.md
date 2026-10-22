@@ -21,7 +21,7 @@ This child implements only the public Ansible content and the immutable metadata
 ## Impact
 
 - Affected specs: `ansible-remote-access-enrollment` (new)
-- Affected repository: `/Users/mfreeman/src/serviceradar-ansible-remote-access`
+- Affected repository: `serviceradar-ansible-remote-access`
 - Import prerequisites: reviewed immutable SCM revision/content hash, exact AWX project/template/custom-credential binding, and ServiceRadar catalog binding
 - External dependencies: approved `add-automation-callback-grants` and `harden-ansible-awx-targeting`; initiating principal holds `ansible.runs.launch` plus `devices.remote_access.ssh.ca_bundle.read`; exact target policy/approval; separate `devices.remote_access.ssh.ca_trust.retire` and `devices.remote_access.ssh.ca_trust.remove` permissions for destructive operations
 - Supersession: this bounded child solely owns the public Ansible enrollment capability and replaces the draft Ansible-enrollment delta in the unmerged program discovery record

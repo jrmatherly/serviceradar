@@ -6,7 +6,7 @@
 > that has uniform API access."*
 >
 > **Date:** 2026-05-22 · **Branch:** `staging` · based on a deep-dive of the
-> repo at `/home/mfreeman/src/serviceradar`.
+> repository checkout.
 
 ---
 

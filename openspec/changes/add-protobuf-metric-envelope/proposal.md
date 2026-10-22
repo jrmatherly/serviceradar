@@ -34,7 +34,7 @@ decode-and-remap. Raw OTLP remains on the OTLP protobuf path.
   envelope while preserving the existing `otel_metrics` persistence schema. Raw OTLP metrics remain
   on `otel.metrics.raw` and are not rewrapped.
 - Go agents, in-repo add-on SDKs, and standalone Go/Rust plugin SDKs
-  (`/Users/mfreeman/src/serviceradar-sdk-go`, `/Users/mfreeman/src/serviceradar-sdk-rust`) emit the
+  (`serviceradar-sdk-go`, `serviceradar-sdk-rust`) emit the
   protobuf envelope **directly**, eliminating the gateway JSON decode-then-per-family/per-metric
   re-encode entirely. Sysmon, SNMP, and sweep regular status messages retain only lightweight health summaries;
   sampled metric values are not duplicated in JSON status payloads. Native add-ons that use

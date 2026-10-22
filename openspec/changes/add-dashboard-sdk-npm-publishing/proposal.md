@@ -11,4 +11,4 @@ Dashboard developers should be able to install the ServiceRadar dashboard SDK th
 
 ## Impact
 - Affected specs: dashboard-sdk
-- Affected code: `/home/mfreeman/src/serviceradar-sdk-dashboard/package.json`, `/home/mfreeman/src/serviceradar-sdk-dashboard/package-lock.json`, `/home/mfreeman/src/serviceradar-sdk-dashboard/.forgejo/workflows/*`, SDK README/release notes
+- Affected code: `serviceradar-sdk-dashboard/package.json`, `serviceradar-sdk-dashboard/package-lock.json`, `serviceradar-sdk-dashboard/.forgejo/workflows/*`, SDK README/release notes
