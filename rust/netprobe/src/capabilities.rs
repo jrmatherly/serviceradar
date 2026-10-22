@@ -143,13 +143,24 @@ pub mod retained {
             return Some(job());
         };
         let (reply, result) = sync_channel(1);
-        executor
+        let sent = executor
             .send(Box::new(move || {
                 let _ = reply.send(job());
             }))
-            .ok()?;
-        result.recv().ok()
+            .is_ok();
+        let outcome = if sent { result.recv().ok() } else { None };
+        if outcome.is_none() {
+            // Every resolution now reports resolver_unavailable; say so once.
+            EXECUTOR_LOST.get_or_init(|| {
+                log::error!(
+                    "procfs executor thread is gone; executable ownership is unavailable until netprobe restarts"
+                );
+            });
+        }
+        outcome
     }
+
+    static EXECUTOR_LOST: OnceLock<()> = OnceLock::new();
 
     /// Spawns the executor thread from the calling (dropping) thread, so it inherits that
     /// thread's capabilities.
@@ -162,7 +173,17 @@ pub mod retained {
             .name("netprobe-procfs".to_string())
             .spawn(move || {
                 for job in queue {
-                    job();
+                    // A panicking resolution must not take the only capable thread with it.
+                    if let Err(payload) =
+                        std::panic::catch_unwind(std::panic::AssertUnwindSafe(job))
+                    {
+                        let message = payload
+                            .downcast_ref::<&str>()
+                            .map(|s| s.to_string())
+                            .or_else(|| payload.downcast_ref::<String>().cloned())
+                            .unwrap_or_else(|| "non-string panic payload".to_string());
+                        log::error!("procfs executor job panicked: {message}");
+                    }
                 }
             })
             .context("failed to spawn the procfs executor thread")?;

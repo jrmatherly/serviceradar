@@ -764,6 +764,8 @@ pub struct ProcfsEnricher {
     /// Shared with the privileged executor thread, which runs every resolution; see
     /// `capabilities::run_privileged`.
     ownership: Arc<Mutex<ExecutableOwnershipResolver>>,
+    /// Resolutions that never ran because the privileged executor was gone.
+    ownership_unavailable: Arc<std::sync::atomic::AtomicU64>,
 }
 
 impl ProcfsEnricher {
@@ -775,12 +777,18 @@ impl ProcfsEnricher {
         let root = root.into();
         Self {
             ownership: Arc::new(Mutex::new(ExecutableOwnershipResolver::new(&root))),
+            ownership_unavailable: Arc::new(std::sync::atomic::AtomicU64::new(0)),
             root,
         }
     }
 
     pub fn take_ownership_counters(&self) -> ResolverCounters {
         lock_resolver(&self.ownership).take_counters()
+    }
+
+    pub fn take_ownership_unavailable(&self) -> u64 {
+        self.ownership_unavailable
+            .swap(0, std::sync::atomic::Ordering::Relaxed)
     }
 
     pub fn ownership_cache_len(&self) -> usize {
@@ -791,8 +799,13 @@ impl ProcfsEnricher {
     /// capability to read other users' procfs entries.
     fn executable_ownership(&self, pid: u32) -> ExecutableOwnershipRecord {
         let resolver = Arc::clone(&self.ownership);
-        capabilities::run_privileged(move || lock_resolver(&resolver).resolve(pid))
-            .unwrap_or_else(ExecutableOwnershipRecord::resolver_unavailable)
+        capabilities::run_privileged(move || lock_resolver(&resolver).resolve(pid)).unwrap_or_else(
+            || {
+                self.ownership_unavailable
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                ExecutableOwnershipRecord::resolver_unavailable()
+            },
+        )
     }
 
     pub fn process_details(&self, record: &ProcessInfoRecord) -> ProcessDetails {
@@ -1379,6 +1392,10 @@ fn record_ownership_metrics(metrics: &Metrics, procfs: &ProcfsEnricher) {
         ("ownership_resolved", counters.resolutions),
         ("ownership_cache_hit", counters.cache_hits),
         ("ownership_index_build", counters.index_builds),
+        (
+            "ownership_resolver_unavailable",
+            procfs.take_ownership_unavailable(),
+        ),
     ] {
         if count > 0 {
             metrics.inc_attribution_backend_events("executable_ownership", outcome, count);

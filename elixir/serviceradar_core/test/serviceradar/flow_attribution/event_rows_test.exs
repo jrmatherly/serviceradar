@@ -122,4 +122,26 @@ defmodule ServiceRadar.FlowAttribution.EventRowsTest do
              "executable_inode" => 131_072
            }
   end
+
+  test "unknown and unsupported references drop package fields even when netprobe filled them" do
+    for {state, detail} <- [
+          {:EXECUTABLE_OWNERSHIP_STATE_UNKNOWN, "executable_deleted"},
+          {:EXECUTABLE_OWNERSHIP_STATE_UNSUPPORTED_DB, "rpm_berkeleydb"}
+        ] do
+      ownership = %{@resolved | resolution_state: state, detail: detail}
+
+      row = EventRows.from_event(listener(ownership), "default", "agent-a")
+
+      assert row.executable_ownership["detail"] == detail
+      refute Map.has_key?(row.executable_ownership, "binary_package")
+      refute Map.has_key?(row.executable_ownership, "installed_version")
+      refute Map.has_key?(row.executable_ownership, "package_identity_key")
+    end
+  end
+
+  test "an event without an ownership reference carries nil" do
+    row = EventRows.from_event(listener(nil), "default", "agent-a")
+
+    assert row.executable_ownership == nil
+  end
 end

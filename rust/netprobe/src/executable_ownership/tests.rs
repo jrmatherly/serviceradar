@@ -330,7 +330,7 @@ fn unowned_executable_is_not_found_and_names_no_package() {
 
 #[test]
 fn unsupported_and_incomplete_databases_are_never_reported_as_unowned() {
-    let cases: [PrecedenceCase; 4] = [
+    let cases: [PrecedenceCase; 5] = [
         (
             "berkeleydb",
             |root| write(&root.join("var/lib/rpm/Packages"), b"\0\0\0\0"),
@@ -359,6 +359,25 @@ fn unsupported_and_incomplete_databases_are_never_reported_as_unowned() {
             OwnershipState::Unknown,
             DETAIL_NO_PACKAGE_DATABASE,
         ),
+        (
+            // A supported database that does not own the inode never turns an
+            // unsupported one into "not owned".
+            "dpkg present but not owning, berkeleydb present",
+            |root| {
+                dpkg(
+                    root,
+                    &[(
+                        "example-tools",
+                        "1.0-1",
+                        "example-tools",
+                        &["/usr/bin/example-tool"],
+                    )],
+                );
+                write(&root.join("var/lib/rpm/Packages"), b"\0\0\0\0");
+            },
+            OwnershipState::UnsupportedDb,
+            DETAIL_RPM_BERKELEYDB,
+        ),
     ];
     for (name, setup, state, detail) in cases {
         let fixture = Fixture::new();
@@ -372,6 +391,36 @@ fn unsupported_and_incomplete_databases_are_never_reported_as_unowned() {
         assert_eq!((record.state, record.detail), (state, detail), "{name}");
         assert_eq!(record.package, None, "{name}");
     }
+}
+
+#[test]
+fn supported_database_owning_the_inode_resolves_despite_an_unsupported_one() {
+    let fixture = Fixture::new();
+    let host = fixture.root("host");
+    dpkg(
+        &host,
+        &[(
+            "example-daemon",
+            "2.0-1",
+            "example-daemon",
+            &["/usr/sbin/exampled"],
+        )],
+    );
+    write(&host.join("var/lib/rpm/Packages"), b"\0\0\0\0");
+    write_executable(&host.join("usr/sbin/exampled"));
+    fixture.process(4242, &host, &host.join("usr/sbin/exampled"));
+
+    let record = fixture.resolver().resolve(4242);
+
+    assert_eq!(record.state, OwnershipState::Resolved);
+    assert_eq!(record.detail, "");
+    assert_eq!(
+        record
+            .package
+            .as_ref()
+            .map(|package| package.binary_package.as_str()),
+        Some("example-daemon")
+    );
 }
 
 #[test]
