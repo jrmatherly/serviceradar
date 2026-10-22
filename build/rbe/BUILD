@@ -36,8 +36,10 @@ platform(
     exec_properties = {
         "OSFamily": "Linux",
         "Arch": "amd64",
-        "dockerNetwork": "host",
-        "container-image": "docker://registry.carverauto.dev/serviceradar/rbe-executor:v1.0.25.1",
+        # BuildBuddy Cloud does not offer host networking; actions build offline.
+        "network": "off",
+        # Built by .github/workflows/rbe-executor-image.yml from docker/Dockerfile.rbe.
+        "container-image": "docker://ghcr.io/jrmatherly/serviceradar-rbe-executor:v1.0.25.1-fork.1",
     },
     visibility = ["//visibility:public"],
 )
