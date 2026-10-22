@@ -129,7 +129,7 @@ installers use it).
 
 | Action | State |
 | --- | --- |
-| `BazelCI` | enabled: PR unit sweep on a BuildBuddy-hosted `ubuntu-24.04` runner with `--config=remote`; resource requests 7 CPU / 28 GB / 40 GB (hosted caps unpublished; lower to 3 / 8 GB / 20 GB if rejected) |
+| `BazelCI` | enabled: PR unit sweep on a BuildBuddy-hosted `ubuntu-24.04` runner with `--config=remote`; resource requests 7 CPU / 28 GB / 40 GB were accepted by the hosted runner. The free tier caps a workflow run at 1 hour (`--timeout_reason=free_tier_limit` in the runner's command line). |
 | `BazelCI Core Integration`, `BazelCI Web-NG DB`, `LargeIngestionGate`, `SchemaTemplateQualification`, `SrqlParity`, `GodViewAcceptance`, `WebNgDbDiagnostic`, `WorldWorkerScale`, `IntegrationBenchmark*`, `Elixir Quality (daily)` | disabled (no triggers): they need self-hosted executor pools and in-cluster fixtures (CNPG, Dgraph, StarRocks). Their definitions are kept for manual dispatch where that infrastructure exists. |
 
 `.bazelrc`'s `build:ci` profile still assumes the node-volume cache paths of

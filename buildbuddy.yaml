@@ -588,10 +588,8 @@ actions:
           scripts/ci/unless_docs_only.sh bazel run -c opt --config=remote //build/ci:verify_git_metadata --
           --expected-commit "$(git rev-parse HEAD)"
       - run: scripts/ci/unless_docs_only.sh bazel run -c opt --config=remote //build/ci:git_checkout_regression
-      # Put Harbor credentials into ~/.docker/config.json, for rules_oci's registry fetches.
-      # See buildbuddy_setup_docker_auth.sh for details
-      - run: >-
-          scripts/ci/unless_docs_only.sh bazel run -c opt --config=remote --//build:enable_integration_tests //:buildbuddy_setup_docker_auth --verbose_failures
+      # No registry login here: the unit sweep pulls public images anonymously and the
+      # hosted runner has no credentials or ~/.docker/config.json to reuse.
 
       # The one full //... invocation. Unit tests run here. Integration and
       # acceptance tests are filtered out of execution; they run in the
