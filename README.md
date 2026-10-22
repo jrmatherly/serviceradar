@@ -201,6 +201,7 @@ cosign verify \
 Docker Compose notes:
 - Set `APP_TAG` in `.env` to pin release images (example: `APP_TAG=v1.4.49`).
 - Set `COMPOSE_FILE=docker-compose.yml:docker-compose.dev.yml` in `.env` to default to the dev overlay without `-f`.
+- On arm64 hosts (Apple Silicon), add the `docker-compose.arm64.yml` overlay (for example `COMPOSE_FILE=docker-compose.yml:docker-compose.arm64.yml` in `.env`). The cnpg, core-elx and web-ng images are amd64-only, and without the overlay `core-elx-migrations` exits 1 under emulation.
 
 **Chart URL:** `oci://registry.carverauto.dev/serviceradar/charts/serviceradar`
 
