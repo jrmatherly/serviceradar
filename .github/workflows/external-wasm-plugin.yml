@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       plugin_repository:
-        description: "External plugin repository in the carverauto organization."
+        description: "External plugin repository under PLUGIN_ORG (default: this repository's owner)."
         required: true
         type: string
       plugin_tag:
@@ -38,6 +38,7 @@ jobs:
       - name: Enforce trusted workflow source and plugin inputs
         env:
           PLUGIN_REPOSITORY: ${{ github.event.inputs.plugin_repository }}
+          PLUGIN_ORG: ${{ vars.PLUGIN_ORG || github.repository_owner }}
           PLUGIN_TAG: ${{ github.event.inputs.plugin_tag }}
         run: |
           set -euo pipefail
@@ -45,7 +46,11 @@ jobs:
             echo "External plugin publication must run from ServiceRadar staging or main" >&2
             exit 1
           fi
-          if [[ ! "${PLUGIN_REPOSITORY}" =~ ^carverauto/serviceradar-plugin-[a-z0-9]+([a-z0-9-]*[a-z0-9])?$ ]]; then
+          if [[ ! "${PLUGIN_ORG}" =~ ^[A-Za-z0-9-]+$ ]]; then
+            echo "PLUGIN_ORG must be a GitHub owner name" >&2
+            exit 1
+          fi
+          if [[ ! "${PLUGIN_REPOSITORY}" =~ ^${PLUGIN_ORG}/serviceradar-plugin-[a-z0-9]+([a-z0-9-]*[a-z0-9])?$ ]]; then
             echo "Invalid external plugin repository" >&2
             exit 1
           fi

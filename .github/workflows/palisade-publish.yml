@@ -49,6 +49,7 @@ env:
 jobs:
   publish:
     name: Publish palisade to hex.pm
+    if: ${{ vars.PUBLISH_ENABLED == 'true' }}
     runs-on: ubuntu-24.04
     defaults:
       run:

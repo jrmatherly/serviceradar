@@ -75,7 +75,7 @@ jobs:
           tar -C out/security/source -czf out/security/serviceradar-source-security.tar.gz .
 
       - name: Wait for release to exist
-        if: ${{ steps.release.outputs.tag != '' }}
+        if: ${{ steps.release.outputs.tag != '' && vars.PUBLISH_ENABLED == 'true' }}
         env:
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: |
@@ -105,7 +105,7 @@ jobs:
           exit 1
 
       - name: Upload source security bundle to release
-        if: ${{ steps.release.outputs.tag != '' }}
+        if: ${{ steps.release.outputs.tag != '' && vars.PUBLISH_ENABLED == 'true' }}
         env:
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: |

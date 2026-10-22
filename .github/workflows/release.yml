@@ -64,6 +64,8 @@ jobs:
   # Resolves the release tag and commit for the Windows jobs and the publisher, so
   # neither waits on, or depends on the success of, the macOS installer job.
   source:
+    # Nothing publishes until the repository variable PUBLISH_ENABLED is 'true'.
+    if: ${{ vars.PUBLISH_ENABLED == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -105,6 +107,8 @@ jobs:
   # release: publish attaches the installer when this job succeeds and ships
   # without it otherwise.
   macos:
+    # Signed installers need the Apple Developer secrets; off until MACOS_SIGNING_ENABLED is 'true'.
+    if: ${{ vars.PUBLISH_ENABLED == 'true' && vars.MACOS_SIGNING_ENABLED == 'true' }}
     runs-on: macos-15
     timeout-minutes: 75
     environment: release
@@ -1233,8 +1237,9 @@ jobs:
             -d '{"draft": false}' >/dev/null
           echo "Published release ${RELEASE_TAG}"
 
+      # The demo ArgoCD convention; off unless DEMO_RELEASE_BRANCH_ENABLED is 'true'.
       - name: Advance demo release source branch
-        if: ${{ needs.publish.outputs.prerelease != 'true' && steps.parallel_assets.outcome == 'success' && steps.finalize_release.outcome == 'success' }}
+        if: ${{ vars.DEMO_RELEASE_BRANCH_ENABLED == 'true' && needs.publish.outputs.prerelease != 'true' && steps.parallel_assets.outcome == 'success' && steps.finalize_release.outcome == 'success' }}
         env:
           DEMO_RELEASE_BRANCH: demo/prod-release
         run: |

@@ -19,6 +19,7 @@ permissions:
 
 jobs:
   publish:
+    if: ${{ vars.PUBLISH_ENABLED == 'true' }}
     runs-on: ubuntu-24.04
     environment: release
     env:
