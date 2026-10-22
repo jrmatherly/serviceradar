@@ -94,8 +94,8 @@ repository_name="${meta[1]}"
 artifact_type="${meta[2]}"
 bundle_media_type="${meta[3]}"
 
-registry="${OCI_REGISTRY:-registry.carverauto.dev}"
-project="${OCI_PROJECT:-serviceradar}"
+registry="${OCI_REGISTRY:-ghcr.io}"
+project="${OCI_PROJECT:-jrmatherly}"
 repo="${registry}/${project}/${repository_name}"
 commit_sha="$(git -C "${BUILD_WORKSPACE_DIRECTORY:-$(pwd)}" rev-parse HEAD)"
 tags=("sha-${commit_sha}")

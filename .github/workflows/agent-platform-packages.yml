@@ -80,8 +80,8 @@ jobs:
           SOURCE_COMMIT: ${{ github.sha }}
         run: |
           set -euo pipefail
-          # GitHub-hosted images ship bazelisk; scripts/install-bazelisk.sh pins the
-          # self-hosted runners' copy and rejects this one.
+          # GitHub-hosted images ship bazelisk; scripts/install-bazelisk.sh replaces it with
+          # the pinned release when the hash differs.
           command -v bazelisk
           mkdir -p "${RUNNER_TEMP}/windows-inputs"
           bazelisk run -c opt --config=remote //build/packaging/agent/windows:stage -- \

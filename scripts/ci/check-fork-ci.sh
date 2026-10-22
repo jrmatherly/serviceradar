@@ -14,9 +14,13 @@ if ! actionlint -no-color; then
 fi
 
 # Non-comment lines only: a comment may explain what was removed.
-pattern='registry\.carverauto\.dev|carverauto\.buildbuddy\.io|cache-proxy\.carverauto\.dev|serviceradar-signing|arc-runner-set|HARBOR_|OPENBAO_ADDR: https://openbao|hashivault://cosign-release|github-signing-runner|svc\.cluster\.local|mfreeman'
+pattern='registry\.carverauto\.dev|carverauto\.buildbuddy\.io|cache-proxy\.carverauto\.dev|serviceradar-signing|arc-runner-set|HARBOR_|OPENBAO_ADDR: https://openbao|hashivault://cosign-release|github-signing-runner|svc\.cluster\.local|mfreeman|docker\.io/|DOCKERHUB_'
 
-paths=(.github buildbuddy.yaml .bazelrc build/rbe/BUILD docker/Dockerfile.rbe)
+# Not scanned on purpose: docker/images/base_image_origins.txt (origins are the point),
+# scripts/ci/prepare-openbao-cosign-env.sh (upstream's OpenBao defaults, used only when
+# OPENBAO_SIGNING_ENABLED), and the fixture scripts the disabled BazelCI actions use.
+paths=(.github buildbuddy.yaml .bazelrc build/rbe/BUILD docker/Dockerfile.rbe MODULE.bazel docker/images/analytics_image.bzl docker/images/BUILD.bazel Makefile build/wasm_plugins/publish_plugin.sh build/native_addons/publish_addon.sh scripts/ci/configure-bazel-remote.sh scripts/ci/mirror-base-images.sh scripts/ci/cold-analytics-image-smoke.sh)
+paths+=(scripts/test-*.sh)
 paths+=(build/ci/*.py)
 
 hits="$(grep -rnE "${pattern}" "${paths[@]}" 2>/dev/null | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' || true)"

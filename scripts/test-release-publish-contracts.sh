@@ -622,7 +622,7 @@ for forbidden in ("mode:", "tag:", "sign_branch_catalog"):
         raise SystemExit(f"native add-on dispatch still exposes production publishing control: {forbidden}")
 if "  workflow_dispatch:" in wasm_plugins_workflow:
     raise SystemExit("Wasm production publisher still permits manual dispatch")
-if "if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')" not in native_addons_workflow:
+if "if: ${{ vars.PUBLISH_ENABLED == 'true' && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}" not in native_addons_workflow:
     raise SystemExit("native production publisher is not restricted to v* tag pushes")
 if "if: github.event_name == 'workflow_dispatch'" not in native_addons_workflow:
     raise SystemExit("native reviewed agent-test artifact dispatch was not preserved")

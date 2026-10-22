@@ -355,12 +355,8 @@ jobs:
       OCI_TOKEN: ${{ secrets.OCI_TOKEN || secrets.GITHUB_TOKEN }}
       OCI_USERNAME_SET: ${{ secrets.OCI_USERNAME != '' }}
       OCI_TOKEN_SET: ${{ secrets.OCI_TOKEN != '' }}
-      # OCI_REGISTRY above is where this job PUSHES. DOCKERHUB_* below is a PULL-side
-      # credential for the one base image Bazel still fetches from Docker Hub
-      # (docker.io/pgduckdb/pgduckdb); anonymous pulls are capped at 100 per 6 h per IP.
-      # buildbuddy_setup_docker_auth.sh writes an entry per registry.
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      # Base images are pulled from the fork's GHCR mirror (scripts/ci/mirror-base-images.sh);
+      # no Docker Hub credential is needed.
       COSIGN_KEYLESS: ${{ secrets.COSIGN_KEYLESS }}
       SIGSTORE_FULCIO_URL: ${{ secrets.SIGSTORE_FULCIO_URL }}
       SIGSTORE_REKOR_URL: ${{ secrets.SIGSTORE_REKOR_URL }}
@@ -828,6 +824,8 @@ jobs:
           # A dedicated chart publisher may be configured; otherwise the image publisher's credentials apply.
           CHART_OCI_USERNAME: ${{ secrets.CHART_OCI_USERNAME || secrets.OCI_USERNAME || github.actor }}
           CHART_OCI_TOKEN: ${{ secrets.CHART_OCI_TOKEN || secrets.OCI_TOKEN || secrets.GITHUB_TOKEN }}
+          CHART_OCI_USERNAME_SET: ${{ secrets.CHART_OCI_USERNAME != '' }}
+          CHART_OCI_TOKEN_SET: ${{ secrets.CHART_OCI_TOKEN != '' }}
         run: |
           set -euo pipefail
           export HELM_STATE_DIR="${PWD}/.helm-home"
@@ -849,8 +847,8 @@ jobs:
             echo "${token}" | "${helm_runner}" registry login "${OCI_REGISTRY}" -u "${user}" --password-stdin
           }
 
-          if [[ -z "${CHART_OCI_USERNAME:-}" || -z "${CHART_OCI_TOKEN:-}" ]]; then
-            echo "Missing chart publisher credentials. Set CHART_OCI_USERNAME/CHART_OCI_TOKEN (or OCI_USERNAME/OCI_TOKEN) in the release environment, or grant packages: write." >&2
+          if [[ "${CHART_OCI_USERNAME_SET}" != "${CHART_OCI_TOKEN_SET}" || "${OCI_USERNAME_SET}" != "${OCI_TOKEN_SET}" ]]; then
+            echo "Set both CHART_OCI_USERNAME and CHART_OCI_TOKEN (or both OCI_USERNAME and OCI_TOKEN) or neither; GITHUB_TOKEN is used when neither pair is set." >&2
             exit 1
           fi
 

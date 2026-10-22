@@ -42,9 +42,10 @@ make push_all PUSH_TAG="v$(git describe --tags --always)"
 ```
 
 `buildbuddy_setup_docker_auth.sh` turns `OCI_USERNAME`/`OCI_TOKEN` into
-`~/.docker/config.json` so `rules_oci` can push, and writes a separate entry
-for `DOCKERHUB_*` (one base image is still pulled from Docker Hub; anonymous
-pulls are capped at 100 per 6 hours per IP).
+`~/.docker/config.json` so `rules_oci` can push. Base images are pulled from the
+fork's own GHCR mirror (`ghcr.io/<owner>/mirror/...`, populated by
+`.github/workflows/base-image-mirror.yml` from the pins in `MODULE.bazel`), so
+no other registry credential is needed.
 
 ## Registry access from scripts
 

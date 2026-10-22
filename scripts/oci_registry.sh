@@ -90,7 +90,7 @@ oci_registry_token() {
   local pass="${4:-${OCI_TOKEN:-}}"
   local challenge realm service token_url token
 
-  challenge="$(curl -sS -o /dev/null -D - "https://${REGISTRY_HOST}/v2/" | tr -d '\r' | grep -i '^www-authenticate: bearer' | head -n1)"
+  challenge="$(curl -sS --max-time 20 -o /dev/null -D - "https://${REGISTRY_HOST}/v2/" | tr -d '\r' | { grep -i '^www-authenticate: bearer' || true; } | head -n1)"
   if [[ -z "${challenge}" ]]; then
     echo "error: ${REGISTRY_HOST} returned no bearer challenge for /v2/" >&2
     return 2

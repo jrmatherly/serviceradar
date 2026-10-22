@@ -104,7 +104,7 @@ rbe-executor-image) are not gated by `PUBLISH_ENABLED`.
    Task 2's smoke run passes.
 3. Generate keys and set secrets (commands in Task 7): cosign keypair, agent
    Ed25519 keypair, Wasm upload-signing Ed25519 keypair.
-4. Create the `release` environment with a `v*` tag deployment rule.
+4. Create the `release` environment allowing deployments from `v*` tags and the `staging` branch.
 5. Optional: Docker Hub free account token; enable Pages; Apple Developer Program.
 
 ## Acceptance

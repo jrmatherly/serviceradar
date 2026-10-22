@@ -103,30 +103,24 @@ jobs:
           BUILDBUDDY_ORG_API_KEY: ${{ secrets.BUILDBUDDY_ORG_API_KEY || secrets.BUILDBUDDY_API_KEY }}
         run: scripts/ci/configure-bazel-remote.sh
 
-      # wasm-plugins passes no --config, so these plain `build` lines apply as written.
+      # Publish-specific Bazel flags, on top of --config=remote (set through BAZEL_BUILD_FLAGS
+      # below so the Wasm bundles build on the fork's RBE platform and executor image).
       # --lockfile_mode=error: a release build consumes the committed MODULE.bazel.lock
       # without rewriting it, so a stale fact fails here instead of publishing signed
       # artifacts from silently regenerated dependency facts.
       - name: Add Wasm publish Bazel flags
         if: ${{ (vars.BAZEL_REMOTE_ENABLED || 'true') == 'true' }}
-        env:
-          BUILDBUDDY_ENDPOINT: ${{ vars.BUILDBUDDY_ENDPOINT || 'remote.buildbuddy.io' }}
-          BUILDBUDDY_APP_URL: ${{ vars.BUILDBUDDY_APP_URL || 'https://app.buildbuddy.io' }}
         run: |
           umask 077
-          cat <<EOF | sed 's/^ *//' >> .bazelrc.remote
+          cat <<'EOF' | sed 's/^ *//' >> .bazelrc.remote
             common --lockfile_mode=error
-            build --bes_results_url=${BUILDBUDDY_APP_URL}/invocation/
-            build --bes_backend=grpcs://${BUILDBUDDY_ENDPOINT}
-            build --remote_cache=grpcs://${BUILDBUDDY_ENDPOINT}
-            build --remote_executor=grpcs://${BUILDBUDDY_ENDPOINT}
-            build --remote_timeout=10m
-            build --remote_download_minimal
-            build --remote_upload_local_results
-            build --jobs=100
-            build --strategy=ExpandTemplate=local
-            build --strategy=NpmPackageExtract=local
-            build --strategy=CopyDirectory=local
+            build:remote_base --remote_timeout=10m
+            build:remote_base --remote_download_minimal
+            build:remote_base --remote_upload_local_results
+            build:remote_base --jobs=100
+            build:remote_base --strategy=ExpandTemplate=local
+            build:remote_base --strategy=NpmPackageExtract=local
+            build:remote_base --strategy=CopyDirectory=local
           EOF
 
       - name: Install Bazelisk
@@ -169,6 +163,8 @@ jobs:
       - name: Publish Wasm plugin OCI artifacts
         env:
           EXTRA_TAG: ${{ github.ref_name }}
+          # Bundles build remotely on the fork's RBE platform (build/rbe/BUILD).
+          BAZEL_BUILD_FLAGS: -c opt --config=remote --lockfile_mode=error
           # OpenBao Transit signing is upstream's path; off unless OPENBAO_SIGNING_ENABLED is 'true'.
           # Otherwise cosign signs with the fork's own key from the COSIGN_PRIVATE_KEY secret.
           OPENBAO_SIGNING_ENABLED: ${{ vars.OPENBAO_SIGNING_ENABLED == 'true' }}

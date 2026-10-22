@@ -195,8 +195,7 @@ The GitHub `release` environment must provide:
   `PLUGIN_UPLOAD_SIGNING_SIGNER` for Wasm upload signatures
 - optionally `OCI_USERNAME` / `OCI_TOKEN` (both or neither) for a registry other
   than GHCR, `CHART_OCI_USERNAME` / `CHART_OCI_TOKEN` for a dedicated chart
-  publisher, `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` to lift Docker Hub's
-  anonymous pull limit, and the `MACOS_*` signing secrets
+  publisher, and the `MACOS_*` signing secrets
 
 OpenBao Transit signing (upstream's path) is available when
 `OPENBAO_SIGNING_ENABLED` is `true` and the runner can reach the vault.

@@ -148,8 +148,8 @@ artifact_type="${meta[2]}"
 bundle_media_type="${meta[3]}"
 upload_signature_media_type="${meta[4]}"
 
-registry="${OCI_REGISTRY:-registry.carverauto.dev}"
-project="${OCI_PROJECT:-serviceradar}"
+registry="${OCI_REGISTRY:-ghcr.io}"
+project="${OCI_PROJECT:-jrmatherly}"
 repo="${registry}/${project}/${repository_name}"
 if [[ -z "${commit_sha}" ]]; then
   commit_sha="$(git -C "${BUILD_WORKSPACE_DIRECTORY:-$(pwd)}" rev-parse HEAD)"

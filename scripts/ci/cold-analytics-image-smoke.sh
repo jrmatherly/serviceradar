@@ -48,7 +48,7 @@ if [[ -z "${IMAGE}" ]]; then
     echo "error: could not extract the @pgduckdb_18 digest from MODULE.bazel" >&2
     exit 1
   fi
-  IMAGE="docker.io/pgduckdb/pgduckdb@${digest}"
+  IMAGE="${OCI_REGISTRY:-ghcr.io}/${OCI_PROJECT:-jrmatherly}/mirror/pgduckdb/pgduckdb@${digest}"
 fi
 
 # The UID the chart runs this image under (cold-analytics-head.yaml

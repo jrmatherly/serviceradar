@@ -32,7 +32,6 @@ API key is what the smoke test used and is the default endpoint.
 | GitHub Container Registry | Free for public packages; bandwidth currently free. No OCI referrers API (cosign signatures live on the `.sig` tag). | Images, Helm chart, native add-on and Wasm plugin OCI artifacts, the RBE executor image. |
 | Sigstore public-good instance | Free, production use supported. | Optional keyless signing override only; the product verifies with a committed public key. |
 | GitHub Pages | Free: 1 GB site, 100 GB/month soft bandwidth. | `docs-pages.yml` once `DOCS_PAGES_ENABLED` is set and Pages is enabled. |
-| Docker Hub | Anonymous 100 pulls per 6 h per IP; a free account token raises it. | One base image Bazel pulls from Docker Hub. |
 | npm trusted publishing | Free for public packages, but `@carverauto/serviceradar-cli` is owned by upstream. | `cli-npm-publish.yml`, blocked until the rebrand renames the package. |
 | hex.pm | Free, but `palisade` is owned by upstream. | `palisade-publish.yml`, blocked until the rebrand. |
 | Apple notarization | Not free (Apple Developer Program). | Signed macOS installers, off until `MACOS_SIGNING_ENABLED`. |
@@ -40,8 +39,8 @@ API key is what the smoke test used and is the default endpoint.
 ## Fork contract: variables and secrets
 
 Repository variables unless marked. Secrets live in the `release` environment
-except `BUILDBUDDY_API_KEY` and `DOCKERHUB_*`, which the smoke test and
-non-release Bazel jobs also need at repository level.
+except `BUILDBUDDY_API_KEY`, which the smoke test and non-release Bazel jobs
+also need at repository level.
 
 | Name | Kind | Default when unset | Used by |
 | --- | --- | --- | --- |
@@ -62,9 +61,9 @@ non-release Bazel jobs also need at repository level.
 | `BUILDBUDDY_API_KEY` | secret | none; required | all Bazel jobs (`BUILDBUDDY_ORG_API_KEY` in the release environment overrides it) |
 | `COSIGN_PRIVATE_KEY` / `COSIGN_PASSWORD` | secret | none; required for any signed publish | signing jobs |
 | `SERVICERADAR_AGENT_RELEASE_PRIVATE_KEY` | secret | none; required | release, publish-oci, native-addons |
-| `PLUGIN_UPLOAD_SIGNING_PRIVATE_KEY` / `_KEY_ID` / `_SIGNER` | secret | none; required | wasm-plugins, external-wasm-plugin |
+| `PLUGIN_UPLOAD_SIGNING_PRIVATE_KEY` / `_KEY_ID` | secret | none; required | wasm-plugins, external-wasm-plugin |
+| `PLUGIN_UPLOAD_SIGNING_SIGNER` | secret | the key id | same |
 | `PLUGIN_ORG` | var | `github.repository_owner` | external-wasm-plugin |
-| `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` | secret | anonymous pulls | release, publish-oci, buildbuddy.yaml |
 | `MACOS_*` (8 secrets) | secret | none | release, agent-platform-packages |
 | `HEX_API_KEY` | secret | none | palisade-publish |
 | `SIGSTORE_*`, `COSIGN_CERTIFICATE_*`, `COSIGN_KEYLESS` | secret | unset | keyless override only |
@@ -87,9 +86,12 @@ set on the `release` environment does not open a gate.
    private key, and the public key is what
    `bazel run //tools/go/derive_agent_release_public_key` prints with the secret
    in the environment.
-3. Create the `release` environment with a `v*` tag deployment rule.
+3. Create the `release` environment and allow deployments from `v*` tags AND the
+   `staging` branch: the dispatch-only publish jobs (publish-oci, external-wasm-plugin,
+   the macOS signing rehearsal, the agent test artifact) run from `staging` under
+   that environment.
 4. Set `PUBLISH_ENABLED=true` when a release should actually publish.
-5. Optional: Docker Hub token secrets, enable Pages, Apple Developer Program.
+5. Optional: enable Pages, Apple Developer Program.
 
 ## Workflows
 
@@ -119,6 +121,7 @@ set on the `release` environment does not open a gate.
 | `inspect-oidc.yml` | dispatch | dump the Actions OIDC token | kept |
 | `bazel-remote-smoke.yml` | dispatch, PR (paths) | proves BuildBuddy RBE and the executor image | new, replaces `arc-smoke.yml` |
 | `rbe-executor-image.yml` | dispatch | builds `docker/Dockerfile.rbe` and pushes it to GHCR | new |
+| `base-image-mirror.yml` | dispatch, PR (pin paths) | copies every `MODULE.bazel` base image into `ghcr.io/<owner>/mirror/` by digest | new |
 
 Deleted: `arc-smoke.yml` (self-hosted pool smoke test), `.github/actionlint.yaml`
 (self-hosted label list), `.github/FUNDING.yml` (upstream maintainer's sponsor
@@ -151,8 +154,9 @@ upstream's workflow executors; the fork's BazelCI uses `--config=remote`.
 
 - npm and hex package names belong to upstream; publishing waits for the rebrand.
 - Signed macOS installers need the Apple Developer Program.
-- `MODULE.bazel` still pulls base images from `registry.carverauto.dev/mirror/...`
-  (anonymously pullable today). Mirroring them to GHCR is a follow-on.
+- Base images are mirrored into `ghcr.io/<owner>/mirror/...` by
+  `base-image-mirror.yml`; a pin bump in `MODULE.bazel` must be mirrored
+  (the workflow runs on PRs that touch the pins) before it can build.
 - The BazelCI integration actions need fixture infrastructure the fork does
   not have.
 - `docs/docusaurus.config.ts` and `docs/static/CNAME` still name upstream's

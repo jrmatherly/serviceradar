@@ -1,24 +1,29 @@
 #!/usr/bin/env bash
 # Mirrors every base image that MODULE.bazel pulls (oci_ext.pull) into the fork's
 # registry, by digest, so Bazel never depends on Docker Hub or another
-# organisation's registry. Copying by digest preserves the digest, so the pins
-# in MODULE.bazel do not change; only the `image =` host does.
+# organisation's registry. MODULE.bazel names the MIRROR (ghcr.io/<owner>/mirror/<path>);
+# docker/images/base_image_origins.txt maps each <path> to the image's origin. The copy
+# is by digest, so the digest pinned in MODULE.bazel is exactly what lands in the mirror.
 #
-#   scripts/ci/mirror-base-images.sh --list   print "<src>@<digest> -> <dest>" and exit
+#   scripts/ci/mirror-base-images.sh --list   print "<origin>@<digest> -> <mirror ref>" and exit
 #   scripts/ci/mirror-base-images.sh          copy each image (crane) and verify the digest
 #
-# Env: OCI_REGISTRY (default ghcr.io), OCI_PROJECT (default jrmatherly).
-# Destination: ${OCI_REGISTRY}/${OCI_PROJECT}/mirror/<path>:mirror-<digest[7:19]>, where
-# <path> is the source path without its registry host and without a leading "mirror/".
 # Registry auth for pushes comes from `crane auth login` (the workflow does it).
 set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-registry="${OCI_REGISTRY:-ghcr.io}"
-project="${OCI_PROJECT:-jrmatherly}"
+origins_file="${REPO_ROOT}/docker/images/base_image_origins.txt"
 mode="${1:-copy}"
 
-# One "<image> <digest>" line per oci_ext.pull block.
+origin_for() {
+  # <mirror path without tag> -> origin reference, from the manifest
+  local path="$1" line
+  line="$(grep -E "^${path} " "${origins_file}" || true)"
+  [[ -n "${line}" ]] || { echo "error: no origin for ${path} in ${origins_file}" >&2; return 1; }
+  printf '%s\n' "${line#* }"
+}
+
+# One "<mirror image ref> <digest>" line per oci_ext.pull block.
 mapfile -t entries < <(
   python3 - "${REPO_ROOT}/MODULE.bazel" <<'PY'
 import re, sys
@@ -33,28 +38,27 @@ PY
 )
 [[ ${#entries[@]} -gt 0 ]] || { echo "no oci_ext.pull entries found in MODULE.bazel" >&2; exit 1; }
 
-dest_for() {
-  local image="$1" digest="$2" path
-  path="${image#*/}"                 # drop the registry host
-  path="${path%%:*}"                 # drop any :tag
-  path="${path#mirror/}"             # the source may already be a mirror
-  printf '%s/%s/mirror/%s:mirror-%s\n' "${registry}" "${project}" "${path}" "${digest:7:12}"
-}
-
 status=0
 for entry in "${entries[@]}"; do
-  read -r image digest <<<"${entry}"
-  src="${image%%:*}@${digest}"      # pull by digest; a :tag on the source is informational
-  dest="$(dest_for "${image}" "${digest}")"
+  read -r mirror digest <<<"${entry}"
+  # mirror = <registry>/<owner>/mirror/<path>[:tag]
+  path="${mirror#*/mirror/}"
+  path="${path%%:*}"
+  if [[ "${path}" == "${mirror}" ]]; then
+    echo "error: ${mirror} is not under a /mirror/ namespace; MODULE.bazel must name the fork's mirror" >&2
+    status=1; continue
+  fi
+  origin="$(origin_for "${path}")" || { status=1; continue; }
+  src="${origin}@${digest}"
   if [[ "${mode}" == "--list" ]]; then
-    printf '%s@%s -> %s\n' "${image}" "${digest}" "${dest}"
+    printf '%s -> %s\n' "${src}" "${mirror}"
     continue
   fi
-  echo "mirroring ${src} -> ${dest}"
-  crane copy "${src}" "${dest}"
-  got="$(crane digest "${dest}")"
+  echo "mirroring ${src} -> ${mirror}"
+  crane copy "${src}" "${mirror}"
+  got="$(crane digest "${mirror}")"
   if [[ "${got}" != "${digest}" ]]; then
-    echo "error: ${dest} has digest ${got}, expected ${digest}" >&2
+    echo "error: ${mirror} has digest ${got}, expected ${digest}" >&2
     status=1
   fi
 done

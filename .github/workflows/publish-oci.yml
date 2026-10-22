@@ -48,11 +48,7 @@ jobs:
       OCI_TOKEN: ${{ secrets.OCI_TOKEN || secrets.GITHUB_TOKEN }}
       OCI_USERNAME_SET: ${{ secrets.OCI_USERNAME != '' }}
       OCI_TOKEN_SET: ${{ secrets.OCI_TOKEN != '' }}
-      # Pull-side credential, distinct from the push target in OCI_REGISTRY: the one
-      # base image Bazel still fetches from Docker Hub (docker.io/pgduckdb/pgduckdb).
-      # Anonymous pulls are capped at 100 per 6 h per IP.
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      # Base images are pulled from the fork's GHCR mirror; no Docker Hub credential is needed.
       COSIGN_KEYLESS: ${{ secrets.COSIGN_KEYLESS }}
       SIGSTORE_FULCIO_URL: ${{ secrets.SIGSTORE_FULCIO_URL }}
       SIGSTORE_REKOR_URL: ${{ secrets.SIGSTORE_REKOR_URL }}
