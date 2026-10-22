@@ -8,6 +8,14 @@ name: Bazel remote smoke
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [staging]
+    paths:
+      - '.github/workflows/bazel-remote-smoke.yml'
+      - 'scripts/ci/configure-bazel-remote.sh'
+      - 'scripts/install-bazelisk.sh'
+      - '.bazelrc'
+      - 'build/rbe/BUILD'
 
 permissions:
   contents: read

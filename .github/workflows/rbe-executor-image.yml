@@ -13,13 +13,19 @@ on:
         description: "Image tag to publish, for example v1.0.25.1-fork.1."
         required: true
         type: string
+  # TEMPORARY (remove before merge): a dispatch-only workflow is not registered
+  # until it exists on the default branch, so the first build runs on push to the
+  # branch that introduces it.
+  push:
+    branches: [fork-ci-refactor]
+    paths: ['.github/workflows/rbe-executor-image.yml']
 
 permissions:
   contents: read
   packages: write
 
 concurrency:
-  group: ${{ github.workflow }}-${{ inputs.tag }}
+  group: ${{ github.workflow }}-${{ inputs.tag || 'v1.0.25.1-fork.1' }}
   cancel-in-progress: false
 
 jobs:
@@ -28,7 +34,7 @@ jobs:
     timeout-minutes: 300
     env:
       IMAGE: ghcr.io/${{ github.repository_owner }}/serviceradar-rbe-executor
-      TAG: ${{ inputs.tag }}
+      TAG: ${{ inputs.tag || 'v1.0.25.1-fork.1' }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
