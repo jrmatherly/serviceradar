@@ -95,10 +95,11 @@ one log.
   picked commit message (`git commit --amend`) and in the decision log.
 - Keep upstream's subject form, `type(scope): imperative subject`, including
   its `no-mistakes(scope):` prefix, so adopted commits read consistently.
-- `.github/` is ours: the fork runs its own CI. Upstream commits that touch
-  `.github/` are never cherry-picked. Read them for new or changed validation
-  commands and port those by hand into our workflows and
-  `references/validation.md`. Record the decision in the log.
+- `.github/` and the other CI paths listed in `references/deviations.md` are
+  ours: the fork runs its own CI. Upstream commits that touch them are never
+  cherry-picked. Hand-port what matters per `docs/fork-ci.md`, run
+  `scripts/ci/check-fork-ci.sh` (must exit 0), and port new validation
+  commands into `references/validation.md`. Record the decision in the log.
 - Rebrand step: when `scripts/rebrand/apply.sh` exists, run it on every file a
   pick touched and `scripts/rebrand/check-repo.sh` before validation. Until
   the rebrand lands this step is a no-op; `references/deviations.md` tracks it.
