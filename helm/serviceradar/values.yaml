@@ -1488,7 +1488,7 @@ webNg:
     trustXForwardedFor: false
     trustedProxyCidrs: []
   # Trusted Ed25519 public key used to verify signed agent release manifests.
-  agentReleasePublicKey: "ZY2//cpkD3oVdC6q4Cg6lN1I2M6SgmDMzL4QyQjptH8="
+  agentReleasePublicKey: "LBaBJrLB+FtmlBzrB4zH8ULISzzcLsWL+CiUyAc3Wk4="
   # Extra environment variables for the web-ng pod.
   # SERVICERADAR_EGRESS_PROXY: same CONNECT proxy as core.extraEnv. web-ng
   # starts serviceradar_core, so Finch picks it up from this env.

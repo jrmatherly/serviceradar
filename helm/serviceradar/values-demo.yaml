@@ -582,7 +582,7 @@ webNg:
       # otel-collector: deliver the edge OTLP collector once CI publishes its blob.
       - otel-collector
   gatewayAddress: "demo-gw.serviceradar.cloud:50052"
-  agentReleasePublicKey: "ZY2//cpkD3oVdC6q4Cg6lN1I2M6SgmDMzL4QyQjptH8="
+  agentReleasePublicKey: "LBaBJrLB+FtmlBzrB4zH8ULISzzcLsWL+CiUyAc3Wk4="
   extraEnv:
     # City MMDB is large; we only enable it in demo where we can allocate more memory.
     GEOLITE_CITY_ENABLED: "true"

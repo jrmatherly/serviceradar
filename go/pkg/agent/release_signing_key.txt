@@ -16,4 +16,4 @@
 # The release workflow asserts this file matches that derivation
 # (scripts/verify-agent-release-key-stamp.sh), so a stale or wrong value fails the release rather
 # than shipping agents that trust nothing.
-ZY2//cpkD3oVdC6q4Cg6lN1I2M6SgmDMzL4QyQjptH8=
+LBaBJrLB+FtmlBzrB4zH8ULISzzcLsWL+CiUyAc3Wk4=
