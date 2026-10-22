@@ -147,6 +147,10 @@ hooks-setup: ## Configure repo-local git hooks and install pre-commit environmen
 	@git config core.hooksPath .githooks
 	@pre-commit install-hooks
 
+.PHONY: doctor
+doctor: ## Check this machine has the toolchains, hooks and local files the fork's gates need
+	@scripts/doctor.sh
+
 .PHONY: compose-up
 compose-up: ## Start Docker Compose stack
 	@docker compose up -d

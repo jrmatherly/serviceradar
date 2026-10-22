@@ -76,6 +76,14 @@ Use this when the diff only touches `elixir/web-ng/**` and you want a faster `de
 - Restart the stack: `APP_TAG=sha-<sha> docker compose up -d --force-recreate`.
 - Verify: `docker compose ps` (one-shot jobs like cert-generator/config-updater exit once finished).
 
+## Machine setup
+
+Run `make doctor` from the repo root on a new machine, and again whenever a gate fails for
+a reason that looks environmental. It checks the toolchains `.tool-versions` and
+`rust-toolchain.toml` pin, the git hooks, fetched Elixir deps, the CLIs the gates call,
+`.bazelrc.remote` and the commit identity. Each `FAIL` and `WARN` line names its fix; run
+it and re-run `make doctor` until no `FAIL` remains. It exits 1 while any `FAIL` remains.
+
 ## Local Development with Docker CNPG
 
 Use this quick playbook when running `mix phx.server` locally and connecting to the CNPG instance in Docker on the same machine. This is the fastest iteration loop for testing changes. It is for running the dev server only; database-backed tests use the `srql-fixtures` CNPG, never this instance (see the SRQL Fixture Integration Tests section of `AGENTS.md`).
