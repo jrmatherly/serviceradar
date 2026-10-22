@@ -55,7 +55,19 @@ for entry in "${entries[@]}"; do
     continue
   fi
   echo "mirroring ${src} -> ${mirror}"
-  crane copy "${src}" "${mirror}"
+  # GHCR has returned DENIED on a child-manifest PUT the first time a new package is
+  # created and accepted the identical push moments later; retry before giving up.
+  copied=0
+  for attempt in 1 2 3; do
+    if crane copy "${src}" "${mirror}"; then copied=1; break; fi
+    echo "crane copy attempt ${attempt} failed; retrying in 15s" >&2
+    sleep 15
+  done
+  if [[ "${copied}" -ne 1 ]]; then
+    echo "error: could not mirror ${src}" >&2
+    status=1
+    continue
+  fi
   got="$(crane digest "${mirror}")"
   if [[ "${got}" != "${digest}" ]]; then
     echo "error: ${mirror} has digest ${got}, expected ${digest}" >&2
