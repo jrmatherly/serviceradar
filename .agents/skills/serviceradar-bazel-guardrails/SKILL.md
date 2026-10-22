@@ -1,6 +1,6 @@
 ---
 name: serviceradar-bazel-guardrails
-description: Use before creating a worktree, script, or ad hoc orchestration, handling generated Bazel artifacts, changing native add-ons, or adding serviceradar_core tests.
+description: ServiceRadar's Bazel-first rules, where every build, test and provisioning step is a target, generated output is never read by hand, and two registration gates fail only under `make test`. Use before creating a worktree, adding or extending a script, copying anything out of `bazel-out`, changing a native add-on, or adding an `elixir/serviceradar_core` test file.
 user-invocable: false
 metadata:
   internal: true
@@ -63,9 +63,10 @@ metadata:
   a corner case.
 
   Corollaries:
-  - Work an existing script does belongs in a target. `//rust/integration-db` already
-    replaced `scripts/{reset,drop,sweep-stale-core}-test-db.sh` — those files are dead and
-    should be deleted, not maintained.
+  - Work an existing script does belongs in a target. `//rust/integration-db` replaced
+    `scripts/sweep-stale-core-test-dbs.sh` (deleted) and CI's uses of
+    `scripts/reset-test-db.sh` and `scripts/drop-test-db.sh`; those two survive only for
+    `scripts/test-armis-dire-e2e.sh`. Do not add a caller.
   - A test needing a file gets it as a **declared input** (`data`/`srcs`), never from a
     script writing it to a runner temp dir and exporting a path. That pattern is what
     forces `no-remote-exec` and breaks RBE.
@@ -85,4 +86,4 @@ trunk unless the no-mistakes pipeline catches it first:
   missing row is caught there instead of only in BazelCI.
 
 Both procedures, with their local verification commands, are in
-[docs/agent-runbooks.md](docs/agent-runbooks.md).
+[docs/agent-runbooks.md](../../../docs/agent-runbooks.md).

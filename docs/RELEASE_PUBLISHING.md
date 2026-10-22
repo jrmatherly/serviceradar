@@ -171,8 +171,9 @@ that commit.
 
 `serviceradar-demo-prod` tracks the branch and syncs it automatically, with
 prune and self-heal off. Image Updater stays disabled. Do not patch
-`global.imageTag` on the live Application. Rollout checks are in
-`.agents/skills/release-cut-and-demo-roll/SKILL.md`.
+`global.imageTag` on the live Application. Rollout checks live in
+upstream's `release-cut-and-demo-roll` skill, which this fork does not carry because it
+needs carverauto's demo cluster.
 
 ## CI Prerequisites
 

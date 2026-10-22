@@ -203,7 +203,7 @@ checkerTemplates:
 
 ### Core Service Implementation
 
-The core service has been updated with the following changes in `/home/mfreeman/serviceradar/pkg/core/edge_onboarding.go`:
+The core service has been updated with the following changes in `pkg/core/edge_onboarding.go`:
 
 1. **Template Fetching** (Line ~1495-1517):
    - Checks if `checker_config_json` is provided

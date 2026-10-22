@@ -1,11 +1,11 @@
 ---
 name: playwright-cli
-description: "Automate browser interactions, inspect web pages, debug UI behavior, capture snapshots/screenshots, manage browser sessions, generate or run Playwright tests, mock requests, trace sessions, record videos, and work with browser storage using the playwright-cli command. Use when Codex needs browser automation through playwright-cli or npx playwright-cli."
+description: Drive a real browser from the shell with `playwright-cli` to open pages, inspect the accessibility snapshot, fill forms, capture screenshots and traces, mock requests, and generate or run Playwright tests. Use when a task needs to see or exercise a web UI (web-ng pages, dashboards, login flows) rather than reason about it from source, and for any browser screenshot or UI regression check.
 ---
 
 # Browser Automation with playwright-cli
 
-Run `playwright-cli` commands through Codex shell tools. If the global command is unavailable, prefer the local `npx playwright-cli` fallback described in Installation.
+Run `playwright-cli` commands from the shell. If the global command is unavailable, prefer the local `npx playwright-cli` fallback described in Installation.
 
 ## Quick start
 
@@ -312,13 +312,13 @@ playwright-cli kill-all
 If global `playwright-cli` command is not available, try a local version via `npx playwright-cli`:
 
 ```bash
-npx --no-install playwright-cli --version
+npx --no-install playwright-cli --version   # no fetch, so no sfw prefix needed
 ```
 
 When local version is available, use `npx playwright-cli` in all commands. Otherwise, install `playwright-cli` as a global command:
 
 ```bash
-npm install -g @playwright/cli@latest
+sfw npm install -g @playwright/cli@latest   # sfw: AGENTS.md Socket Firewall rule
 ```
 
 ## Example: Form submission

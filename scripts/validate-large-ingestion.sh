@@ -14,7 +14,7 @@ echo "Running Armis agent large-ingestion release gate (${DEVICE_COUNT} devices)
 )
 
 if [[ -z "${SERVICERADAR_TEST_DATABASE_URL:-}" && -f /tmp/sr_identity_validation_db_info ]]; then
-  # Created by the srql-fixtures-db-tests workflow. The file stores a URL-escaped
+  # Created by the SRQL fixture lifecycle (docs/agent-runbooks.md). The file stores a URL-escaped
   # password and must not be printed.
   # shellcheck disable=SC1091
   source /tmp/sr_identity_validation_db_info
@@ -24,7 +24,7 @@ fi
 if [[ -z "${SERVICERADAR_TEST_DATABASE_URL:-}" && -z "${SRQL_TEST_DATABASE_URL:-}" ]]; then
   cat >&2 <<'MSG'
 SERVICERADAR_TEST_DATABASE_URL or SRQL_TEST_DATABASE_URL is required for the core ingestion gate.
-Use the $srql-fixtures-db-tests workflow to create an isolated CNPG database, then rerun this script.
+Create an isolated CNPG database per docs/agent-runbooks.md (SRQL Fixture Integration Tests), then rerun this script.
 MSG
   exit 1
 fi

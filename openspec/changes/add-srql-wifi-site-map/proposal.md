@@ -37,9 +37,9 @@ The browser experience should not become a customer-specific feature baked into 
   - `build-web-ui`
   - `docker-compose-stack`
 - Affected code:
-  - `/home/mfreeman/src/serviceradar-sdk-go`: SDK helpers for structured inventory result batches if needed.
+  - `serviceradar-sdk-go`: SDK helpers for structured inventory result batches if needed.
   - Customer plugin repository: WiFi-map plugin package, manifests, signatures, and seed/live collector implementation.
-  - `/home/mfreeman/src/serviceradar-sdk-dashboard`: React-first dashboard SDK helpers, browser-module host typings/hooks, SRQL helpers, and optional WASM SDK helpers for customer dashboard packages.
+  - `serviceradar-sdk-dashboard`: React-first dashboard SDK helpers, browser-module host typings/hooks, SRQL helpers, and optional WASM SDK helpers for customer dashboard packages.
   - `go/` agent runtime/package handling if approved seed-file access or payload handoff host functions are insufficient.
   - `proto/monitoring.proto` and agent/gateway handling if current plugin-result payload limits or typing are insufficient.
   - `elixir/serviceradar_core/priv/repo/migrations/`: platform schema migrations for WiFi map storage.
@@ -59,4 +59,4 @@ The browser experience should not become a customer-specific feature baked into 
 - `tmp/wifi-map/collect_controller_info.py`
 - `tmp/wifi-map/collect_radius_groups.py`
 - `tmp/wifi-map/build_sites.py`
-- `/home/mfreeman/src/serviceradar-sdk-go`
+- `serviceradar-sdk-go`

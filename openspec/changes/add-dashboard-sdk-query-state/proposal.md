@@ -17,5 +17,5 @@ A parity audit of the customer WiFi map against the standalone reference at `tmp
 
 ## Impact
 - Affected specs: dashboard-sdk
-- Affected code: `/home/mfreeman/src/serviceradar-sdk-dashboard/src/*`, `/home/mfreeman/src/serviceradar-sdk-dashboard/tools/*`, customer dashboard package React/map code (notably `frameData.js`, `mapState.js`, `filterCounts.js`, `createMapController.js`, `deckLayers.js`, `srqlQuery.js`), dashboard SDK README/tests
+- Affected code: `serviceradar-sdk-dashboard/src/*`, `serviceradar-sdk-dashboard/tools/*`, customer dashboard package React/map code (notably `frameData.js`, `mapState.js`, `filterCounts.js`, `createMapController.js`, `deckLayers.js`, `srqlQuery.js`), dashboard SDK README/tests
 - Follow-up validation: SDK unit tests, customer unit/parity tests, Docker/local web-ng Playwright checks

@@ -55,7 +55,7 @@ This change closes the developer-experience gap. The audience is the customer bu
 
 - Affected specs: dashboard-sdk
 - Affected code:
-  - `/home/mfreeman/src/serviceradar/js/cli/` (new monorepo directory at a fresh top-level `js/`) — home of `@serviceradar/cli`. Owns:
+  - `js/cli/` (new monorepo directory at a fresh top-level `js/`) — home of `@serviceradar/cli`. Owns:
     - `bin/serviceradar-cli.ts` (TypeScript source) plus `bin/serviceradar-dashboard.ts` (transitional alias delegating to `serviceradar-cli dashboard *`).
     - `src/auth/*` (credentials store, device-code flow client, manual-token fallback).
     - `src/dashboard/*` (relocated `build`, `manifest`, `dev`, `import`, `validate`, plus new `init` and `publish`).
@@ -63,9 +63,9 @@ This change closes the developer-experience gap. The audience is the customer bu
     - `templates/{react-map,react-table,react-blank}/` (relocated scaffolder templates).
     - `tests/*` (relocated CLI tests).
     - `package.json`, `tsconfig.json`, build scripts. Compiles to JS at publish time.
-  - `/home/mfreeman/src/serviceradar-sdk-dashboard/src/config.{js,d.ts}` (new — `defineDashboardConfig` helper, ships in the runtime SDK so customer dashboards can `import {defineDashboardConfig} from "@serviceradar/dashboard-sdk/config"`).
-  - `/home/mfreeman/src/serviceradar-sdk-dashboard/package.json` — drops the `serviceradar-dashboard` bin entry; adds `@serviceradar/cli` to `dependencies` so installing the SDK still pulls the CLI bin into the customer's `node_modules/.bin/`.
-  - `/home/mfreeman/src/serviceradar-sdk-dashboard/bin/` and `/home/mfreeman/src/serviceradar-sdk-dashboard/tools/` — emptied; CLI source and harness assets move into the monorepo.
-  - `/home/mfreeman/src/developer/priv/content/docs/v2/dashboard-sdk.md` (documentation walkthroughs for the new `serviceradar-cli` flow; scaffold → auth → dev with HMR → validate → publish).
+  - `serviceradar-sdk-dashboard/src/config.{js,d.ts}` (new — `defineDashboardConfig` helper, ships in the runtime SDK so customer dashboards can `import {defineDashboardConfig} from "@serviceradar/dashboard-sdk/config"`).
+  - `serviceradar-sdk-dashboard/package.json` — drops the `serviceradar-dashboard` bin entry; adds `@serviceradar/cli` to `dependencies` so installing the SDK still pulls the CLI bin into the customer's `node_modules/.bin/`.
+  - `serviceradar-sdk-dashboard/bin/` and `serviceradar-sdk-dashboard/tools/` — emptied; CLI source and harness assets move into the monorepo.
+  - `developer/priv/content/docs/v2/dashboard-sdk.md` (documentation walkthroughs for the new `serviceradar-cli` flow; scaffold → auth → dev with HMR → validate → publish).
   - **ServiceRadar API (new endpoints, separate change ticket):** `/api/v1/cli/auth/device` and `/api/v1/cli/auth/token` following RFC 8628 conventions. The CLI ships ahead of these endpoints with a manual-token paste fallback.
 - Follow-up validation: SDK unit tests for the config helper and validate command, CLI unit tests for the auth credentials store + device-code flow + manual-token fallback, integration tests that scaffold a project from each template and run the dev / build / validate / publish flow, browser-side tests that exercise HMR on file change, end-to-end manual verification of `auth login` + `publish` against a local ServiceRadar instance once the device-code endpoints land.

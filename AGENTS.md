@@ -260,6 +260,11 @@ ServiceRadar is a multi-component system made up of Go services (core, sync, reg
 
 Before inspecting or editing a subtree, read its closest `AGENTS.md`; `elixir/web-ng/AGENTS.md` is mandatory for `elixir/web-ng/**`.
 
+Repo skills live in `.agents/skills/` (Agent Skills layout) and load in Claude Code
+as the `serviceradar` plugin (`/serviceradar:<name>`) through `.claude/skills/serviceradar`.
+Upstream skills that need carverauto's clusters are not carried; the list is in
+`.claude/skills/upstream-review/references/deviations.md`.
+
 Before writing or changing any test, load the `test-audit` skill when it is
 installed. It is an upstream (carverauto) skill that this fork does not carry
 (checked 2026-10-21: absent from the checkout and every installed plugin); until
@@ -274,7 +279,7 @@ the fork adopts or replaces it, record "test-audit: not available" in the PR bod
   round-trip, so the fixture lifecycle replays on an empty database instead. Do not
   reintroduce baselining there; why it cannot work is in
   [docs/agent-runbooks.md](docs/agent-runbooks.md).
-- Rust dep bump (cargo + Bazel in one go): `make update-rust-deps REPIN=workspace`, or `scripts/update-rust-bazel-deps.sh [update-mode] [verify-target]` — runs `cargo update` → `cargo check` → `bazel run //third_party/crate_mirror:sync` → `bazel build`. To only refresh the vendored archives after hand-editing the root `Cargo.toml`: `bazel run //third_party/crate_mirror:sync`. See [Rust Dependency Management](#rust-dependency-management).
+- Rust dep bump (cargo + Bazel in one go): `make update-rust-deps REPIN=workspace`, or `scripts/update-rust-bazel-deps.sh [update-mode] [verify-target]` — runs `cargo update` → `cargo check` → `bazel run //third_party/crate_mirror:sync` → `bazel build`. To only refresh the vendored archives after hand-editing the root `Cargo.toml`: `bazel run //third_party/crate_mirror:sync`. See `.agents/skills/serviceradar-dependencies/SKILL.md`, Rust Dependency Management.
 
 Prefer Bazel targets when modifying code that already has BUILD files. Always run gofmt/cargo fmt where applicable (Go formatting handled by `gofmt`, Rust by `cargo fmt`).
 

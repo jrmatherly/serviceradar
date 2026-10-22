@@ -25,7 +25,7 @@ This change finishes the migration: the imperative controller and the imperative
 
 - Affected specs: dashboard-sdk
 - Affected code:
-  - `/home/mfreeman/src/serviceradar-sdk-dashboard/src/react.js`, `react.d.ts`, README, tests — `useMapPopup` addition
-  - `/home/mfreeman/src/example-dashboard/src/` — broad restructure of `app/` and `map/` directories
-  - `/home/mfreeman/src/example-dashboard/tests/` — unit and Playwright parity tests updated against the new component tree
+  - `serviceradar-sdk-dashboard/src/react.js`, `react.d.ts`, README, tests — `useMapPopup` addition
+  - `example-dashboard/src/` — broad restructure of `app/` and `map/` directories
+  - `example-dashboard/tests/` — unit and Playwright parity tests updated against the new component tree
 - Follow-up validation: SDK unit tests for `useMapPopup`, customer unit tests for the new components, customer harness parity, Docker/local web-ng Playwright checks, per-keystroke filter latency capture against the standalone reference (`tmp/wifi-map/site_inventory_map.html`)

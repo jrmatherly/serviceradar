@@ -22,7 +22,7 @@ export CNPG_DATABASE="${CNPG_DATABASE:-serviceradar}"
 export CNPG_USERNAME="${CNPG_USERNAME:-serviceradar}"
 export CNPG_PASSWORD="${CNPG_PASSWORD:-serviceradar}"
 export CNPG_SSL_MODE="${CNPG_SSL_MODE:-verify-full}"
-export CNPG_CERT_DIR="${CNPG_CERT_DIR:-/home/mfreeman/serviceradar/.local-dev-certs}"
+export CNPG_CERT_DIR="${CNPG_CERT_DIR:-${SCRIPT_DIR}/../../.local-dev-certs}"
 export CNPG_TLS_SERVER_NAME="${CNPG_TLS_SERVER_NAME:-cnpg}"
 
 echo "Database: $CNPG_HOST:$CNPG_PORT/$CNPG_DATABASE"

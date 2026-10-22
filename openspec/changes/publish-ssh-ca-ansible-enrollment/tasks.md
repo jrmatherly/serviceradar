@@ -1,6 +1,6 @@
 ## 1. Public repository structure
 
-- [ ] 1.1 Add Apache-2.0 `LICENSE`, README, changelog, `galaxy.yml`, `meta/runtime.yml`, typed defaults, and non-secret examples in `/Users/mfreeman/src/serviceradar-ansible-remote-access`.
+- [ ] 1.1 Add Apache-2.0 `LICENSE`, README, changelog, `galaxy.yml`, `meta/runtime.yml`, typed defaults, and non-secret examples in `serviceradar-ansible-remote-access`.
 - [ ] 1.2 Add `roles/remote_access_ssh_ca`, the controller-only callback helper, reusable playbooks, and separate root wrappers for direct/operator-managed and integrated preflight, staged enroll/rotate, fresh-connection verify/commit, and absent/offboarding.
 - [ ] 1.3 Add reviewed catalog metadata binding only the non-downgradable integrated wrapper paths, declared callback action/schema, supported platforms, public variables, and check-mode behavior; document direct mode without ServiceRadar authorization/readiness claims.
 

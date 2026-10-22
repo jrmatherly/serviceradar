@@ -93,10 +93,11 @@ jspm_packages/
 # `npm i @anthropic-ai/claude-agent-sdk`) run from the repo root leaves a
 # package.json/package-lock.json here that belongs to nothing in the build.
 #
-# ROOT-ANCHORED ON PURPOSE. There are a dozen tracked package.json /
-# package-lock.json files under demo/, docs/, elixir/web-ng/assets/, js/cli/
-# and js/create-dashboard/. An unanchored `package.json` would match every one
-# of those. The leading slash keeps this to the repo root only.
+# ROOT-ANCHORED ON PURPOSE. Tracked package-lock.json files live under
+# demo/, docs/, js/cli/ and js/create-dashboard/ (elixir/web-ng/assets/ holds
+# tracked package.json files but no lockfile). An unanchored `package.json`
+# would match every one of those. The leading slash keeps this to the repo
+# root only.
 /package.json
 /package-lock.json
 
@@ -135,6 +136,7 @@ go/cmd/wasm-plugins/opentext-nom/testdata/local-action.json
 # Local plugin builds. Bundles are built and published by //build/wasm_plugins.
 go/cmd/wasm-plugins/*/plugin.wasm
 go/cmd/wasm-plugins/starlink/starlink
+go/cmd/wasm-plugins/proxmox/proxmox
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
@@ -311,9 +313,7 @@ tmp/hpna-local/
 # Local review documents (not for upstream)
 pr-host-net-viz-*.md
 
-# Python bytecode. The repository had no rule for this at all, which is why
-# docker/images/__pycache__/ and scripts/__pycache__/ each carry a committed .pyc. Those two
-# stay tracked -- an ignore does not untrack anything -- but nothing new joins them.
+# Python bytecode. Never tracked: a .pyc records the path it was compiled from.
 __pycache__/
 *.py[cod]
 
@@ -335,3 +335,6 @@ __pycache__/
 # Local working notes (findings, plans, scratch) at the repo root; never tracked.
 # Anchored: vendored code under third_party/ has its own private/ directories.
 /private/
+
+# Xcode per-user state (window layout, breakpoints); never shared.
+xcuserdata/

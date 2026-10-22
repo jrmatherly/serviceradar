@@ -13,6 +13,24 @@
 # upstream publishes a patched package or the dependency is replaced.
 GHSA-4g2h-vm7x-747c
 
+# EEF-CVE-2026-93471 / esaml unbounded SAML message decompression
+# EEF-CVE-2026-86696 / esaml atom creation from unsigned LogoutResponse status codes
+# EEF-CVE-2026-105270 / esaml atom creation while parsing SAML messages
+#
+# All three are in esaml's own message decoding (its binding decoder, logout
+# handling and parser). web-ng calls exactly one esaml function,
+# :xmerl_dsig.verify, from lib/serviceradar_web_ng_web/auth/saml_response.ex;
+# every SAML document is decoded and parsed by web-ng's own saml_xml.ex before
+# that call, and web-ng has no SAML logout flow. scripts/elixir_dep_audit.sh
+# fails if any other esaml module is ever called from web-ng, so this waiver
+# cannot outlive the fact it rests on.
+#
+# No esaml release newer than 4.6.0 exists (re-verified 2026-10-22 via
+# mix hex.info esaml; osv.dev lists no fixed version for any of the three).
+EEF-CVE-2026-93471
+EEF-CVE-2026-86696
+EEF-CVE-2026-105270
+
 # GHSA-rhv4-8758-jx7v / Decimal unbounded exponent DoS
 #
 # web-ng currently receives Decimal through shared Ash, Ecto, Postgrex, ADBC,

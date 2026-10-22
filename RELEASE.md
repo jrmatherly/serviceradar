@@ -85,7 +85,7 @@ The `publish_packages` binary performs the following:
 After the commands complete:
 
 - Confirm container images in Harbor (`registry.carverauto.dev/serviceradar/serviceradar-*`).
-- Verify at least one published image signature with the public key in [docs/cosign.pub](/Users/mfreeman/src/serviceradar/docs/cosign.pub):
+- Verify at least one published image signature with the public key in [docs/cosign.pub](docs/cosign.pub):
 
   ```bash
   cosign verify \
@@ -94,7 +94,7 @@ After the commands complete:
     registry.carverauto.dev/serviceradar/serviceradar-core-elx:v$(cat VERSION)
   ```
 
-- For self-hosted keyless signing, verify with the published trusted root in [docs/sigstore/README.md](/home/mfreeman/src/serviceradar/docs/sigstore/README.md):
+- For self-hosted keyless signing, verify with the published trusted root in [docs/sigstore/README.md](docs/sigstore/README.md):
 
   ```bash
   cosign verify \

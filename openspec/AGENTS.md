@@ -544,13 +544,13 @@ cd elixir/serviceradar_core
 DATASVC_HOST=localhost \
 DATASVC_PORT=50057 \
 DATASVC_SSL=true \
-DATASVC_CERT_DIR=/home/mfreeman/serviceradar/.local-dev-certs \
+DATASVC_CERT_DIR=$PWD/../../.local-dev-certs \
 DATASVC_CERT_NAME=core \
 DATASVC_SERVER_NAME=datasvc.serviceradar \
 CNPG_HOST=localhost \
 CNPG_PORT=5455 \
 CNPG_SSL_MODE=verify-full \
-CNPG_CERT_DIR=/home/mfreeman/serviceradar/.local-dev-certs \
+CNPG_CERT_DIR=$PWD/../../.local-dev-certs \
 CNPG_TLS_SERVER_NAME=cnpg \
 NATS_URL=nats://localhost:4222 \
 NATS_TLS=true \

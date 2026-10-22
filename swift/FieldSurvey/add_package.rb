@@ -8,7 +8,7 @@ target = project.targets.find { |t| t.name == 'FieldSurvey' }
 package_ref = project.root_object.package_references.find { |pr| pr.repositoryURL.include?('RPerfClient') }
 unless package_ref
   package_ref = project.new(Xcodeproj::Project::Object::XCRemoteSwiftPackageReference)
-  package_ref.repositoryURL = "file:///Users/mfreeman/src/serviceradar/swift/RPerfClient"
+  package_ref.repositoryURL = "file://#{File.expand_path('../RPerfClient', __dir__)}"
   package_ref.requirement = {
     'kind' => 'branch',
     'branch' => 'main'

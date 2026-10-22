@@ -6,7 +6,7 @@
   "status": "pass",
   "visualReview": "pending",
   "artifact": {
-    "path": "/Users/mfreeman/.no-mistakes/worktrees/6e905cacf9f4/01M4WNDPJ8F20ZG00290HFJ4QM/docs/architecture/audit-history-retention.html",
+    "path": "docs/architecture/audit-history-retention.html",
     "sha256": "8000708e90ba1f7f0029f990f6244e01335dc9f7db253461d0c2272c2eaea47c",
     "bytes": 716831
   },

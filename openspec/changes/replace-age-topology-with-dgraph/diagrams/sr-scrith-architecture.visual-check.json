@@ -6,7 +6,7 @@
   "status": "pass",
   "visualReview": "pending",
   "artifact": {
-    "path": "/Users/mfreeman/src/serviceradar/openspec/changes/replace-age-topology-with-dgraph/diagrams/sr-scrith-architecture.html",
+    "path": "openspec/changes/replace-age-topology-with-dgraph/diagrams/sr-scrith-architecture.html",
     "sha256": "ed59457eda39f3cd3e1f45ef73cfb241e7fe1be2f6f012bc5841bab7136f744b",
     "bytes": 711654
   },

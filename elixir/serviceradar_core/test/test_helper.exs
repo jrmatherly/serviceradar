@@ -141,8 +141,8 @@ else
     SERVICERADAR_ONLY_INTEGRATION is set but no test database URL is present.
 
     Run the guarded Bazel lifecycle documented in
-    .agents/skills/srql-fixtures-db-tests/SKILL.md. For one focused Mix test, first create a
-    disposable codex_* scratch database on srql-fixtures and use its verify-full URL and CA.
+    docs/agent-runbooks.md (SRQL Fixture Integration Tests). For one focused Mix test, first
+    create a disposable scratch database on the shared fixture and use its verify-full URL and CA.
     """
   end
 
@@ -167,7 +167,7 @@ else
 end
 
 # Run the complete integration suite through the guarded Bazel lifecycle in
-# .agents/skills/srql-fixtures-db-tests/SKILL.md. It owns the unique run id, typed srql-fixtures
+# docs/agent-runbooks.md (SRQL Fixture Integration Tests). It owns the unique run id, typed srql-fixtures
 # endpoint, per-lane disposable clones, and outcome-bearing teardown. Direct Mix execution is only
 # for a focused test against a separately created disposable srql-fixtures scratch database; never
 # point it at demo, production, or the shared fixture database itself.

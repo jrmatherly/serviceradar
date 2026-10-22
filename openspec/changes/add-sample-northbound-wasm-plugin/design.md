@@ -50,7 +50,7 @@ Add `go/cmd/wasm-plugins/sample-northbound/` with:
 
 ### SDK Example
 
-Add an equivalent example under `/home/mfreeman/src/serviceradar-sdk-go/examples/sample-northbound/`. The ServiceRadar in-repo plugin can either vendor the same shape or remain a standalone copy, but the example must compile against the SDK's public APIs and explain how device/interface target context maps into action requests.
+Add an equivalent example under `serviceradar-sdk-go/examples/sample-northbound/`. The ServiceRadar in-repo plugin can either vendor the same shape or remain a standalone copy, but the example must compile against the SDK's public APIs and explain how device/interface target context maps into action requests.
 
 ### Test Strategy
 

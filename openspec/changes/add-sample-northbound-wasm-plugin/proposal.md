@@ -22,5 +22,5 @@ The provider-neutral northbound action flow needs an easy end-to-end test fixtur
   - `build/wasm_plugins/plugin_inventory.bzl`
   - `go/pkg/agent` fixture tests, if needed for runtime coverage
 - Affected SDK code:
-  - `/home/mfreeman/src/serviceradar-sdk-go/examples/sample-northbound/**`
-  - `/home/mfreeman/src/serviceradar-sdk-go/sdk` only if the sample exposes a missing SDK ergonomics gap
+  - `serviceradar-sdk-go/examples/sample-northbound/**`
+  - `serviceradar-sdk-go/sdk` only if the sample exposes a missing SDK ergonomics gap

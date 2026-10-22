@@ -61,7 +61,7 @@ while leaving the other two green — which is exactly how earlier failures reac
 | | local dev | GitHub ARC (carverauto) | BuildBuddy Workflow |
 |---|---|---|---|
 | fixture | Docker Postgres or shared `srql-fixtures` NodePort | shared `srql-fixtures` CNPG | shared `srql-fixtures` CNPG |
-| setup | `.agents/skills/srql-fixtures-db-tests` + credential target | `scripts/ci/configure-srql-fixture.sh` | `//:buildbuddy_setup_fixture_env` |
+| setup | the SRQL fixture lifecycle in `docs/agent-runbooks.md` + credential target | `scripts/ci/configure-srql-fixture.sh` | `//:buildbuddy_setup_fixture_env` |
 | CA delivered as | none for Docker; **PEM content** for NodePort | **file path AND PEM content** from LAN HTTPS | **PEM content only** |
 | where tests execute | your machine | `arc-runner-set` pod | the self-hosted workflow runner |
 
@@ -173,7 +173,7 @@ duplicated. It also passes the CA to that subprocess explicitly.
 
 ## Running it locally
 
-Use [the SRQL fixture skill](../../.agents/skills/srql-fixtures-db-tests/SKILL.md) for the
+Use [the SRQL fixture runbook](../../docs/agent-runbooks.md#srql-fixture-integration-tests) for the
 canonical recipe. The guarded lifecycle runs in the in-cluster BuildBuddy workflows as an
 ordered sequence of Bazel invocations, not a wrapper script:
 

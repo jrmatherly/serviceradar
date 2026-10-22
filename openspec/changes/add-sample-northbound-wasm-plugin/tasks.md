@@ -13,10 +13,10 @@
 
 ## 3. SDK Example
 
-- [x] 3.1 Add `/home/mfreeman/src/serviceradar-sdk-go/examples/sample-northbound/` using the public Go SDK.
+- [x] 3.1 Add `serviceradar-sdk-go/examples/sample-northbound/` using the public Go SDK.
 - [x] 3.2 Include README/config/manifest examples showing device and interface action descriptors.
 - [x] 3.3 Add SDK tests or example tests for decoding action invocations and building per-target results.
-- [x] 3.4 Update `/home/mfreeman/src/developer` developer docs for northbound action SDK usage and the sample plugin.
+- [x] 3.4 Update `developer` developer docs for northbound action SDK usage and the sample plugin.
 
 ## 4. Validation
 

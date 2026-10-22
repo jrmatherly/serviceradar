@@ -36,7 +36,7 @@
 # USAGE
 #
 # This helper only materializes credentials. Run it from the canonical, single-shell Bazel
-# lifecycle documented in .agents/skills/srql-fixtures-db-tests/SKILL.md. That recipe owns
+# lifecycle documented in docs/agent-runbooks.md (SRQL Fixture Integration Tests). That recipe owns
 # the per-run file path, local TestRunner strategy, fixture guard, cache policy, and cleanup.
 set -o errexit
 set -o nounset

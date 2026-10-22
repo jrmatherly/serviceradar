@@ -1,6 +1,6 @@
 ---
 name: serviceradar-dependencies
-description: Use when fetching, installing, or updating JavaScript, Python, Rust, Cargo, Bazel crate, OpenSSL, or pq dependencies.
+description: The dependency rules ServiceRadar's Cargo and Bazel builds share, and the traps that pass `cargo check` and break Bazel. Use when fetching, installing, bumping or pinning JavaScript, Python, Rust, Cargo, Bazel crate, OpenSSL or pq dependencies, editing a `Cargo.toml`, or touching `third_party/crate_mirror`.
 user-invocable: false
 metadata:
   internal: true
@@ -8,18 +8,16 @@ metadata:
 
 # ServiceRadar Dependency Rules
 
-- Rust dep bump (cargo + Bazel in one go): `make update-rust-deps REPIN=workspace`, or `scripts/update-rust-bazel-deps.sh [update-mode] [verify-target]` — runs `cargo update` → `cargo check` → `bazel run //third_party/crate_mirror:sync` → `bazel build`. To only refresh the vendored archives after hand-editing the root `Cargo.toml`: `bazel run //third_party/crate_mirror:sync`. See [Rust Dependency Management](#rust-dependency-management).
-
-## Socket Firewall
-
-Prefer Socket Firewall for supported dependency-fetching commands. Prefix JavaScript/TypeScript package manager calls with `sfw`, especially `npm` commands such as `sfw npm ci`, `sfw npm install`, and `sfw npm run ...` when the command may fetch packages. Also use `sfw` for supported Python and Rust package managers (`pip`, `uv`, and `cargo`) when they may download dependencies. Web-NG uses Bun for asset builds; prefix Bun package-manager invocations with `sfw` in CI and Bazel release tooling as a best-effort firewall even though Socket Firewall Free only officially guarantees npm/yarn/pnpm for JavaScript. Socket Firewall Free does not currently support Go, Bazel, or Hex/Mix, so do not wrap those commands unless Socket adds support.
-
-- **Rust**: run `cargo fmt` + `cargo clippy` on touched crates (notably `rust/srql`); leverage existing Diesel helpers + CNPG pooling utilities before adding new abstractions.
+The fetch-time rules shared with every agent are in [AGENTS.md](../../../AGENTS.md):
+the Rust dep bump command (`make update-rust-deps REPIN=workspace`, under
+"Per-Directory Agent Guides") and the Socket Firewall `sfw` prefix rule (under
+"Socket Firewall"). This file holds what AGENTS.md does not: the Cargo and Bazel
+dependency traps.
 
 ## Rust Dependency Management
 
-Full detail, with the reasoning behind each rule: **`rust/README_RUST.md`**. The traps
-below are the ones an agent hits by accident.
+Full detail, with the reasoning behind each rule: [rust/README_RUST.md](../../../rust/README_RUST.md).
+The traps below are the ones an agent hits by accident.
 
 - **Every dependency version lives in `[workspace.dependencies]` in the root `Cargo.toml`**,
   alphabetically sorted. A crate under `/rust/` NEVER names a version — it uses

@@ -282,6 +282,20 @@ audit_retired() {
   return 0
 }
 
+# The esaml advisories waived in elixir/web-ng/.deps_audit_ignore rest on web-ng
+# calling nothing in esaml but :xmerl_dsig.verify. Any other esaml module call
+# reopens them, so the waiver fails the moment that stops being true.
+check_esaml_surface() {
+  local webng="${repo_root}/elixir/web-ng/lib"
+  local hits
+  hits="$(grep -rnoE ':esaml[a-z_]*\.[a-z_]+|\besaml_[a-z_]+:[a-z_]+' "${webng}" || true)"
+  if [[ -n "${hits}" ]]; then
+    printf '%s\n' "${hits}"
+    err "web-ng calls esaml beyond :xmerl_dsig.verify; the esaml waivers in elixir/web-ng/.deps_audit_ignore no longer hold"
+    failed_projects+=("web-ng esaml surface")
+  fi
+}
+
 # --- main -------------------------------------------------------------------
 
 ensure_advisory_db
@@ -301,6 +315,7 @@ group "security advisories (mix.lock)"
 for project in "${projects[@]}"; do
   audit_advisories "${project}"
 done
+check_esaml_surface
 endgroup
 
 if [[ "${with_retired}" == "true" ]]; then

@@ -644,8 +644,8 @@ bazel test -c opt --config=cache_only --config=database_env --strategy=TestRunne
 ```
 
 The shard command assumes the matching disposable database was provisioned first. Follow the
-explicit sweep/prepare/migrate/provision/test/teardown sequence in `AGENTS.md` or the
-`srql-fixtures-db-tests` skill. There is no shell wrapper: Bazel does not order lifecycle targets
+explicit sweep/prepare/migrate/provision/test/teardown sequence in `AGENTS.md` or
+`docs/agent-runbooks.md` (SRQL Fixture Integration Tests). There is no shell wrapper: Bazel does not order lifecycle targets
 or guarantee a finalizer across invocations.
 
 `make build-workspace-cache` and `make test-cache` still exist, but only as aliases that swap in

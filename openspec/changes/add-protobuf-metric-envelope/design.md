@@ -76,7 +76,7 @@ add-on authors do not hand-roll JSON metric arrays.
 
 This keeps native add-ons on the same JetStream-first path as sysmon/SNMP/ICMP while preserving the
 existing `StreamTelemetry` transport. The external plugin SDK repos
-(`/Users/mfreeman/src/serviceradar-sdk-go` and `/Users/mfreeman/src/serviceradar-sdk-rust`) follow the
+(`serviceradar-sdk-go` and `serviceradar-sdk-rust`) follow the
 same rule: `plugin_result` remains status/domain output only, while time-series metrics use the
 ServiceRadar metric telemetry payload kind carrying an encoded `MetricBatch`. Raw OTLP relay records
 remain OTLP and are not rewrapped.
@@ -438,8 +438,8 @@ into a `*_metrics/0` list concatenated by `Telemetry.metrics/0` so they reach Pr
   native add-on SDK helper that wraps an encoded `serviceradar.metric.v1.MetricBatch`. `cargo test
   --manifest-path rust/metric-proto/Cargo.toml` also passes, covering the shared Rust protobuf crate's
   gauge/cumulative-counter round trip.
-- `go test ./...` passes in `/Users/mfreeman/src/serviceradar-sdk-go`; `cargo test` passes 90 tests in
-  `/Users/mfreeman/src/serviceradar-sdk-rust`. Those standalone SDK repos no longer serialize time-series
+- `go test ./...` passes in `serviceradar-sdk-go`; `cargo test` passes 90 tests in
+  `serviceradar-sdk-rust`. Those standalone SDK repos no longer serialize time-series
   metrics into `serviceradar.plugin_result.v1`; metric authors use first-class MetricBatch telemetry helpers.
   A fresh SDK audit found the remaining `metrics` JSON references are absence/rejection tests or docs that
   point authors to `serviceradar.metric.v1` telemetry; no standalone SDK helper still emits
