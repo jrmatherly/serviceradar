@@ -1,0 +1,49 @@
+# Copies every base image MODULE.bazel pulls into the fork's GHCR namespace, by
+# digest, so Bazel builds pull from ghcr.io/<owner>/mirror/... and never from
+# Docker Hub or another organisation's registry. Idempotent: crane skips blobs
+# that already exist. Runs on pull requests that change the pins so the mirror
+# is populated before the change merges. See docs/fork-ci.md.
+name: Base image mirror
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [staging]
+    paths:
+      - 'MODULE.bazel'
+      - 'scripts/ci/mirror-base-images.sh'
+      - '.github/workflows/base-image-mirror.yml'
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      OCI_REGISTRY: ${{ vars.OCI_REGISTRY || 'ghcr.io' }}
+      OCI_PROJECT: ${{ vars.OCI_PROJECT || github.repository_owner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Install crane
+        uses: imjasonh/setup-crane@feee3b6bb0d4c68370f256a4502498c9227e5c6b # v0.7
+
+      - name: Log in to the registry
+        env:
+          OCI_USERNAME: ${{ secrets.OCI_USERNAME || github.actor }}
+          OCI_TOKEN: ${{ secrets.OCI_TOKEN || secrets.GITHUB_TOKEN }}
+        run: echo "${OCI_TOKEN}" | crane auth login "${OCI_REGISTRY}" -u "${OCI_USERNAME}" --password-stdin
+
+      - name: List what will be mirrored
+        run: scripts/ci/mirror-base-images.sh --list | sed 's/^/- /' | tee -a "${GITHUB_STEP_SUMMARY}"
+
+      - name: Mirror by digest
+        run: scripts/ci/mirror-base-images.sh

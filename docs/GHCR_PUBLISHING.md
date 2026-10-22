@@ -1,129 +1,84 @@
-# Publishing ServiceRadar Images to Harbor with Bazel
+# Publishing ServiceRadar Images to GHCR with Bazel
 
-This note describes the Bazel-native workflow for building and pushing the ServiceRadar container images to Harbor. It also covers the minimal secret configuration required in BuildBuddy so that CI runs can authenticate against `registry.carverauto.dev` without leaking credentials into the repository.
+This note describes the Bazel-native workflow for building and pushing the
+ServiceRadar container images, and how the registry is chosen. The fork
+publishes to the GitHub Container Registry (GHCR) by default; any OCI
+distribution registry works with the same variables.
 
 ## Overview
 
-- Each image defined in `docker/images/BUILD.bazel` now has a matching `oci_push` target that uploads the image to `registry.carverauto.dev/serviceradar/<image-name>`.
-- The canonical aggregate publish target is `//:push`, which delegates to `//docker/images:push_all`.
-- `//docker/images:push_all` writes a temporary Docker config that contains the Harbor credentials and runs the per-image push targets in parallel via `rules_multirun` with `jobs = 0`.
-- Tags are generated via Bazel stamping: every push always publishes a `latest` tag plus a `sha-<commit>` tag (falling back to `sha-dev` when Bazel runs without `--stamp`). Additional tags can be supplied at runtime via `--tag <value>` arguments passed to any `oci_push` target.
+- Each image in `docker/images/image_inventory.bzl` has a matching `oci_push`
+  target. The inventory holds image NAMES only (`serviceradar-core-elx`, ...).
+- The registry host and project are stamped in at build time from workspace
+  status: `scripts/workspace_status.sh` emits `STABLE_OCI_REGISTRY` and
+  `STABLE_OCI_PROJECT` from the `OCI_REGISTRY` and `OCI_PROJECT` environment
+  variables, defaulting to `ghcr.io` and `jrmatherly`. `push_targets.bzl`
+  expands them into a per-image `repository_file`, so one variable moves every
+  image: `OCI_REGISTRY=ghcr.io OCI_PROJECT=acme bazel run --stamp //:push`
+  publishes `ghcr.io/acme/serviceradar-core-elx` and friends.
+- The canonical aggregate publish target is `//:push`, which delegates to
+  `//docker/images:push_all` (`rules_multirun`, `jobs = 0`).
+- Tags: every push publishes `latest` and `sha-<commit>` (falling back to
+  `sha-dev` without `--stamp`); release pushes add `v<VERSION>`. Extra tags
+  are passed at run time: `bazel run --stamp //:push -- --tag v1.2.3`.
 
-## Required secrets
+## Credentials
 
-Create a Harbor robot account with push/pull permission on the `serviceradar` project. Store the following secrets in BuildBuddy (Settings -> Secrets):
+In GitHub Actions nothing needs to be configured for GHCR: the workflows use
+`github.actor` with `GITHUB_TOKEN` and `permissions: packages: write`. To
+publish to another registry, set BOTH secrets `OCI_USERNAME` and `OCI_TOKEN`
+and the repository variables `OCI_REGISTRY` and `OCI_PROJECT`. Setting only
+one of the two secrets fails the login step on purpose.
 
-| Secret name | Value                                             |
-|-------------|---------------------------------------------------|
-| `HARBOR_USERNAME` | Harbor robot username (for example `robot$serviceradar-ci`) |
-| `HARBOR_TOKEN`    | Harbor robot secret                                         |
-
-Set `OCI_REGISTRY=registry.carverauto.dev` when the workflow does not already export it.
-
-Alternatively, you can store an entire Docker auth configuration JSON in a single secret (for example `DOCKER_AUTH_CONFIG_JSON`) and let the helper script write it verbatim.
-
-## Bootstrap script for BuildBuddy
-
-The repository includes `buildbuddy_setup_docker_auth.sh`. The script materialises `~/.docker/config.json` before any build steps run, so rule-based tooling such as `rules_oci` can reuse the credentials transparently.
-
-The bootstrap script itself supports four input modes for the primary registry:
-
-1. `DOCKER_AUTH_CONFIG_JSON` - a raw docker config snippet, written verbatim.
-2. `OCI_DOCKER_AUTH` - a base64 encoded `username:token` pair for the registry.
-3. `OCI_USERNAME` and `OCI_TOKEN` - the script performs the base64 encoding for you. Optional `OCI_REGISTRY` overrides `registry.carverauto.dev`.
-4. `HARBOR_USERNAME` and `HARBOR_TOKEN` - the BuildBuddy secret-store names, accepted as mode 3
-   when neither `OCI_USERNAME` nor `OCI_TOKEN` is set. The GitHub Actions workflows do the same mapping
-   declaratively in their job-level `env:` block, from `HARBOR_ROBOT_USERNAME` /
-   `HARBOR_ROBOT_SECRET`; BuildBuddy has no equivalent, which is why the script accepts both.
-
-Modes 3 and 4 write only the primary registry. `GHCR_*` and `DOCKERHUB_*` are handled separately
-and get their own entries, so one run can authenticate several registries at once.
-
-`OCI_AUTH_REQUIRED` turns the script strict. By default it is best-effort: if a `config.json`
-already exists and no credentials are in the environment it reports "nothing to do" and exits 0,
-and credentials for *any* registry count as success. Both are silent failures for a caller that
-must reach one specific registry -- the symptom is a 401 minutes later, during a Bazel loading
-phase, on a target that has nothing to do with containers. With `OCI_AUTH_REQUIRED` set the
-script instead requires `OCI_REGISTRY` to be set and an entry for it to have been written, and
-exits 1 naming what is missing.
-
-Leave it unset for the GitHub pull-request workflow, which legitimately runs with Docker Hub
-credentials alone on fork PRs, and for `build/buildbuddy/release_pipeline.sh`, which calls the
-script best-effort.
-
-Example BuildBuddy workflow fragment using the current action-level `env` and `steps` schema:
-
-```yaml
-actions:
-  - name: "Build, test and publish containers"
-    env:
-      OCI_REGISTRY: "registry.carverauto.dev"
-      OCI_AUTH_REQUIRED: "1"
-    steps:
-      - run: "bazel run -c opt --config=ci //:buildbuddy_setup_docker_auth"
-      - run: "bazel build -c opt --config=ci //..."
-      - run: "bazel test -c opt --config=ci //... --test_tag_filters=-integration_test,-acceptance_test"
-      - run: "bazel run -c opt --config=ci --stamp //:push"
-```
-
-`HARBOR_USERNAME` and `HARBOR_TOKEN` are configured in the BuildBuddy secret store and are
-exposed to the workflow environment automatically; do not put their values in the checked-in
-workflow.
-
-The auth step needs no shell prologue. It used to carry one -- the `HARBOR_*` rename, an assertion
-that the secrets existed, and a grep proving the entry landed under `OCI_REGISTRY` -- and all of
-it now lives in the script, where every caller gets it. The prologue also exported
-`OCI_DOCKER_AUTH=""` on the stated grounds that the script prefers it over `OCI_USERNAME` /
-`OCI_TOKEN`; it does not, that branch is the `elif`, and the export did nothing.
-
-Running the auth bootstrap ensures that `rules_oci` can reuse the same credentials whether the later Bazel steps run locally or on BuildBuddy RBE.
-
-## Passing secrets to Bazel in BuildBuddy Workflows
-
-BuildBuddy exposes configured secrets to the action environment automatically. Keep only
-non-secret values such as `OCI_REGISTRY` in the action-level `env:` mapping, bootstrap Docker
-authentication in a `steps: - run:` command, and keep the secret values out of both the YAML and
-the Bazel command line.
-
-If you prefer the script style locally, just run:
+Locally:
 
 ```bash
-./buildbuddy_setup_docker_auth.sh
-```
-
-For local pushes without the script you can export the same environment variables manually:
-
-```bash
-export OCI_REGISTRY="registry.carverauto.dev"
-export OCI_USERNAME='robot$serviceradar-ci'
-export OCI_TOKEN="replace-with-harbor-robot-secret"
+export OCI_REGISTRY=ghcr.io
+export OCI_PROJECT=<your GitHub owner, lowercase>
+export OCI_USERNAME=<github user>
+export OCI_TOKEN=<classic PAT with write:packages>
 
 make push_all PUSH_TAG="v$(git describe --tags --always)"
 ```
 
+`buildbuddy_setup_docker_auth.sh` turns `OCI_USERNAME`/`OCI_TOKEN` into
+`~/.docker/config.json` so `rules_oci` can push. Base images are pulled from the
+fork's own GHCR mirror (`ghcr.io/<owner>/mirror/...`, populated by
+`.github/workflows/base-image-mirror.yml` from the pins in `MODULE.bazel`), so
+no other registry credential is needed.
+
+## Registry access from scripts
+
+`scripts/oci_registry.sh` provides `oci_registry_token <repo> [actions]`,
+which discovers the token endpoint from the registry's own
+`WWW-Authenticate` challenge on `/v2/`. It therefore works against GHCR
+(`/token`), Harbor (`/service/token`) and any other distribution-compliant
+registry without knowing the path. The sign and verify scripts use it.
+
+GHCR does not serve the OCI 1.1 referrers API (it returns 404), so cosign
+signatures live on the `sha256-<digest>.sig` tag. `scripts/verify-oci-publish.sh`
+tries the referrers API first and falls back to the tag when the registry
+answers 404.
+
 ## Command usage
 
-- `make push_all` - pushes all container images with the default `latest` and `sha-<commit>` tags. Set `LOCAL_COSIGN_SIGN=1` to also sign the OCI images and run `make verify_publish`.
-- `make push_all PUSH_TAG=v1.2.3` - pushes all container images with an extra tag. Set `LOCAL_COSIGN_SIGN=1` to also sign the OCI images and verify `latest`, `sha-<commit>`, and `v1.2.3`.
-- `make push_all_release` - runs `make push_all LOCAL_COSIGN_SIGN=1`, then `make push_wasm_plugins LOCAL_COSIGN_SIGN=1`, so OCI images and first-party Wasm plugin OCI artifacts are both published, signed, and verified for the same tag.
-- `bazel build -c opt --config=ci //:images` - builds the canonical publishable image set, including current multi-arch image indexes.
-- `bazel run --stamp //:push` - pushes all images with the default `latest` and `sha-<commit>` tags.
-- `bazel run --stamp //docker/images:core_elx_image_amd64_push -- --tag 1.2.3` - pushes only the core-elx image and adds an extra `1.2.3` tag.
-- `bazel run -c opt --config=ci --stamp //:push -- --tag $GIT_COMMIT` - builds using BuildBuddy remote execution, downloads the OCI artifacts locally, then pushes from the workflow runner.
+- `make push_all` pushes all images with `latest` and `sha-<commit>`. Set
+  `LOCAL_COSIGN_SIGN=1` to also sign and run `make verify_publish`.
+- `make push_all PUSH_TAG=v1.2.3` adds an extra tag.
+- `make push_all_release` runs `push_all` and `push_wasm_plugins`, both
+  signed and verified, for the same tag. It does not publish the Helm chart,
+  packages, the managed-agent manifest or the native add-on catalog; the
+  formal release is `.github/workflows/release.yml` (see
+  `docs/RELEASE_PUBLISHING.md`).
+- `bazel build -c opt --config=remote //:images` builds the publishable set.
+- `bazel run --stamp //docker/images:core_elx_image_amd64_push -- --tag 1.2.3`
+  pushes one image with an extra tag.
 
-On macOS, `make push_all` uses [scripts/push_all_images.sh](/Users/mfreeman/src/serviceradar/scripts/push_all_images.sh) instead of `//:push` because the aggregate `rules_multirun` launcher can try to execute a Linux Python runtime on the host. The helper runs the same Bazel `*_push` targets sequentially and rewrites each generated launcher to use the Bazel-fetched Darwin `crane` and `jq` binaries rather than the Linux toolchain runfiles.
-
-When credentials are supplied via environment variables the push helper writes an ephemeral Docker config into `$DOCKER_CONFIG`, otherwise it reuses the config created by the bootstrap script (or an existing `docker login`) so no secrets are leaked.
-
-## Notes
-
-- Always run publish commands with `--stamp` so that Bazel injects the `STABLE_COMMIT_SHA` into the tag file. Without stamping, the fallback tag `sha-dev` is used.
-- The aggregate `//:push` target accepts any flags supported by the underlying `oci_push` binaries (e.g. `--allow-nondistributable-artifacts`). These flags are forwarded to each image push.
-- CI systems that cannot expose environment variables globally can instead `source` a file containing the JSON docker config and set `DOCKER_CONFIG` before invoking `bazel run`. The helper script respects pre-set `DOCKER_CONFIG` values by simply overwriting the target directory.
+On macOS `make push_all` uses `scripts/push_all_images.sh` instead of
+`//:push`, because the aggregate `rules_multirun` launcher may try to run a
+Linux Python runtime on the host.
 
 ## Verification
-
-After publishing, run the repo-local verification script against the tag you care about, or use `make verify_publish`:
 
 ```bash
 make verify_publish
@@ -131,31 +86,17 @@ make verify_publish VERIFY_TAG="v$(git describe --tags --always)"
 ./scripts/verify-oci-publish.sh latest "sha-$(git rev-parse HEAD)"
 ```
 
-The script checks:
+The verifier checks that single-arch repositories publish single manifests,
+multi-arch ones publish indexes with `linux/amd64` and `linux/arm64/v8`, a
+Cosign signature is present (referrers or tag) and verifies, and runtime
+metadata (`Entrypoint`, `Cmd`, `WorkingDir`, selected env) matches the Bazel
+image declarations.
 
-- single-arch repos still publish single OCI manifests where expected
-- multi-arch repos publish OCI indexes with `linux/amd64` and `linux/arm64/v8`
-- Cosign signature artifacts are present in Harbor and resolve via `cosign verify`
-- critical runtime metadata such as `Entrypoint`, `Cmd`, `WorkingDir`, and selected environment values still match the Bazel image declarations
-
-For customer-facing verification, publish the public key from [docs/cosign.pub](/Users/mfreeman/src/serviceradar/docs/cosign.pub) alongside the image tag you want them to validate:
-
-```bash
-cosign verify \
-  --experimental-oci11 \
-  --key docs/cosign.pub \
-  registry.carverauto.dev/serviceradar/serviceradar-core-elx:v1.2.10
-```
-
-For the self-hosted keyless path, publish the trusted root and identity policy
-described in [docs/sigstore/README.md](/home/mfreeman/src/serviceradar/docs/sigstore/README.md),
-then verify with:
+Customer-facing verification uses the public key in `docs/cosign.pub`:
 
 ```bash
-cosign verify \
-  --experimental-oci11 \
-  --trusted-root docs/sigstore/trusted-root.json \
-  --certificate-identity-regexp '<issuer-specific SAN regex>' \
-  --certificate-oidc-issuer https://issuer.example.com \
-  registry.carverauto.dev/serviceradar/serviceradar-core-elx:v1.2.10
+cosign verify --key docs/cosign.pub ghcr.io/jrmatherly/serviceradar-core-elx:v1.2.10
 ```
+
+Keyless (Sigstore) verification remains possible when a release was signed
+that way; see `docs/sigstore/README.md`.

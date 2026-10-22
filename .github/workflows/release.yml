@@ -57,12 +57,15 @@ concurrency:
 permissions:
   contents: write
   id-token: write
+  packages: write
   statuses: read
 
 jobs:
   # Resolves the release tag and commit for the Windows jobs and the publisher, so
   # neither waits on, or depends on the success of, the macOS installer job.
   source:
+    # Nothing publishes until the repository variable PUBLISH_ENABLED is 'true'.
+    if: ${{ vars.PUBLISH_ENABLED == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -104,6 +107,8 @@ jobs:
   # release: publish attaches the installer when this job succeeds and ships
   # without it otherwise.
   macos:
+    # Signed installers need the Apple Developer secrets; off until MACOS_SIGNING_ENABLED is 'true'.
+    if: ${{ vars.PUBLISH_ENABLED == 'true' && vars.MACOS_SIGNING_ENABLED == 'true' }}
     runs-on: macos-15
     timeout-minutes: 75
     environment: release
@@ -149,19 +154,19 @@ jobs:
           fi
           printf 'tag=%s\ncommit=%s\n' "${tag}" "${release_commit}" >> "${GITHUB_OUTPUT}"
 
-      - name: Configure native macOS build cache
+      - name: Configure Bazel remote execution
         env:
+          BAZEL_REMOTE_ENABLED: ${{ vars.BAZEL_REMOTE_ENABLED || 'true' }}
+          BUILDBUDDY_ENDPOINT: ${{ vars.BUILDBUDDY_ENDPOINT || 'remote.buildbuddy.io' }}
+          BUILDBUDDY_APP_URL: ${{ vars.BUILDBUDDY_APP_URL || 'https://app.buildbuddy.io' }}
           BUILDBUDDY_ORG_API_KEY: ${{ secrets.BUILDBUDDY_ORG_API_KEY || secrets.BUILDBUDDY_API_KEY }}
-        run: |
-          set -euo pipefail
-          test "$(uname -m)" = arm64
-          command -v bazelisk
-          test -n "${BUILDBUDDY_ORG_API_KEY}"
-          umask 077
-          printf 'common --remote_header=x-buildbuddy-api-key=%s\n' "${BUILDBUDDY_ORG_API_KEY}" > .bazelrc.remote
+        run: scripts/ci/configure-bazel-remote.sh
 
+      # Requires the BazelCI LargeIngestionGate action to post its status (see docs/fork-ci.md).
       - name: Verify ingestion gate before macOS signing
+        if: ${{ vars.LARGE_INGESTION_GATE_ENABLED == 'true' }}
         env:
+          BUILDBUDDY_APP_URL: ${{ vars.BUILDBUDDY_APP_URL || 'https://app.buildbuddy.io' }}
           RELEASE_COMMIT: ${{ steps.source.outputs.commit }}
         run: |
           set -euo pipefail
@@ -170,7 +175,7 @@ jobs:
             --repository "${GITHUB_REPOSITORY}" --commit "${RELEASE_COMMIT}" \
             --base-ref origin/staging --token-env GH_TOKEN \
             --timeout-seconds 5400 --poll-seconds 15 \
-            --target-url-prefix https://carverauto.buildbuddy.io/invocation/
+            --target-url-prefix "${BUILDBUDDY_APP_URL}/invocation/"
 
       - name: Build and validate ARM64 installer inputs
         env:
@@ -245,8 +250,6 @@ jobs:
     timeout-minutes: 60
     permissions:
       contents: read
-    env:
-      BUILDBUDDY_ORG_API_KEY: ${{ secrets.BUILDBUDDY_ORG_API_KEY || secrets.BUILDBUDDY_API_KEY }}
     steps:
       - name: Check out release commit for Windows staging
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # actions/checkout@v7.0.1
@@ -254,15 +257,13 @@ jobs:
           ref: ${{ needs.source.outputs.commit }}
           persist-credentials: false
 
-      - name: Configure remote cache
-        run: |
-          set -euo pipefail
-          if [ -z "${BUILDBUDDY_ORG_API_KEY:-}" ]; then
-            echo "BUILDBUDDY_ORG_API_KEY is unavailable; --config=remote cannot authenticate." >&2
-            exit 1
-          fi
-          umask 077
-          printf 'common --remote_header=x-buildbuddy-api-key=%s\n' "${BUILDBUDDY_ORG_API_KEY}" > .bazelrc.remote
+      - name: Configure Bazel remote execution
+        env:
+          BAZEL_REMOTE_ENABLED: ${{ vars.BAZEL_REMOTE_ENABLED || 'true' }}
+          BUILDBUDDY_ENDPOINT: ${{ vars.BUILDBUDDY_ENDPOINT || 'remote.buildbuddy.io' }}
+          BUILDBUDDY_APP_URL: ${{ vars.BUILDBUDDY_APP_URL || 'https://app.buildbuddy.io' }}
+          BUILDBUDDY_ORG_API_KEY: ${{ secrets.BUILDBUDDY_ORG_API_KEY || secrets.BUILDBUDDY_API_KEY }}
+        run: scripts/ci/configure-bazel-remote.sh
 
       - name: Stage Windows installer inputs
         env:
@@ -333,7 +334,7 @@ jobs:
     # and the Windows installers built, and attach the macOS installer only when its
     # job succeeded.
     if: ${{ !cancelled() && needs.source.result == 'success' && needs.windows-msi.result == 'success' }}
-    runs-on: serviceradar-signing
+    runs-on: ubuntu-24.04
     outputs:
       tag: ${{ steps.release.outputs.tag }}
       version: ${{ steps.release.outputs.version }}
@@ -344,26 +345,18 @@ jobs:
       release_id: ${{ steps.release_assets.outputs.release_id }}
     environment: release
     env:
-      BUILDBUDDY_ORG_API_KEY: ${{ secrets.BUILDBUDDY_ORG_API_KEY || secrets.BUILDBUDDY_API_KEY }}
       GH_TOKEN: ${{ github.token }}
       GITHUB_TOKEN: ${{ github.token }}
-      OCI_REGISTRY: registry.carverauto.dev
-      OCI_PROJECT: serviceradar
-      OCI_CHART_REPOSITORY: serviceradar/charts
-      OCI_USERNAME: ${{ secrets.HARBOR_ROBOT_USERNAME }}
-      OCI_TOKEN: ${{ secrets.HARBOR_ROBOT_SECRET }}
-      # Harbor above is where this job PUSHES. The pair below is where Bazel still PULLS from
-      # upstream, and it is now down to a SINGLE image.
-      #
-      # The base images were mirrored into Harbor: of the oci pulls in //MODULE.bazel, 11 now
-      # resolve to registry.carverauto.dev and exactly one does not --
-      #   image = "docker.io/pgduckdb/pgduckdb"   (@pgduckdb_18, base of the analytics head)
-      # DOCKERHUB_* stays for that one pull. Anonymous fetches hit Docker Hub's
-      # 100-per-6h-per-IP limit, and a throttled fetch surfaces as a Bazel "no such package"
-      # loading error rather than anything resembling a rate limit.
-      # buildbuddy_setup_docker_auth.sh writes an entry per registry.
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      OCI_REGISTRY: ${{ vars.OCI_REGISTRY || 'ghcr.io' }}
+      OCI_PROJECT: ${{ vars.OCI_PROJECT || github.repository_owner }}
+      OCI_CHART_REPOSITORY: ${{ vars.OCI_CHART_REPOSITORY || format('{0}/charts', github.repository_owner) }}
+      # GITHUB_TOKEN pushes to GHCR; set both OCI_USERNAME/OCI_TOKEN secrets for another registry.
+      OCI_USERNAME: ${{ secrets.OCI_USERNAME || github.actor }}
+      OCI_TOKEN: ${{ secrets.OCI_TOKEN || secrets.GITHUB_TOKEN }}
+      OCI_USERNAME_SET: ${{ secrets.OCI_USERNAME != '' }}
+      OCI_TOKEN_SET: ${{ secrets.OCI_TOKEN != '' }}
+      # Base images are pulled from the fork's GHCR mirror (scripts/ci/mirror-base-images.sh);
+      # no Docker Hub credential is needed.
       COSIGN_KEYLESS: ${{ secrets.COSIGN_KEYLESS }}
       SIGSTORE_FULCIO_URL: ${{ secrets.SIGSTORE_FULCIO_URL }}
       SIGSTORE_REKOR_URL: ${{ secrets.SIGSTORE_REKOR_URL }}
@@ -385,10 +378,9 @@ jobs:
       # (Wasm plugin upload-signing secrets moved to wasm-plugins.yml, which now owns
       # publishing the plugins on `v*` tags.)
       BAZELISK_HOME: ${{ github.workspace }}/.cache/bazelisk
-      # serviceradar-signing does not mount /bazel-cache (that path is the ARC
-      # workflow-runner volume). --config=ci therefore dies with Permission
-      # denied on the repo-contents cache. --config=remote is the same
-      # remote_base RBE graph with $HOME caches.
+      # Hosted runners have no /bazel-cache volume, so --config=ci (which needs it)
+      # is unusable here; --config=remote is the same remote_base graph with $HOME
+      # caches.
       # Release builds must consume the committed lockfile without rewriting source.
       BAZEL_BUILD_FLAGS: -c opt --config=remote --remote_download_outputs=all --lockfile_mode=error
     steps:
@@ -447,19 +439,15 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-bazelisk-
             
-      # Only the credential and the three strategy overrides belong here now. Everything else is
-      # inherited, so it cannot drift from //.bazelrc.
-      - name: Configure BuildBuddy remote cache
-        run: |
-          set -euo pipefail
-
-          if [ -z "${BUILDBUDDY_ORG_API_KEY:-}" ]; then
-            echo "BUILDBUDDY_ORG_API_KEY is unavailable; --config=remote cannot authenticate." >&2
-            exit 1
-          fi
-
-          umask 077
-          printf 'common --remote_header=x-buildbuddy-api-key=%s\n' "${BUILDBUDDY_ORG_API_KEY}" > .bazelrc.remote
+      # Endpoints and the credential come from repository variables and the
+      # BUILDBUDDY_API_KEY secret via scripts/ci/configure-bazel-remote.sh.
+      - name: Configure Bazel remote execution
+        env:
+          BAZEL_REMOTE_ENABLED: ${{ vars.BAZEL_REMOTE_ENABLED || 'true' }}
+          BUILDBUDDY_ENDPOINT: ${{ vars.BUILDBUDDY_ENDPOINT || 'remote.buildbuddy.io' }}
+          BUILDBUDDY_APP_URL: ${{ vars.BUILDBUDDY_APP_URL || 'https://app.buildbuddy.io' }}
+          BUILDBUDDY_ORG_API_KEY: ${{ secrets.BUILDBUDDY_ORG_API_KEY || secrets.BUILDBUDDY_API_KEY }}
+        run: scripts/ci/configure-bazel-remote.sh
 
       - name: Install Bazelisk
         run: ./scripts/install-bazelisk.sh
@@ -497,11 +485,15 @@ jobs:
       - name: Verify committed dependency lockfile
         run: bazel mod deps --lockfile_mode=error
 
+      # Requires the BazelCI LargeIngestionGate action to post its status (see docs/fork-ci.md).
       - name: Wait for large-ingestion gate
+        if: ${{ vars.LARGE_INGESTION_GATE_ENABLED == 'true' }}
         env:
+          BUILDBUDDY_APP_URL: ${{ vars.BUILDBUDDY_APP_URL || 'https://app.buildbuddy.io' }}
           RELEASE_COMMIT: ${{ steps.source.outputs.commit }}
         run: |
           set -euo pipefail
+          # shellcheck disable=SC2086
           bazel run ${BAZEL_BUILD_FLAGS} //build/ci:wait_for_large_ingestion_gate -- \
             --repository "${GITHUB_REPOSITORY}" \
             --commit "${RELEASE_COMMIT}" \
@@ -509,7 +501,7 @@ jobs:
             --token-env GH_TOKEN \
             --timeout-seconds 5400 \
             --poll-seconds 15 \
-            --target-url-prefix https://carverauto.buildbuddy.io/invocation/
+            --target-url-prefix "${BUILDBUDDY_APP_URL}/invocation/"
 
       - name: Install Cosign
         run: ./scripts/install-cosign.sh
@@ -620,6 +612,7 @@ jobs:
           # the same configuration as everything else instead of needing a host Go toolchain.
           # The tool still EXECUTES locally, so the signing secret in this step's env reaches
           # it and never leaves the runner. Same pattern as native-addons.yml.
+          # shellcheck disable=SC2086
           public_key="$(bazel run ${BAZEL_BUILD_FLAGS} \
             //tools/go/derive_agent_release_public_key 2>/dev/null | tail -n1)"
           if [[ -z "${public_key}" ]]; then
@@ -665,8 +658,8 @@ jobs:
             echo "${token}" | oras login "${OCI_REGISTRY}" -u "${user}" --password-stdin
           }
 
-          if [[ -z "${OCI_USERNAME:-}" || -z "${OCI_TOKEN:-}" ]]; then
-            echo "Missing Harbor robot credentials. Set HARBOR_ROBOT_USERNAME and HARBOR_ROBOT_SECRET." >&2
+          if [[ "${OCI_USERNAME_SET}" != "${OCI_TOKEN_SET}" ]]; then
+            echo "Set both OCI_USERNAME and OCI_TOKEN secrets or neither (GITHUB_TOKEN is used when neither is set)." >&2
             exit 1
           fi
 
@@ -704,6 +697,7 @@ jobs:
             exit 1
           fi
 
+          # shellcheck disable=SC2086
           ./scripts/verify-agent-release-key-stamp.sh ${BAZEL_BUILD_FLAGS}
 
       # Alpine replaces package revisions in-place on a stable branch. A yanked
@@ -731,10 +725,12 @@ jobs:
         env:
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
           RELEASE_COMMIT: ${{ steps.release.outputs.commit }}
-          OPENBAO_ADDR: https://openbao-active.openbao-system.svc.cluster.local:8200
-          OPENBAO_K8S_ROLE: github-signing-runner
+          # OpenBao Transit signing is upstream's path; off unless OPENBAO_SIGNING_ENABLED is 'true'.
+          # Otherwise cosign signs with the fork's own key from the COSIGN_PRIVATE_KEY secret.
+          OPENBAO_SIGNING_ENABLED: ${{ vars.OPENBAO_SIGNING_ENABLED == 'true' }}
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
           OPENBAO_SIGNING_ALLOWED_REFS_REGEX: '^refs/(tags/v.*|heads/(staging|main|master))$'
-          COSIGN_KEY_REF: hashivault://cosign-release
         run: |
           set -euo pipefail
           release_sha_tag="sha-${RELEASE_COMMIT}"
@@ -772,6 +768,7 @@ jobs:
           if [[ "${skip_push}" != "true" ]]; then
             # BAZEL_BUILD_FLAGS is defined once at job level -- see the comment there.
             run_remote_publish() {
+              # shellcheck disable=SC2086
               bazel run ${BAZEL_BUILD_FLAGS} //:push "${extra_args[@]}"
             }
 
@@ -799,7 +796,9 @@ jobs:
           if [[ -n "${RELEASE_TAG}" ]]; then
             verify_tags+=("${RELEASE_TAG}")
           fi
-          source ./scripts/ci/prepare-openbao-cosign-env.sh
+          # Ref allowlist applies to every signing backend, not only OpenBao.
+          [[ "${GITHUB_REF}" =~ ${OPENBAO_SIGNING_ALLOWED_REFS_REGEX} ]] || { echo "Signing is not allowed for ref '${GITHUB_REF}'" >&2; exit 1; }
+          if [[ "${OPENBAO_SIGNING_ENABLED}" == "true" ]]; then source ./scripts/ci/prepare-openbao-cosign-env.sh; fi
           sign_script="./scripts/sign-oci-publish.sh"
           if [[ -x "${RUNNER_TEMP}/sign-oci-publish.sh" ]]; then
             sign_script="${RUNNER_TEMP}/sign-oci-publish.sh"
@@ -822,8 +821,11 @@ jobs:
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
           RELEASE_COMMIT: ${{ steps.release.outputs.commit }}
           VERSION: ${{ steps.release.outputs.version }}
-          CHART_OCI_USERNAME: ${{ secrets.HARBOR_CHART_ROBOT_USERNAME }}
-          CHART_OCI_TOKEN: ${{ secrets.HARBOR_CHART_ROBOT_SECRET }}
+          # A dedicated chart publisher may be configured; otherwise the image publisher's credentials apply.
+          CHART_OCI_USERNAME: ${{ secrets.CHART_OCI_USERNAME || secrets.OCI_USERNAME || github.actor }}
+          CHART_OCI_TOKEN: ${{ secrets.CHART_OCI_TOKEN || secrets.OCI_TOKEN || secrets.GITHUB_TOKEN }}
+          CHART_OCI_USERNAME_SET: ${{ secrets.CHART_OCI_USERNAME != '' }}
+          CHART_OCI_TOKEN_SET: ${{ secrets.CHART_OCI_TOKEN != '' }}
         run: |
           set -euo pipefail
           export HELM_STATE_DIR="${PWD}/.helm-home"
@@ -845,8 +847,8 @@ jobs:
             echo "${token}" | "${helm_runner}" registry login "${OCI_REGISTRY}" -u "${user}" --password-stdin
           }
 
-          if [[ -z "${CHART_OCI_USERNAME:-}" || -z "${CHART_OCI_TOKEN:-}" ]]; then
-            echo "Missing protected chart publisher credentials. Configure HARBOR_CHART_ROBOT_USERNAME and HARBOR_CHART_ROBOT_SECRET in the release environment." >&2
+          if [[ "${CHART_OCI_USERNAME_SET}" != "${CHART_OCI_TOKEN_SET}" || "${OCI_USERNAME_SET}" != "${OCI_TOKEN_SET}" ]]; then
+            echo "Set both CHART_OCI_USERNAME and CHART_OCI_TOKEN (or both OCI_USERNAME and OCI_TOKEN) or neither; GITHUB_TOKEN is used when neither pair is set." >&2
             exit 1
           fi
 
@@ -996,6 +998,7 @@ jobs:
           #
           # No local fallback here either, for the reasons given at the image-publish step: this
           # job signs what it builds.
+          # shellcheck disable=SC2086
           bazel run \
             ${BAZEL_BUILD_FLAGS} \
             //build/release:publish_packages \
@@ -1236,8 +1239,9 @@ jobs:
             -d '{"draft": false}' >/dev/null
           echo "Published release ${RELEASE_TAG}"
 
+      # The demo ArgoCD convention; off unless DEMO_RELEASE_BRANCH_ENABLED is 'true'.
       - name: Advance demo release source branch
-        if: ${{ needs.publish.outputs.prerelease != 'true' && steps.parallel_assets.outcome == 'success' && steps.finalize_release.outcome == 'success' }}
+        if: ${{ vars.DEMO_RELEASE_BRANCH_ENABLED == 'true' && needs.publish.outputs.prerelease != 'true' && steps.parallel_assets.outcome == 'success' && steps.finalize_release.outcome == 'success' }}
         env:
           DEMO_RELEASE_BRANCH: demo/prod-release
         run: |

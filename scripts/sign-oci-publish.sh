@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# shellcheck source=scripts/lib/fork-registry.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/fork-registry.sh"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1090,SC1091
@@ -27,8 +29,7 @@ if ! command -v curl >/dev/null 2>&1; then
 fi
 
 REPO_ROOT="${SERVICERADAR_REPO_ROOT:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
-REGISTRY_HOST="${OCI_REGISTRY:-registry.carverauto.dev}"
-OCI_PROJECT="${OCI_PROJECT:-serviceradar}"
+REGISTRY_HOST="${OCI_REGISTRY}"
 SIGN_REGISTRY_TAG="${SERVICERADAR_SIGN_REGISTRY_TAG:-}"
 
 if [[ -n "${SIGN_REGISTRY_TAG}" ]]; then
@@ -84,14 +85,6 @@ resolve_registry_auth() {
     printf '%s|%s\n' "${OCI_USERNAME}" "${OCI_TOKEN}"
     return 0
   fi
-  if [[ -n "${HARBOR_ROBOT_USERNAME:-}" && -n "${HARBOR_ROBOT_SECRET:-}" ]]; then
-    printf '%s|%s\n' "${HARBOR_ROBOT_USERNAME}" "${HARBOR_ROBOT_SECRET}"
-    return 0
-  fi
-  if [[ -n "${HARBOR_USERNAME:-}" && -n "${HARBOR_PASSWORD:-}" ]]; then
-    printf '%s|%s\n' "${HARBOR_USERNAME}" "${HARBOR_PASSWORD}"
-    return 0
-  fi
   local docker_config
   docker_config="${DOCKER_CONFIG:-${HOME}/.docker}/config.json"
   if [[ -f "${docker_config}" ]]; then
@@ -125,12 +118,7 @@ fetch_registry_token() {
   auth="$(resolve_registry_auth)"
   IFS='|' read -r user pass <<<"${auth}"
 
-  local token_url="https://${REGISTRY_HOST}/service/token?service=harbor-registry&scope=repository:${repo_path}:${scope_actions}"
-  if [[ -n "${user}" && -n "${pass}" ]]; then
-    curl -fsSL -u "${user}:${pass}" "${token_url}" | jq -r '.token'
-  else
-    curl -fsSL "${token_url}" | jq -r '.token'
-  fi
+  oci_registry_token "${repo_path}" "${scope_actions}" "${user}" "${pass}"
 }
 
 upload_blob() {

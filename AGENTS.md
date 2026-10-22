@@ -98,6 +98,10 @@ Keep this managed block so 'openspec update' can refresh the instructions.
   deliberately exercise the Forgejo release path all describe what was true at the time.
   Rewriting them would falsify the record.
 
+- **`.github/`, `buildbuddy.yaml`, `build/rbe/BUILD` and `scripts/ci/` are the fork's own CI.**
+  Upstream workflow changes are hand-ported per `docs/fork-ci.md`, never merged as-is;
+  run `scripts/ci/check-fork-ci.sh` before committing anything under those paths.
+
 - **Never push directly to `staging` (or any shared/protected branch).** No
   `git push origin <ref>:refs/heads/staging`, no fast-forward push, no
   exceptions — not even when asked to "get this into staging." Land changes on a

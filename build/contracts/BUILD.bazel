@@ -214,6 +214,7 @@ py_test(
     data = [
         "//scripts:check-oci-chart-version-available.sh",
         "//scripts:cut-release.sh",
+        "//scripts:lib/fork-registry.sh",
         "//scripts:validate-release-tag.sh",
     ],
 )

@@ -1,0 +1,59 @@
+# Proves the fork's BuildBuddy org works end to end: API key accepted, remote
+# executors run actions, the executor image is pullable. Replaces upstream's
+# arc-smoke.yml (a self-hosted runner pool this fork does not have).
+#
+# Dispatch it after changing BUILDBUDDY_* variables, the API key, or
+# build/rbe/BUILD. See docs/fork-ci.md.
+name: Bazel remote smoke
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [staging]
+    paths:
+      - '.github/workflows/bazel-remote-smoke.yml'
+      - 'scripts/ci/configure-bazel-remote.sh'
+      - 'scripts/install-bazelisk.sh'
+      - '.bazelrc'
+      - 'build/rbe/BUILD'
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      BAZELISK_HOME: ${{ github.workspace }}/.cache/bazelisk
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Install bazelisk
+        run: ./scripts/install-bazelisk.sh
+
+      - name: Configure Bazel remote execution
+        env:
+          BAZEL_REMOTE_ENABLED: ${{ vars.BAZEL_REMOTE_ENABLED || 'true' }}
+          BUILDBUDDY_ENDPOINT: ${{ vars.BUILDBUDDY_ENDPOINT || 'remote.buildbuddy.io' }}
+          BUILDBUDDY_APP_URL: ${{ vars.BUILDBUDDY_APP_URL || 'https://app.buildbuddy.io' }}
+          BUILDBUDDY_ORG_API_KEY: ${{ secrets.BUILDBUDDY_ORG_API_KEY || secrets.BUILDBUDDY_API_KEY }}
+        run: scripts/ci/configure-bazel-remote.sh
+
+      - name: Build and run a small target remotely
+        run: |
+          set -euo pipefail
+          bazel run -c opt --config=remote --lockfile_mode=error \
+            //build/ci:verify_git_metadata -- --expected-commit "$(git rev-parse HEAD)" \
+            2>&1 | tee "${RUNNER_TEMP}/bazel.log"
+
+      - name: Summarize
+        run: |
+          set -euo pipefail
+          {
+            echo "## Bazel remote smoke"
+            echo
+            grep -oE 'https://[^ ]+/invocation/[0-9a-f-]+' "${RUNNER_TEMP}/bazel.log" | sort -u | sed 's/^/- /' \
+              || echo "- no invocation URL found in the Bazel output"
+          } >> "${GITHUB_STEP_SUMMARY}"

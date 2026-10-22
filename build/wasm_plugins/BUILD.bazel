@@ -94,7 +94,10 @@ sh_test(
     name = "publish_plugin_test",
     timeout = "short",
     srcs = ["publish_plugin_test.sh"],
-    data = [":publish_plugin.sh"],
+    data = [
+        ":publish_plugin.sh",
+        "//scripts:lib/fork-registry.sh",
+    ],
 )
 
 go_library(

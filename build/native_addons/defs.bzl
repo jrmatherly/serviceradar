@@ -205,6 +205,8 @@ def declare_native_addon_targets(addon_bundles):
             ":{}_zip".format(name),
             ":{}_metadata".format(name),
             ":addon_artifact_signature_tool",
+            # publish_addon.sh sources the fork registry defaults.
+            "//scripts:lib/fork-registry.sh",
         ]
         if produce_tarball:
             push_data.append(":{}_tarballs".format(name))

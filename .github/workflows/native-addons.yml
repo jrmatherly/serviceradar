@@ -23,18 +23,21 @@ concurrency:
 permissions:
   contents: write
   id-token: write
+  packages: write
 
 jobs:
   publish:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    runs-on: serviceradar-signing
+    if: ${{ vars.PUBLISH_ENABLED == 'true' && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: ubuntu-24.04
     environment: release
     env:
-      BUILDBUDDY_ORG_API_KEY: ${{ secrets.BUILDBUDDY_ORG_API_KEY || secrets.BUILDBUDDY_API_KEY }}
-      OCI_REGISTRY: registry.carverauto.dev
-      OCI_PROJECT: serviceradar
-      OCI_USERNAME: ${{ secrets.HARBOR_ROBOT_USERNAME }}
-      OCI_TOKEN: ${{ secrets.HARBOR_ROBOT_SECRET }}
+      OCI_REGISTRY: ${{ vars.OCI_REGISTRY || 'ghcr.io' }}
+      OCI_PROJECT: ${{ vars.OCI_PROJECT || github.repository_owner }}
+      # GITHUB_TOKEN pushes to GHCR; set both OCI_USERNAME/OCI_TOKEN secrets for another registry.
+      OCI_USERNAME: ${{ secrets.OCI_USERNAME || github.actor }}
+      OCI_TOKEN: ${{ secrets.OCI_TOKEN || secrets.GITHUB_TOKEN }}
+      OCI_USERNAME_SET: ${{ secrets.OCI_USERNAME != '' }}
+      OCI_TOKEN_SET: ${{ secrets.OCI_TOKEN != '' }}
       COSIGN_KEYLESS: ${{ secrets.COSIGN_KEYLESS }}
       SIGSTORE_FULCIO_URL: ${{ secrets.SIGSTORE_FULCIO_URL }}
       SIGSTORE_REKOR_URL: ${{ secrets.SIGSTORE_REKOR_URL }}
@@ -91,7 +94,7 @@ jobs:
           fi
 
           tag_commit="$(git rev-list -n1 "refs/tags/${release_tag}^{commit}")"
-          checkout_commit="$(git rev-parse HEAD^{commit})"
+          checkout_commit="$(git rev-parse "HEAD^{commit}")"
           if [[ ! "${tag_commit}" =~ ^[0-9a-f]{40}$ || "${checkout_commit}" != "${tag_commit}" ]]; then
             echo "Checked-out commit ${checkout_commit} does not match ${release_tag} commit ${tag_commit}" >&2
             exit 1
@@ -128,22 +131,15 @@ jobs:
       - name: Install Bazelisk
         run: ./scripts/install-bazelisk.sh
 
-      # MUST run before the first bazel invocation below. `--config=remote` points the
-      # executor, cache and BES at carverauto.buildbuddy.io, and the API key reaches Bazel
-      # ONLY through .bazelrc.remote -- which is gitignored, so it does not exist in a
-      # fresh checkout. Without it every remote call dies with `PERMISSION_DENIED: Anonymous
-      # access disabled`.
-      - name: Configure remote cache
-        run: |
-          set -euo pipefail
-
-          if [ -z "${BUILDBUDDY_ORG_API_KEY:-}" ]; then
-            echo "BUILDBUDDY_ORG_API_KEY is unavailable; --config=remote cannot authenticate." >&2
-            exit 1
-          fi
-
-          umask 077
-          printf 'common --remote_header=x-buildbuddy-api-key=%s\n' "${BUILDBUDDY_ORG_API_KEY}" > .bazelrc.remote
+      # MUST run before the first bazel invocation below: the BuildBuddy endpoints and
+      # API key reach Bazel only through the gitignored .bazelrc.remote.
+      - name: Configure Bazel remote execution
+        env:
+          BAZEL_REMOTE_ENABLED: ${{ vars.BAZEL_REMOTE_ENABLED || 'true' }}
+          BUILDBUDDY_ENDPOINT: ${{ vars.BUILDBUDDY_ENDPOINT || 'remote.buildbuddy.io' }}
+          BUILDBUDDY_APP_URL: ${{ vars.BUILDBUDDY_APP_URL || 'https://app.buildbuddy.io' }}
+          BUILDBUDDY_ORG_API_KEY: ${{ secrets.BUILDBUDDY_ORG_API_KEY || secrets.BUILDBUDDY_API_KEY }}
+        run: scripts/ci/configure-bazel-remote.sh
 
       - name: Install Cosign
         run: ./scripts/install-cosign.sh
@@ -181,11 +177,11 @@ jobs:
       - name: Run native add-on build gates
         run: make addon_build_gates
 
-      - name: Login to Harbor
+      - name: Log in to the OCI registry
         run: |
           set -euo pipefail
-          if [[ -z "${OCI_USERNAME:-}" || -z "${OCI_TOKEN:-}" ]]; then
-            echo "Missing Harbor robot credentials. Set HARBOR_ROBOT_USERNAME and HARBOR_ROBOT_SECRET." >&2
+          if [[ "${OCI_USERNAME_SET}" != "${OCI_TOKEN_SET}" ]]; then
+            echo "Set both OCI_USERNAME and OCI_TOKEN secrets or neither (GITHUB_TOKEN is used when neither is set)." >&2
             exit 1
           fi
 
@@ -220,9 +216,11 @@ jobs:
           # without rewriting it, so a stale fact fails here instead of publishing signed
           # artifacts from silently regenerated dependency facts.
           BAZEL_BUILD_FLAGS: -c opt --config=remote --remote_download_outputs=all --lockfile_mode=error
-          OPENBAO_ADDR: https://openbao-active.openbao-system.svc.cluster.local:8200
-          OPENBAO_K8S_ROLE: github-signing-runner
-          COSIGN_KEY_REF: hashivault://cosign-release
+          # OpenBao Transit signing is upstream's path; off unless OPENBAO_SIGNING_ENABLED is 'true'.
+          # Otherwise cosign signs with the fork's own key from the COSIGN_PRIVATE_KEY secret.
+          OPENBAO_SIGNING_ENABLED: ${{ vars.OPENBAO_SIGNING_ENABLED == 'true' }}
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
         run: |
           set -euo pipefail
           if [[ -z "${SERVICERADAR_AGENT_RELEASE_PRIVATE_KEY:-}" ]]; then
@@ -235,7 +233,9 @@ jobs:
           # Same flags as every other bazel call in this job. Bare `bazel run` builds in
           # fastbuild on the runner -- a THIRD configuration alongside the opt/ci one,
           # analyzed and compiled from scratch locally for one small Go tool.
-          export SERVICERADAR_AGENT_RELEASE_PUBLIC_KEY="$(bazel run ${BAZEL_BUILD_FLAGS} //build/native_addons:addon_artifact_signature_tool -- public-key | tail -n1)"
+          # shellcheck disable=SC2086
+          SERVICERADAR_AGENT_RELEASE_PUBLIC_KEY="$(bazel run ${BAZEL_BUILD_FLAGS} //build/native_addons:addon_artifact_signature_tool -- public-key | tail -n1)"
+          export SERVICERADAR_AGENT_RELEASE_PUBLIC_KEY
 
           push_args=()
           verify_tags=("sha-${GITHUB_SHA}")
@@ -247,7 +247,9 @@ jobs:
           ./scripts/push_all_native_addons.sh "${push_args[@]}"
 
           export OPENBAO_SIGNING_ALLOWED_REFS_REGEX='^refs/tags/v.*$'
-          source ./scripts/ci/prepare-openbao-cosign-env.sh
+          # Ref allowlist applies to every signing backend, not only OpenBao.
+          [[ "${GITHUB_REF}" =~ ${OPENBAO_SIGNING_ALLOWED_REFS_REGEX} ]] || { echo "Signing is not allowed for ref '${GITHUB_REF}'" >&2; exit 1; }
+          if [[ "${OPENBAO_SIGNING_ENABLED}" == "true" ]]; then source ./scripts/ci/prepare-openbao-cosign-env.sh; fi
           ./scripts/sign-native-addon-publish.sh "${verify_tags[@]}"
           ./scripts/verify-native-addon-publish.sh "${verify_tags[@]}"
           unset VAULT_TOKEN VAULT_ADDR COSIGN_KEY_REF
@@ -385,7 +387,7 @@ jobs:
 
   agent_test_artifact:
     if: github.event_name == 'workflow_dispatch'
-    runs-on: serviceradar-signing
+    runs-on: ubuntu-24.04
     environment: release
     permissions:
       contents: read
@@ -409,14 +411,13 @@ jobs:
 
       # Runtime credential material cannot be a Bazel action input. This is the
       # credential-bootstrap exception; all artifact work below is a declared target.
-      - name: Configure remote build authentication
+      - name: Configure Bazel remote execution
         env:
+          BAZEL_REMOTE_ENABLED: ${{ vars.BAZEL_REMOTE_ENABLED || 'true' }}
+          BUILDBUDDY_ENDPOINT: ${{ vars.BUILDBUDDY_ENDPOINT || 'remote.buildbuddy.io' }}
+          BUILDBUDDY_APP_URL: ${{ vars.BUILDBUDDY_APP_URL || 'https://app.buildbuddy.io' }}
           BUILDBUDDY_ORG_API_KEY: ${{ secrets.BUILDBUDDY_ORG_API_KEY || secrets.BUILDBUDDY_API_KEY }}
-        run: |
-          set -euo pipefail
-          test -n "${BUILDBUDDY_ORG_API_KEY}"
-          umask 077
-          printf 'common --remote_header=x-buildbuddy-api-key=%s\n' "${BUILDBUDDY_ORG_API_KEY}" > .bazelrc.remote
+        run: scripts/ci/configure-bazel-remote.sh
 
       - name: Verify indexed Git metadata
         run: >-

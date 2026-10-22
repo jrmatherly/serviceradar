@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# shellcheck source=scripts/lib/fork-registry.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/fork-registry.sh"
 
 if [[ -n "${TEST_SRCDIR:-}" && -n "${TEST_WORKSPACE:-}" ]]; then
   repo_root="${TEST_SRCDIR}/${TEST_WORKSPACE}"
@@ -42,20 +44,22 @@ if SERVICERADAR_IMAGE_INVENTORY="${tmp_dir}/partial-inventory.bzl" \
   exit 1
 fi
 
-python3 - "${inventory}" > "${tmp_dir}/expected-specs" <<'PY'
+repository_base="${OCI_REGISTRY}/${OCI_PROJECT}"
+python3 - "${inventory}" "${repository_base}" > "${tmp_dir}/expected-specs" <<'PY'
 import ast
 import re
 import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
+base = sys.argv[2]
 match = re.search(r"PUBLISHABLE_IMAGES\s*=\s*(\[[\s\S]*?\])\n\n", path.read_text())
 if not match:
     raise SystemExit(f"unable to parse image inventory: {path}")
 
 for entry in ast.literal_eval(match.group(1)):
     kind = "index" if entry.get("push_image") else "single"
-    print(f'{entry["repository"]}|{kind}')
+    print(f'{base}/{entry["repository"].rsplit("/", 1)[-1]}|{kind}')
 PY
 
 diff -u "${tmp_dir}/expected-specs" "${tmp_dir}/actual-specs"
@@ -417,8 +421,8 @@ chart_step_start = workflow.index("- name: Publish Helm chart to OCI registry")
 chart_step_end = workflow.index("# Wasm plugins are published", chart_step_start)
 chart_step = workflow[chart_step_start:chart_step_end]
 for fragment in (
-    "HARBOR_CHART_ROBOT_USERNAME",
-    "HARBOR_CHART_ROBOT_SECRET",
+    "CHART_OCI_USERNAME: ${{ secrets.CHART_OCI_USERNAME",
+    "CHART_OCI_TOKEN: ${{ secrets.CHART_OCI_TOKEN",
     './scripts/validate-release-metadata.sh "${RELEASE_TAG}" "${RELEASE_COMMIT}"',
     './scripts/check-oci-chart-version-available.sh "${VERSION}"',
 ):
@@ -527,8 +531,8 @@ if "releases?per_page=100" not in asset_verification_step:
 
 publish_job = workflow[workflow.index("  publish:"):finalizer_job]
 finalize_job = workflow[finalizer_job:]
-if "runs-on: serviceradar-signing" not in publish_job:
-    raise SystemExit("release publication must remain on the signing runner")
+if "runs-on: ubuntu-24.04" not in publish_job:
+    raise SystemExit("release publication must run on a GitHub-hosted runner")
 if "runs-on: ubuntu-24.04" not in finalize_job or \
    "needs: [publish, image-security-dispatch]" not in finalize_job:
     raise SystemExit("release finalization must run after publication on a generic runner")
@@ -620,7 +624,7 @@ for forbidden in ("mode:", "tag:", "sign_branch_catalog"):
         raise SystemExit(f"native add-on dispatch still exposes production publishing control: {forbidden}")
 if "  workflow_dispatch:" in wasm_plugins_workflow:
     raise SystemExit("Wasm production publisher still permits manual dispatch")
-if "if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')" not in native_addons_workflow:
+if "if: ${{ vars.PUBLISH_ENABLED == 'true' && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}" not in native_addons_workflow:
     raise SystemExit("native production publisher is not restricted to v* tag pushes")
 if "if: github.event_name == 'workflow_dispatch'" not in native_addons_workflow:
     raise SystemExit("native reviewed agent-test artifact dispatch was not preserved")
@@ -641,7 +645,7 @@ for worker_name, worker in (
         'expected_ref="refs/tags/${release_tag}"',
         'if [[ "${GITHUB_EVENT_NAME}" != "push" || "${GITHUB_REF}" != "${expected_ref}" ]]',
         'tag_commit="$(git rev-list -n1 "refs/tags/${release_tag}^{commit}")"',
-        'checkout_commit="$(git rev-parse HEAD^{commit})"',
+        'checkout_commit="$(git rev-parse "HEAD^{commit}")"',
         '"${checkout_commit}" != "${tag_commit}"',
         'file_version="$(git show "${tag_commit}:VERSION")"',
         'if [[ "${release_tag}" != "v${file_version}" ]]',

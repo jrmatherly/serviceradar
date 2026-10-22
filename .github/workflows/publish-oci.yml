@@ -34,27 +34,21 @@ concurrency:
 permissions:
   contents: write
   id-token: write
+  packages: write
 
 jobs:
   publish:
-    runs-on: serviceradar-signing
+    runs-on: ubuntu-24.04
     environment: release
     env:
-      BUILDBUDDY_ORG_API_KEY: ${{ secrets.BUILDBUDDY_ORG_API_KEY || secrets.BUILDBUDDY_API_KEY }}
-      OCI_REGISTRY: registry.carverauto.dev
-      OCI_PROJECT: serviceradar
-      OCI_USERNAME: ${{ secrets.HARBOR_ROBOT_USERNAME }}
-      OCI_TOKEN: ${{ secrets.HARBOR_ROBOT_SECRET }}
-      # Pull-side credential, distinct from the Harbor push target above. The base images were
-      # mirrored into Harbor: 11 of the oci pulls in //MODULE.bazel now resolve to
-      # registry.carverauto.dev and exactly one does not -- docker.io/pgduckdb/pgduckdb. There
-      # are ZERO ghcr.io pulls left, so GHCR_USERNAME/GHCR_TOKEN were removed; they
-      # authenticated a registry nothing fetches from.
-      #
-      # Anonymous Docker Hub pulls are rate limited, and a throttled fetch fails during Bazel's
-      # loading phase as "no such package" rather than anything resembling a 429.
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      OCI_REGISTRY: ${{ vars.OCI_REGISTRY || 'ghcr.io' }}
+      OCI_PROJECT: ${{ vars.OCI_PROJECT || github.repository_owner }}
+      # GITHUB_TOKEN pushes to GHCR; set both OCI_USERNAME/OCI_TOKEN secrets for another registry.
+      OCI_USERNAME: ${{ secrets.OCI_USERNAME || github.actor }}
+      OCI_TOKEN: ${{ secrets.OCI_TOKEN || secrets.GITHUB_TOKEN }}
+      OCI_USERNAME_SET: ${{ secrets.OCI_USERNAME != '' }}
+      OCI_TOKEN_SET: ${{ secrets.OCI_TOKEN != '' }}
+      # Base images are pulled from the fork's GHCR mirror; no Docker Hub credential is needed.
       COSIGN_KEYLESS: ${{ secrets.COSIGN_KEYLESS }}
       SIGSTORE_FULCIO_URL: ${{ secrets.SIGSTORE_FULCIO_URL }}
       SIGSTORE_REKOR_URL: ${{ secrets.SIGSTORE_REKOR_URL }}
@@ -165,11 +159,13 @@ jobs:
           echo "Resolved Bazel: ${actual}"
           test "${actual}" = "${expected}"
 
-      - name: Configure BuildBuddy remote cache
-        if: ${{ env.BUILDBUDDY_ORG_API_KEY != '' }}
-        run: |
-          umask 077
-          printf 'common --remote_header=x-buildbuddy-api-key=%s\n' "${BUILDBUDDY_ORG_API_KEY}" > .bazelrc.remote
+      - name: Configure Bazel remote execution
+        env:
+          BAZEL_REMOTE_ENABLED: ${{ vars.BAZEL_REMOTE_ENABLED || 'true' }}
+          BUILDBUDDY_ENDPOINT: ${{ vars.BUILDBUDDY_ENDPOINT || 'remote.buildbuddy.io' }}
+          BUILDBUDDY_APP_URL: ${{ vars.BUILDBUDDY_APP_URL || 'https://app.buildbuddy.io' }}
+          BUILDBUDDY_ORG_API_KEY: ${{ secrets.BUILDBUDDY_ORG_API_KEY || secrets.BUILDBUDDY_API_KEY }}
+        run: scripts/ci/configure-bazel-remote.sh
 
       - name: Resolve release tag
         id: release
@@ -194,8 +190,8 @@ jobs:
             echo "${token}" | oras login "${OCI_REGISTRY}" -u "${user}" --password-stdin
           }
 
-          if [[ -z "${OCI_USERNAME:-}" || -z "${OCI_TOKEN:-}" ]]; then
-            echo "Missing Harbor robot credentials. Set HARBOR_ROBOT_USERNAME and HARBOR_ROBOT_SECRET." >&2
+          if [[ "${OCI_USERNAME_SET}" != "${OCI_TOKEN_SET}" ]]; then
+            echo "Set both OCI_USERNAME and OCI_TOKEN secrets or neither (GITHUB_TOKEN is used when neither is set)." >&2
             exit 1
           fi
 
@@ -251,10 +247,12 @@ jobs:
         if: ${{ github.event.inputs.publish_scope == 'full' }}
         env:
           EXTRA_TAG: ${{ steps.release.outputs.tag }}
-          OPENBAO_ADDR: https://openbao-active.openbao-system.svc.cluster.local:8200
-          OPENBAO_K8S_ROLE: github-signing-runner
+          # OpenBao Transit signing is upstream's path; off unless OPENBAO_SIGNING_ENABLED is 'true'.
+          # Otherwise cosign signs with the fork's own key from the COSIGN_PRIVATE_KEY secret.
+          OPENBAO_SIGNING_ENABLED: ${{ vars.OPENBAO_SIGNING_ENABLED == 'true' }}
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
           OPENBAO_SIGNING_ALLOWED_REFS_REGEX: '^refs/heads/staging$'
-          COSIGN_KEY_REF: hashivault://cosign-release
         run: |
           set -euo pipefail
           cmd=(bazel run -c opt --config=remote --stamp //:push)
@@ -267,7 +265,9 @@ jobs:
           if [[ -n "${EXTRA_TAG}" ]]; then
             verify_tags+=("${EXTRA_TAG}")
           fi
-          source ./scripts/ci/prepare-openbao-cosign-env.sh
+          # Ref allowlist applies to every signing backend, not only OpenBao.
+          [[ "${GITHUB_REF}" =~ ${OPENBAO_SIGNING_ALLOWED_REFS_REGEX} ]] || { echo "Signing is not allowed for ref '${GITHUB_REF}'" >&2; exit 1; }
+          if [[ "${OPENBAO_SIGNING_ENABLED}" == "true" ]]; then source ./scripts/ci/prepare-openbao-cosign-env.sh; fi
           # Sign what the registry holds under this commit's tag, as release.yml does.
           # Without the tag the signer reads image digests out of `bazel info bazel-bin`,
           # and that path encodes the build configuration: asked without `-c opt

@@ -90,11 +90,11 @@ build:cache_only --experimental_remote_cache_chunking
 # Remote Cache reduction and compression
 build:cache_only --remote_cache_compression
 build:cache_only --experimental_remote_cache_compression_threshold=100
-# The cache proxy is the cache hop; BuildBuddy remains the bytestream/BES authority.
-build:cache_only --remote_bytestream_uri_prefix=carverauto.buildbuddy.io
-build:cache_only --remote_cache=grpcs://cache-proxy.carverauto.dev:443
-build:cache_only --bes_backend=grpcs://carverauto.buildbuddy.io
-build:cache_only --bes_results_url=https://carverauto.buildbuddy.io/invocation/
+# BuildBuddy Cloud defaults; CI overrides them per org via .bazelrc.remote (imported last).
+build:cache_only --remote_bytestream_uri_prefix=remote.buildbuddy.io
+build:cache_only --remote_cache=grpcs://remote.buildbuddy.io
+build:cache_only --bes_backend=grpcs://remote.buildbuddy.io
+build:cache_only --bes_results_url=https://app.buildbuddy.io/invocation/
 
 # Remote execution profile settings inherited by CI.
 build:remote_base --config=cache_only
@@ -102,7 +102,7 @@ build:remote_base --config=cache_only
 build:remote_base --jobs=100
 build:remote_base --remote_download_minimal
 
-build:remote_base --remote_executor=grpcs://carverauto.buildbuddy.io
+build:remote_base --remote_executor=grpcs://remote.buildbuddy.io
 # Remote platforms
 build:remote_base --host_platform=//build/rbe:rbe_platform
 build:remote_base --platforms=//build/rbe:rbe_platform
@@ -126,13 +126,7 @@ build:remote_base --noenable_platform_specific_config
 # never in remote_base -- setting them in both made Bazel warn that --disk_cache was
 # expanded twice from --config=ci.
 build:ci --config=remote_base
-# BazelCI runs inside the workflow-executor pod. Hairpinning the Bazel
-# client through cache-proxy.carverauto.dev:443 (shared Envoy + Coraza)
-# RST_STREAMs FindMissingBlobs (gRPC UNKNOWN, bazel Exit 34) even after
-# 1Gi HTTP/2 windows. Executors already use this in-cluster h2c Service;
-# workstations keep the public grpcs URL via cache_only / remote.
-# --remote_bytestream_uri_prefix stays on carverauto.buildbuddy.io.
-build:ci --remote_cache=grpc://bb-cache-proxy-buildbuddy-enterprise-cache-proxy.buildbuddy.svc.cluster.local:1985
+# The remote cache is remote_base's (BuildBuddy Cloud); the fork has no in-cluster proxy.
 # The Bazel CLIENT's caches, split by whether concurrent Bazel servers may share them.
 #
 # The two REPO caches sit on the node volume //k8s/buildbuddy bind-mounts into every workflow
@@ -189,7 +183,7 @@ build:ci --repository_cache=/bazel-cache/repo
 build:ci --repo_contents_cache=/bazel-cache/repo-contents
 build:ci --experimental_disk_cache_gc_max_size=6G
 build:ci --keep_going
-build:ci --build_metadata=REPO_URL=https://github.com/carverauto/serviceradar.git
+build:ci --build_metadata=REPO_URL=https://github.com/jrmatherly/serviceradar.git
 build:ci --build_metadata=ROLE=CI
 build:ci --build_metadata=VISIBILITY=PUBLIC
 build:ci --build_metadata=USER=gh

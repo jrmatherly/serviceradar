@@ -1,8 +1,9 @@
-"""Helpers for publishing OCI images to the configured registry."""
+"""Helpers for publishing OCI images to the registry named by workspace status."""
 
 load("@rules_oci//oci:defs.bzl", "oci_push")
 load("@aspect_bazel_lib//lib:expand_template.bzl", "expand_template")
 load("//docker/images:container_tags.bzl", "immutable_push_tags")
+load("//docker/images:fork_registry.bzl", "FORK_OCI_PROJECT", "FORK_OCI_REGISTRY")
 load("//docker/images:image_inventory.bzl", "PUBLISHABLE_IMAGES")
 load("@rules_multirun//:defs.bzl", "command", "multirun")
 
@@ -15,7 +16,8 @@ def declare_oci_push_targets():
     for target in PUBLISHABLE_IMAGES:
         image = target["image"]
         push_image = target.get("push_image", image)
-        repository = target["repository"]
+        # Image name only; registry and project are stamped in at build time.
+        image_name = target["repository"]
         digest_label = target.get("digest_label", ":{}.digest".format(push_image))
         static_tags = ["latest"] + target.get("static_tags", [])
 
@@ -39,6 +41,23 @@ def declare_oci_push_targets():
             out = "{}_version_tag.txt".format(image),
         )
 
+        # Full repository reference, derived from workspace status under --stamp.
+        # Unstamped builds fall back to the fork's defaults.
+        expand_template(
+            name = "{}_repository".format(image),
+            template = ["{{STABLE_OCI_REGISTRY}}/{{STABLE_OCI_PROJECT}}/" + image_name],
+            substitutions = {
+                "{{STABLE_OCI_REGISTRY}}": FORK_OCI_REGISTRY,
+                "{{STABLE_OCI_PROJECT}}": FORK_OCI_PROJECT,
+            },
+            stamp = 1,
+            stamp_substitutions = {
+                "{{STABLE_OCI_REGISTRY}}": "{{STABLE_OCI_REGISTRY}}",
+                "{{STABLE_OCI_PROJECT}}": "{{STABLE_OCI_PROJECT}}",
+            },
+            out = "{}_repository.txt".format(image),
+        )
+
         immutable_push_tags(
             name = "{}_push_tags".format(image),
             digest = digest_label,
@@ -50,7 +69,7 @@ def declare_oci_push_targets():
         oci_push(
             name = "{}_push".format(image),
             image = ":{}".format(push_image),
-            repository = repository,
+            repository_file = ":{}_repository".format(image),
             remote_tags = ":{}_push_tags".format(image),
             visibility = ["//visibility:public"],
         )
@@ -58,7 +77,7 @@ def declare_oci_push_targets():
         oci_push(
             name = "{}_push_commit_only".format(image),
             image = ":{}".format(push_image),
-            repository = repository,
+            repository_file = ":{}_repository".format(image),
             remote_tags = ":{}_commit_tag".format(image),
             visibility = ["//visibility:public"],
         )
@@ -67,7 +86,7 @@ def declare_oci_push_targets():
         command(
             name = command_name,
             command = ":{}_push".format(image),
-            description = "Push {}".format(repository),
+            description = "Push {}".format(image_name),
         )
         push_command_targets.append(":{}".format(command_name))
 
