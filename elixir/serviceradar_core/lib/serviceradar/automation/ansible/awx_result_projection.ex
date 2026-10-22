@@ -87,32 +87,6 @@ defmodule ServiceRadar.Automation.Ansible.AWXResultProjection do
     end
   end
 
-  defp project_auth_failed_ping(verb, payload) do
-    expected_keys =
-      ~w(verb ok status) ++
-        Enum.filter([:version, :active_node, :error], &has_key?(payload, &1))
-
-    with true <- exact_keys?(payload, Enum.map(expected_keys, &to_string/1)),
-         true <- value(payload, :verb) == verb,
-         true <- value(payload, :ok) == false,
-         true <- value(payload, :status) == "auth_failed",
-         {:ok, version} <- optional_nonempty_text(value(payload, :version), 64),
-         {:ok, active_node} <- optional_nonempty_text(value(payload, :active_node), 255),
-         {:ok, error} <- optional_enum(value(payload, :error), @auth_failed_ping_errors) do
-      {:ok,
-       %{
-         "verb" => verb,
-         "ok" => false,
-         "status" => "auth_failed"
-       }
-       |> maybe_put("version", version)
-       |> maybe_put("active_node", active_node)
-       |> maybe_put("error", error)}
-    else
-      _ -> :error
-    end
-  end
-
   defp do_project("awx.current_user" = verb, payload) do
     expected_keys =
       if is_nil(value(payload, :username)),
@@ -198,6 +172,32 @@ defmodule ServiceRadar.Automation.Ansible.AWXResultProjection do
   end
 
   defp do_project(_verb, _payload), do: :error
+
+  defp project_auth_failed_ping(verb, payload) do
+    expected_keys =
+      ~w(verb ok status) ++
+        Enum.filter([:version, :active_node, :error], &has_key?(payload, &1))
+
+    with true <- exact_keys?(payload, Enum.map(expected_keys, &to_string/1)),
+         true <- value(payload, :verb) == verb,
+         true <- value(payload, :ok) == false,
+         true <- value(payload, :status) == "auth_failed",
+         {:ok, version} <- optional_nonempty_text(value(payload, :version), 64),
+         {:ok, active_node} <- optional_nonempty_text(value(payload, :active_node), 255),
+         {:ok, error} <- optional_enum(value(payload, :error), @auth_failed_ping_errors) do
+      {:ok,
+       %{
+         "verb" => verb,
+         "ok" => false,
+         "status" => "auth_failed"
+       }
+       |> maybe_put("version", version)
+       |> maybe_put("active_node", active_node)
+       |> maybe_put("error", error)}
+    else
+      _ -> :error
+    end
+  end
 
   defp project_current_event_batch(verb, payload) do
     with true <- exact_keys?(payload, ~w(verb ok contract_version jobs)),
