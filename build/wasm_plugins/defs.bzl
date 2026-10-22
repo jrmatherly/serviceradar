@@ -137,6 +137,8 @@ def declare_wasm_targets(build_targets, plugin_bundles):
                 ":{}_zip".format(bundle["name"]),
                 ":{}_metadata".format(bundle["name"]),
                 ":upload_signature_tool",
+                # publish_plugin.sh sources the fork registry defaults.
+                "//scripts:lib/fork-registry.sh",
             ],
             visibility = ["//visibility:public"],
         )
