@@ -4,7 +4,7 @@
 //! mistake; this one guards the mistake that ends up in a log aggregator, a crash report, or a
 //! support ticket, where it outlives the process that leaked it.
 
-use serviceradar_secret_manager::{Secret, REDACTED};
+use serviceradar_secret_manager::{REDACTED, Secret};
 
 const VALUE: &str = "hunter2-correct-horse-battery-staple";
 
@@ -12,7 +12,10 @@ const VALUE: &str = "hunter2-correct-horse-battery-staple";
 fn debug_never_contains_the_value() {
     let secret = Secret::new(VALUE).unwrap();
     let rendered = format!("{secret:?}");
-    assert!(!rendered.contains(VALUE), "Debug leaked the value: {rendered}");
+    assert!(
+        !rendered.contains(VALUE),
+        "Debug leaked the value: {rendered}"
+    );
     assert!(rendered.contains(REDACTED), "{rendered}");
 }
 
@@ -20,7 +23,10 @@ fn debug_never_contains_the_value() {
 fn display_never_contains_the_value() {
     let secret = Secret::new(VALUE).unwrap();
     let rendered = format!("{secret}");
-    assert!(!rendered.contains(VALUE), "Display leaked the value: {rendered}");
+    assert!(
+        !rendered.contains(VALUE),
+        "Display leaked the value: {rendered}"
+    );
     assert_eq!(rendered, REDACTED);
 }
 
@@ -38,7 +44,10 @@ fn a_secret_nested_in_a_container_is_still_redacted() {
     let in_result = format!("{in_result:?}");
 
     for rendered in [in_option, in_vec, in_tuple, in_result] {
-        assert!(!rendered.contains(VALUE), "leaked through a container: {rendered}");
+        assert!(
+            !rendered.contains(VALUE),
+            "leaked through a container: {rendered}"
+        );
     }
 }
 

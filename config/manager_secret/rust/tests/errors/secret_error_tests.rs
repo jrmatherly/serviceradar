@@ -12,7 +12,10 @@ fn an_undeclared_refusal_lists_what_is_declared_and_says_why() {
 
     assert!(text.contains("nats.creds"), "{text}");
     assert!(text.contains("database.password"), "{text}");
-    assert!(text.contains("manifest"), "the fix is editing the manifest: {text}");
+    assert!(
+        text.contains("manifest"),
+        "the fix is editing the manifest: {text}"
+    );
 }
 
 /// The message must rule out the reading that a missing secret is survivable.
@@ -47,9 +50,19 @@ fn a_provider_failure_names_the_provider_and_the_cause() {
 #[test]
 fn no_secret_error_can_carry_a_value() {
     let errors = [
-        SecretError::Undeclared { name: "k".into(), declared: vec!["d".into()] },
-        SecretError::Unresolvable { name: "k".into(), provider: "p".into() },
-        SecretError::Provider { name: "k".into(), provider: "p".into(), detail: "d".into() },
+        SecretError::Undeclared {
+            name: "k".into(),
+            declared: vec!["d".into()],
+        },
+        SecretError::Unresolvable {
+            name: "k".into(),
+            provider: "p".into(),
+        },
+        SecretError::Provider {
+            name: "k".into(),
+            provider: "p".into(),
+            detail: "d".into(),
+        },
     ];
 
     for err in errors {

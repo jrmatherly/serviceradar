@@ -13,6 +13,7 @@ alias ServiceRadar.EventWriter.Config
 alias ServiceRadar.EventWriter.Processors.AnalyticsSignals
 alias ServiceRadar.EventWriter.Processors.Flows
 alias ServiceRadar.EventWriter.Processors.PowerDNS
+alias ServiceRadar.Inventory.ExposureTransitionRelay
 alias ServiceRadar.Jobs.RefreshTraceSummariesWorker
 alias ServiceRadar.Jobs.RootSpanRatioWorker
 alias ServiceRadar.Jobs.SecurityEventsRetentionWorker
@@ -125,6 +126,12 @@ if is_map(callback_deployment) do
   # custody input is missing or malformed.
   verifier_config =
     "SERVICERADAR_AUTOMATION_CALLBACK_HMAC_KEYRING_FILE"
+    # Netprobe native add-on package — signed artifact refs for the package seeder.
+    # native-addons.yml emits per-arch object_key/sha256/signature refs in its import index;
+    # deployments pass them here (as JSON) + the published version so
+    # NetprobeAddonPackageSeeder can approve an assignable package. Without artifacts the
+    # seeder stages the manifest version (visible, not assignable); version/oci refs are only
+    # set when their env vars are present (version otherwise defaults to the in-image manifest).
     |> System.get_env()
     |> RuntimeConfig.load_verifier_file!()
 
@@ -165,10 +172,10 @@ if is_map(callback_deployment) do
     automation_callback_origin: callback_origin
 end
 
-# Netprobe native add-on package — signed artifact refs for the package seeder.
+# OTEL collector native add-on package — signed artifact refs for the package seeder.
 # native-addons.yml emits per-arch object_key/sha256/signature refs in its import index;
 # deployments pass them here (as JSON) + the published version so
-# NetprobeAddonPackageSeeder can approve an assignable package. Without artifacts the
+# OtelCollectorAddonPackageSeeder can approve an assignable package. Without artifacts the
 # seeder stages the manifest version (visible, not assignable); version/oci refs are only
 # set when their env vars are present (version otherwise defaults to the in-image manifest).
 
@@ -203,13 +210,6 @@ netprobe_addon_config =
     v when is_binary(v) and v != "" -> Keyword.put(netprobe_addon_config, :source_oci_digest, v)
     _ -> netprobe_addon_config
   end
-
-# OTEL collector native add-on package — signed artifact refs for the package seeder.
-# native-addons.yml emits per-arch object_key/sha256/signature refs in its import index;
-# deployments pass them here (as JSON) + the published version so
-# OtelCollectorAddonPackageSeeder can approve an assignable package. Without artifacts the
-# seeder stages the manifest version (visible, not assignable); version/oci refs are only
-# set when their env vars are present (version otherwise defaults to the in-image manifest).
 
 otel_collector_addon_artifacts =
   case System.get_env("SERVICERADAR_OTEL_COLLECTOR_ADDON_ARTIFACTS") do
@@ -645,6 +645,32 @@ if config_env() == :prod do
 
   ocsf_events_chunk_interval_hours =
     "SERVICERADAR_OCSF_EVENTS_CHUNK_INTERVAL_HOURS" |> parse_int_env.(6) |> max(1)
+
+  raw_metrics_retention_days =
+    "SERVICERADAR_RAW_METRICS_RETENTION_DAYS" |> parse_int_env.(7) |> max(1)
+
+  capacity_forecasts_retention_days =
+    "SERVICERADAR_CAPACITY_FORECASTS_RETENTION_DAYS" |> parse_int_env.(395) |> max(1)
+
+  raw_metrics_chunk_interval_hours =
+    "SERVICERADAR_RAW_METRICS_CHUNK_INTERVAL_HOURS" |> parse_int_env.(24) |> max(1)
+
+  capacity_forecasts_chunk_interval_hours =
+    "SERVICERADAR_CAPACITY_FORECASTS_CHUNK_INTERVAL_HOURS" |> parse_int_env.(24) |> max(1)
+
+  # Missing, blank, or non-positive means no ceiling. The worker then keeps
+  # each dataset's own window. A positive value caps raw CNPG telemetry.
+  cnpg_telemetry_default_days =
+    case System.get_env("SERVICERADAR_CNPG_TELEMETRY_DEFAULT_DAYS") do
+      value when value in [nil, ""] ->
+        nil
+
+      value ->
+        case Integer.parse(value) do
+          {int, ""} when int > 0 -> int
+          _ -> nil
+        end
+    end
 
   netflow_security_refresh_reschedule_seconds =
     "NETFLOW_SECURITY_REFRESH_INTERVAL_SECONDS"
@@ -1161,6 +1187,16 @@ if config_env() == :prod do
       _ -> :file
     end
 
+  # Exposure transition stream size (EXPOSURE_TRANSITIONS, reconciled when the
+  # relay starts). Unset or blank means 1 GiB; an invalid value fails boot
+  # naming the variable.
+  config :serviceradar_core, ExposureTransitionRelay,
+    max_bytes:
+      StateBucketSizing.bytes_from_env!(
+        "SERVICERADAR_JS_EXPOSURE_TRANSITIONS_MAX_BYTES",
+        ExposureTransitionRelay.default_max_bytes()
+      )
+
   config :serviceradar_core, ServiceRadar.Repo, repo_opts
 
   # Notification firehose stream size (a discard-old buffer, reconciled on the
@@ -1274,6 +1310,9 @@ if config_env() == :prod do
     otel_metrics_retention_days: otel_metrics_retention_days,
     otel_metric_points_retention_days: otel_metric_points_retention_days,
     ocsf_events_retention_days: ocsf_events_retention_days,
+    raw_metrics_retention_days: raw_metrics_retention_days,
+    capacity_forecasts_retention_days: capacity_forecasts_retention_days,
+    cnpg_telemetry_default_days: cnpg_telemetry_default_days,
     timeseries_metrics_retention_days: timeseries_metrics_retention_days,
     timeseries_metrics_compress_after_hours: timeseries_metrics_compress_after_hours,
     timeseries_metrics_chunk_interval_hours: timeseries_metrics_chunk_interval_hours,
@@ -1283,6 +1322,8 @@ if config_env() == :prod do
     otel_metrics_chunk_interval_hours: otel_metrics_chunk_interval_hours,
     otel_metric_points_chunk_interval_hours: otel_metric_points_chunk_interval_hours,
     ocsf_events_chunk_interval_hours: ocsf_events_chunk_interval_hours,
+    raw_metrics_chunk_interval_hours: raw_metrics_chunk_interval_hours,
+    capacity_forecasts_chunk_interval_hours: capacity_forecasts_chunk_interval_hours,
     sweep_host_result_retention_days:
       "SERVICERADAR_SWEEP_HOST_RESULT_RETENTION_DAYS" |> parse_int_env.(7) |> max(1),
     sweep_execution_retention_days:
@@ -1682,6 +1723,9 @@ if config_env() == :prod do
            {"*/2 * * * *", ServiceRadar.Camera.RelaySessionReaperWorker, queue: :maintenance},
            # Kept in step with serviceradar_core_elx's runtime.exs, as above.
            {"*/5 * * * *", ServiceRadar.SweepJobs.ExecutionReaperWorker, queue: :maintenance},
+           # Kept in step with serviceradar_core_elx's runtime.exs and config.exs.
+           {"*/5 * * * *", ServiceRadar.Observability.PluginServiceStateReconcileWorker,
+            queue: :maintenance},
            {"31 3 * * *", ServiceRadar.Edge.RemoteAccessVersionRetentionWorker,
             queue: :maintenance},
            # Kept in step with the same entry in serviceradar_core_elx's

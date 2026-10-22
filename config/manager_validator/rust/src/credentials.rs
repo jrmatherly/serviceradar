@@ -12,7 +12,7 @@
 //! word "password" in the comment that warns against them while missing a field the scanner
 //! did not know to look at.
 
-use crate::text::{unquoted, Pair};
+use crate::text::{Pair, unquoted};
 use regex_automata::meta::Regex;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -24,8 +24,16 @@ pub struct Finding {
 /// Field-name fragments that name a credential. Present so a schema change that adds such a
 /// field is caught here too, not only values inside existing fields.
 const CREDENTIAL_NAMES: &[&str] = &[
-    "password", "passwd", "secret", "token", "apikey", "api_key", "privatekey", "private_key",
-    "credential", "passphrase",
+    "password",
+    "passwd",
+    "secret",
+    "token",
+    "apikey",
+    "api_key",
+    "privatekey",
+    "private_key",
+    "credential",
+    "passphrase",
 ];
 
 struct Shape {
@@ -37,7 +45,10 @@ fn shapes() -> Vec<Shape> {
     let specs: &[(&str, &str)] = &[
         // scheme://user:pass@host -- userinfo carrying a password. Neither component may
         // contain '/' or '@', so a path segment or a bare host:port cannot match.
-        (r"://[^/@[:space:]]*:[^/@[:space:]]*@", "URL with embedded credentials"),
+        (
+            r"://[^/@[:space:]]*:[^/@[:space:]]*@",
+            "URL with embedded credentials",
+        ),
         // A keyword=value credential parameter, as in a libpq DSN or a JDBC URL.
         (
             r"(?i)(password|passwd|secret|token|api[-_]?key|passphrase)[[:space:]]*=",
@@ -63,15 +74,26 @@ pub fn scan(pairs: &[Pair]) -> Vec<Finding> {
     let mut out = Vec::new();
 
     for pair in pairs {
-        let leaf = pair.path.rsplit('.').next().unwrap_or(&pair.path).to_ascii_lowercase();
+        let leaf = pair
+            .path
+            .rsplit('.')
+            .next()
+            .unwrap_or(&pair.path)
+            .to_ascii_lowercase();
         if CREDENTIAL_NAMES.iter().any(|n| leaf.contains(n)) {
-            out.push(Finding { path: pair.path.clone(), reason: "field name denotes a credential" });
+            out.push(Finding {
+                path: pair.path.clone(),
+                reason: "field name denotes a credential",
+            });
         }
 
         let value = unquoted(&pair.value);
         for shape in &shapes {
             if shape.re.is_match(value) {
-                out.push(Finding { path: pair.path.clone(), reason: shape.reason });
+                out.push(Finding {
+                    path: pair.path.clone(),
+                    reason: shape.reason,
+                });
             }
         }
     }

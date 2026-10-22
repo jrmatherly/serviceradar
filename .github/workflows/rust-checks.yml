@@ -1,8 +1,8 @@
 name: rust-check
 
-# Cargo-side Rust gates: clippy over the workspace, and RustSec advisories for the
-# review-only IronRDP probe. Both live here because they share a runner shape (rustup +
-# Socket Firewall) and neither has a Bazel equivalent. Clippy also caches the crates.io
+# Cargo-side Rust gates: rustfmt and clippy over the workspace, and RustSec advisories for
+# the review-only IronRDP probe. They live here because they share a runner shape (rustup,
+# plus Socket Firewall where crates.io is fetched) and none has a Bazel equivalent. Clippy also caches the crates.io
 # registry; the audit job installs a pinned cargo-audit binary and does not compile
 # from crates.io.
 #
@@ -31,16 +31,20 @@ on:
   push:
     branches: [staging, main]
     paths:
+      # Workspace members also live under config/ and elixir/*/native, not only rust/.
       - 'rust/**'
-      - 'Cargo.toml'
+      - '**/*.rs'
+      - '**/Cargo.toml'
       - 'Cargo.lock'
       - '.github/workflows/rust-checks.yml'
       - 'scripts/ci/install-sfw.sh'
   pull_request:
     branches: [staging, main]
     paths:
+      # Workspace members also live under config/ and elixir/*/native, not only rust/.
       - 'rust/**'
-      - 'Cargo.toml'
+      - '**/*.rs'
+      - '**/Cargo.toml'
       - 'Cargo.lock'
       - '.github/workflows/rust-checks.yml'
       - 'scripts/ci/install-sfw.sh'
@@ -63,6 +67,35 @@ permissions:
   contents: read
 
 jobs:
+  rustfmt:
+    name: Rustfmt
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-24.04
+    # `cargo fmt` reads workspace metadata without resolving dependencies, so this job
+    # fetches nothing from crates.io and needs neither Socket Firewall nor a cache.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Rust
+        run: |
+          set -euo pipefail
+
+          export PATH="${HOME}/.cargo/bin:${PATH}"
+          echo "${HOME}/.cargo/bin" >> "${GITHUB_PATH}"
+
+          if ! command -v rustup >/dev/null 2>&1; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+              | sh -s -- -y --profile minimal --default-toolchain 1.98.0
+          fi
+
+          rustup toolchain install 1.98.0 --profile minimal --component rustfmt
+          rustup default 1.98.0
+          cargo fmt --version
+
+      - name: Check formatting
+        run: cargo fmt --all --check
+
   clippy:
     name: Clippy
     # See the schedule comment above.

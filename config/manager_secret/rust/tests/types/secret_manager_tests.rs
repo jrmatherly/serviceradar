@@ -22,7 +22,10 @@ fn a_declared_and_stored_secret_resolves() {
 fn an_undeclared_name_is_refused_even_when_the_store_has_it() {
     let m = manager(
         &["database.password"],
-        &[("database.password", "hunter2"), ("nats.creds", "secret-creds")],
+        &[
+            ("database.password", "hunter2"),
+            ("nats.creds", "secret-creds"),
+        ],
     );
 
     match m.resolve("nats.creds").unwrap_err() {
@@ -47,7 +50,10 @@ fn an_undeclared_name_is_refused_identically_whether_or_not_it_exists() {
 
     let absent_err = m.resolve("nats.creds").unwrap_err();
     let present_err = present.resolve("nats.creds").unwrap_err();
-    assert_eq!(absent_err, present_err, "the refusal must not reveal existence");
+    assert_eq!(
+        absent_err, present_err,
+        "the refusal must not reveal existence"
+    );
 }
 
 /// There is no default and no empty fallback: a component that continued here would authenticate

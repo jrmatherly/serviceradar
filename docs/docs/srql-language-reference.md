@@ -949,7 +949,8 @@ matches.
 
 `in:otel_services` reads the service catalog that EventWriter maintains from persisted
 logs, traces and metrics. It is best-effort and throttled, and entries expire after 30
-days without activity. The catalog is CNPG state in every storage mode.
+days without activity. The daily prune also removes any entry whose name is a bare
+timestamp. The catalog is CNPG state in every storage mode.
 
 | Field | Description |
 |-------|-------------|
@@ -1116,8 +1117,12 @@ runtime with a fresh warning requires action even when it reports availability.
 The join matches both partition and agent; legacy name-only evidence is used
 only for an unambiguous plugin name. Disabled assignments remain visible as
 `expected_inactive`, and identified runtimes without an assignment are
-`observed_only`. Assignment placeholders appear as `pending` or `ready`, with
-no result timestamp or inferred availability. They are never reported results.
+`observed_only`. An enabled assignment whose package submits no scheduled
+results (an `action-only:v1` package without `action-result-ingest:v1`) is
+`expected_inactive` with reason `runtime_results_not_expected`: the agent gives
+it no periodic runner, so older evidence is not a failing runtime. Assignment
+placeholders appear as `pending` or `ready`, with no result timestamp or
+inferred availability. They are never reported results.
 
 `stale` compares native evidence age with the configured add-on freshness
 threshold (180 seconds by default). WASM evidence is stale after the greater of

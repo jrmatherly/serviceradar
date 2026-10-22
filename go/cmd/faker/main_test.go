@@ -1,28 +1,27 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
+const testDevicesFile = "fake_armis_devices.json"
+
 func TestGenerateAllDevicesHasUniqueIPsAndHostnames(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping full device generation in short mode")
 	}
 
-	originalTotal := totalDevices
-	t.Cleanup(func() {
-		totalDevices = originalTotal
-	})
-	totalDevices = 5000
+	const total = 5000
 
 	gen := NewDeviceGenerator()
-	deviceGen = gen
-	devices := gen.generateAllDevices()
+	devices := gen.generateAllDevices(total, defaultShufflePoolHeadroom)
 
-	require.Len(t, devices, totalDevices)
+	require.Len(t, devices, total)
 
 	ipSet := make(map[string]struct{}, len(devices))
 	nameSet := make(map[string]struct{}, len(devices))
@@ -153,30 +152,23 @@ func TestGenerateMACAddressesDiffersAcrossSeeds(t *testing.T) {
 }
 
 func TestSaveLoadRoundTripPreservesMacAddresses(t *testing.T) {
-	originalTotal := totalDevices
-	originalConfig := config
-	originalGen := deviceGen
-	t.Cleanup(func() {
-		totalDevices = originalTotal
-		config = originalConfig
-		deviceGen = originalGen
-	})
+	cfg := &Config{}
+	cfg.Storage.DataDir = t.TempDir()
+	cfg.Storage.DevicesFile = testDevicesFile
+	cfg.Storage.PersistChanges = true
 
-	totalDevices = 25
-	config = &Config{}
-	config.Storage.DataDir = t.TempDir()
-	config.Storage.DevicesFile = "fake_armis_devices.json"
-	config.Storage.PersistChanges = true
+	faker := newFakeArmis(cfg)
+	faker.totalDevices = 25
 
 	gen := NewDeviceGenerator()
-	deviceGen = gen
-	gen.allDevices = gen.generateAllDevices()
-	require.Len(t, gen.allDevices, totalDevices)
-	gen.saveToStorage()
+	faker.deviceGen = gen
+	gen.allDevices = gen.generateAllDevices(faker.totalDevices, faker.resolveIPPoolHeadroom())
+	require.Len(t, gen.allDevices, faker.totalDevices)
+	faker.saveToStorage(gen)
 
 	reloaded := NewDeviceGenerator()
-	require.True(t, reloaded.loadFromStorage(), "expected persisted devices to load")
-	require.Len(t, reloaded.allDevices, totalDevices)
+	require.True(t, faker.loadFromStorage(reloaded), "expected persisted devices to load")
+	require.Len(t, reloaded.allDevices, faker.totalDevices)
 
 	for i, original := range gen.allDevices {
 		got := reloaded.allDevices[i]
@@ -185,4 +177,23 @@ func TestSaveLoadRoundTripPreservesMacAddresses(t *testing.T) {
 		require.Equal(t, original.MacAddresses, got.MacAddresses,
 			"device %d MAC set must survive the save/load round trip", i)
 	}
+}
+
+func TestLoadFromStorageRejectsSymlinkEscapingStorageDir(t *testing.T) {
+	storageDir := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "outside_devices.json")
+	require.NoError(t, os.WriteFile(outside, []byte(`[{"id":1}]`), 0o600))
+	require.NoError(t, os.Symlink(outside, filepath.Join(storageDir, testDevicesFile)))
+
+	cfg := &Config{}
+	cfg.Storage.DataDir = storageDir
+	cfg.Storage.DevicesFile = testDevicesFile
+
+	faker := newFakeArmis(cfg)
+	faker.totalDevices = 1
+
+	gen := NewDeviceGenerator()
+	require.False(t, faker.loadFromStorage(gen),
+		"a storage file symlinked outside the storage directory must not be loaded")
+	require.Empty(t, gen.allDevices)
 }

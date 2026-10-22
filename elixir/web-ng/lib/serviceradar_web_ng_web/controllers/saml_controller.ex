@@ -91,6 +91,8 @@ defmodule ServiceRadarWebNGWeb.SAMLController do
   # Rate limiting for `consume` happens at the
   # `:rate_limit_auth_saml` pipeline (router.ex).
 
+  Module.register_attribute(__MODULE__, :sobelow_skip, accumulate: true)
+
   @default_authn_request_ttl_seconds 600
 
   # Failures that mean "this browser did not start this login" rather than "the
@@ -252,6 +254,9 @@ defmodule ServiceRadarWebNGWeb.SAMLController do
 
   Returns XML metadata for configuring the IdP.
   """
+  # SP metadata interpolates only xml-escaped Endpoint.url() and the auth.manage-only entity ID,
+  # served as application/xml under the browser CSP with nosniff.
+  @sobelow_skip ["XSS.SendResp"]
   def metadata(conn, _params) do
     metadata_xml = generate_sp_metadata()
 
@@ -514,8 +519,8 @@ defmodule ServiceRadarWebNGWeb.SAMLController do
   end
 
   defp generate_sp_metadata do
-    sp_entity_id = SAMLStrategy.get_sp_entity_id()
-    acs_url = SAMLStrategy.get_acs_url()
+    sp_entity_id = xml_escape(SAMLStrategy.get_sp_entity_id())
+    acs_url = xml_escape(SAMLStrategy.get_acs_url())
 
     String.trim("""
     <?xml version="1.0" encoding="UTF-8"?>

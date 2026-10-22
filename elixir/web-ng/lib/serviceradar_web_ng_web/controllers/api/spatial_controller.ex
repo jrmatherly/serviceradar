@@ -6,6 +6,8 @@ defmodule ServiceRadarWebNGWeb.Api.SpatialController do
   alias ServiceRadarWebNG.FieldSurveyRoomArtifacts
   alias ServiceRadarWebNG.RBAC
 
+  Module.register_attribute(__MODULE__, :sobelow_skip, accumulate: true)
+
   def index(conn, _params) do
     with :ok <- require_authenticated(conn),
          :ok <- require_permission(conn, "analytics.view"),
@@ -61,6 +63,10 @@ defmodule ServiceRadarWebNGWeb.Api.SpatialController do
     end
   end
 
+  # The type comes from FieldSurveyRoomArtifacts.format/1, never the stored content_type (rows
+  # written before that change hold the uploader's header), and the bytes go out as an
+  # attachment with nosniff, so a browser never renders them inline.
+  @sobelow_skip ["XSS.ContentType", "XSS.SendResp"]
   def download_room_artifact(conn, %{"id" => artifact_id}) do
     with :ok <- require_authenticated(conn),
          :ok <- require_permission(conn, "analytics.view"),
@@ -68,7 +74,8 @@ defmodule ServiceRadarWebNGWeb.Api.SpatialController do
            FieldSurveyReview.room_artifact(conn.assigns.current_scope, artifact_id),
          {:ok, payload} <- FieldSurveyRoomArtifacts.fetch(artifact.object_key) do
       conn
-      |> put_resp_content_type(artifact.content_type)
+      |> put_resp_content_type(artifact.artifact_type |> FieldSurveyRoomArtifacts.format() |> elem(1))
+      |> put_resp_header("x-content-type-options", "nosniff")
       |> put_resp_header(
         "content-disposition",
         "attachment; filename=\"#{artifact_filename(artifact)}\""
@@ -108,22 +115,14 @@ defmodule ServiceRadarWebNGWeb.Api.SpatialController do
     end
   end
 
-  defp artifact_filename(%{session_id: session_id, artifact_type: artifact_type, content_type: content_type}) do
-    extension =
-      case {artifact_type, content_type} do
-        {"roomplan_usdz", _} -> "usdz"
-        {"floorplan_geojson", _} -> "geojson"
-        {"point_cloud_ply", _} -> "ply"
-        {_, "model/vnd.usdz+zip"} -> "usdz"
-        {_, "application/geo+json"} -> "geojson"
-        {_, "application/json"} -> "json"
-        {_, "application/octet-stream"} -> "bin"
-        _ -> "bin"
-      end
-
+  defp artifact_filename(%{session_id: session_id, artifact_type: artifact_type}) do
+    {extension, _content_type} = FieldSurveyRoomArtifacts.format(artifact_type)
     "#{safe_filename(session_id)}-#{safe_filename(artifact_type)}.#{extension}"
   end
 
+  # Every string in the SVG goes through xml_escape/1 and every number through svg_number/1, and
+  # the file is served as an image/svg+xml attachment, never inline.
+  @sobelow_skip ["XSS.SendResp"]
   defp send_field_survey_export(conn, review, "svg") do
     payload = field_survey_svg(review)
 

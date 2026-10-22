@@ -49,7 +49,10 @@ impl Explanation {
         };
 
         push("kind", Some(manager.identity().kind().to_string()));
-        push("instance", manager.identity().instance().map(str::to_string));
+        push(
+            "instance",
+            manager.identity().instance().map(str::to_string),
+        );
 
         if let Some(db) = manager.database() {
             push("database.host", db.host.clone());
@@ -57,7 +60,10 @@ impl Explanation {
             push("database.database", db.database.clone());
             push("database.connecting_role", db.connecting_role.clone());
             push("database.owning_role", db.owning_role.clone());
-            push("database.tls_mode", enum_name(db.tls_mode, TlsMode::try_from));
+            push(
+                "database.tls_mode",
+                enum_name(db.tls_mode, TlsMode::try_from),
+            );
             push("database.tls_server_name", db.tls_server_name.clone());
             push("database.admin_role", db.admin_role.clone());
             push("database.ca_bundle_url", db.ca_bundle_url.clone());
@@ -71,7 +77,10 @@ impl Explanation {
         if let Some(core) = manager.core() {
             push("core.address", core.address.clone());
             push("core.api_url", core.api_url.clone());
-            push("core.security_mode", enum_name(core.security_mode, SecurityMode::try_from));
+            push(
+                "core.security_mode",
+                enum_name(core.security_mode, SecurityMode::try_from),
+            );
             push("core.server_name", core.server_name.clone());
             push("core.trust_domain", core.trust_domain.clone());
             push("core.server_spiffe_id", core.server_spiffe_id.clone());

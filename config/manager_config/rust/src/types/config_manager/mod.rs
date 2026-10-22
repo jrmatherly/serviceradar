@@ -47,18 +47,21 @@ impl ConfigManager {
                     return Err(LoadError::UnknownBuiltIn {
                         name: name.clone(),
                         available: built_ins.iter().map(|(n, _)| (*n).to_string()).collect(),
-                    })
+                    });
                 }
             },
             // No cached fallback: a service that silently starts on last week's configuration
             // is worse than one that does not start.
-            Source::Mounted { path } => reader
-                .read(path)
-                .map_err(|detail| LoadError::Read { source: source.clone(), detail })?,
+            Source::Mounted { path } => reader.read(path).map_err(|detail| LoadError::Read {
+                source: source.clone(),
+                detail,
+            })?,
         };
 
-        let config = EnvironmentConfig::decode(&*bytes)
-            .map_err(|e| LoadError::Decode { source: source.clone(), detail: e.to_string() })?;
+        let config = EnvironmentConfig::decode(&*bytes).map_err(|e| LoadError::Decode {
+            source: source.clone(),
+            detail: e.to_string(),
+        })?;
 
         // The artifact is self-describing and the selector is declared, so they can be compared.
         // This catches the wrong ConfigMap being mounted -- otherwise completely silent, and its
@@ -78,7 +81,11 @@ impl ConfigManager {
             return Err(LoadError::Invalid { source, violations });
         }
 
-        Ok(Self { identity: identity.clone(), source, config })
+        Ok(Self {
+            identity: identity.clone(),
+            source,
+            config,
+        })
     }
 
     pub fn identity(&self) -> &Identity {

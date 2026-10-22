@@ -23,8 +23,8 @@ pub mod utils_tests;
 
 use regex_automata::meta::Regex;
 use serviceradar_config_schema::{
-    rule::Predicate, DgraphTlsMode, EnvironmentConfig, EnvironmentKind, Phase, Rule, RuleSet, Scope,
-    SecurityMode, TlsMode,
+    DgraphTlsMode, EnvironmentConfig, EnvironmentKind, Phase, Rule, RuleSet, Scope, SecurityMode,
+    TlsMode, rule::Predicate,
 };
 
 /// One rule's verdict. `NotApplicable` is a first-class outcome, not an error: a predicate

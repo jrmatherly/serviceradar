@@ -3,7 +3,7 @@
 //! This is the impl that matters most: `{:?}` reaches secrets through tracing spans, `unwrap`
 //! panics and error chains, none of which look like printing a password at the call site.
 
-use crate::types::secret::{Secret, REDACTED};
+use crate::types::secret::{REDACTED, Secret};
 use std::fmt;
 
 impl fmt::Debug for Secret {

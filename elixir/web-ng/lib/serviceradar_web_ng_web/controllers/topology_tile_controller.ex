@@ -18,6 +18,8 @@ defmodule ServiceRadarWebNGWeb.TopologyTileController do
   alias ServiceRadarWebNG.Topology.WorldScene
   alias ServiceRadarWebNGWeb.FeatureFlags
 
+  Module.register_attribute(__MODULE__, :sobelow_skip, accumulate: true)
+
   plug(:authorize)
 
   def manifest(conn, _params) do
@@ -155,7 +157,12 @@ defmodule ServiceRadarWebNGWeb.TopologyTileController do
 
   defp overlay_protocols(manifest) do
     if BitmapQueries.enabled?(),
-      do: %{bitmap_membership_protocol: 1, world_overlay_protocol: 1, bitmap: bitmap_descriptor(manifest)},
+      do: %{
+        bitmap_membership_protocol: 1,
+        bitmap_membership_protocols: [1, 2],
+        world_overlay_protocol: 1,
+        bitmap: bitmap_descriptor(manifest)
+      },
       else: %{}
   end
 
@@ -211,6 +218,9 @@ defmodule ServiceRadarWebNGWeb.TopologyTileController do
     |> conditional_payload(payload, etag, "application/json")
   end
 
+  # content_type is always one of the caller's constants (Arrow, world overlay, application/json),
+  # never request data, and the topology_api pipeline sets nosniff.
+  @sobelow_skip ["XSS.ContentType", "XSS.SendResp"]
   defp conditional_payload(conn, payload, etag, content_type) do
     conn =
       conn

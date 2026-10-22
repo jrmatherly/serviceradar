@@ -9,7 +9,11 @@ pub enum SecretError {
     /// The provider has no entry under that name.
     Unresolvable { name: String, provider: String },
     /// The provider itself failed -- unreadable mount, unreachable store.
-    Provider { name: String, provider: String, detail: String },
+    Provider {
+        name: String,
+        provider: String,
+        detail: String,
+    },
 }
 
 impl fmt::Display for SecretError {
@@ -29,8 +33,15 @@ impl fmt::Display for SecretError {
                  There is no default and no empty fallback: a component that continued here would \
                  authenticate with a blank credential."
             ),
-            Self::Provider { name, provider, detail } => {
-                write!(f, "the {provider} provider failed resolving {name:?}: {detail}")
+            Self::Provider {
+                name,
+                provider,
+                detail,
+            } => {
+                write!(
+                    f,
+                    "the {provider} provider failed resolving {name:?}: {detail}"
+                )
             }
         }
     }

@@ -184,6 +184,14 @@
     "reason": "Numeric device, aggregate, and relation counts; not timestamps."
   },
   {
+    "path": "assets/js/lib/god_view/world_tile_layer.js",
+    "matcher": "js_to_locale_time",
+    "occurrence": 3,
+    "fingerprint": "360f224fea81b94cde1f3bad75757a7a3eb345125c15a6f573c6696d8f87b6a2",
+    "classification": "infrastructure",
+    "reason": "Numeric filtered relation count; not a timestamp."
+  },
+  {
     "path": "assets/js/utils/timezone_options.js",
     "matcher": "intl_date_time_format",
     "occurrence": 1,
@@ -708,6 +716,14 @@
     "matcher": "naive_datetime_iso8601",
     "occurrence": 1,
     "fingerprint": "ad65034e8904d5d918b054e045a27dd37d3d4c3a45210d0db838fab59fb391d6",
+    "classification": "canonical_machine",
+    "reason": null
+  },
+  {
+    "path": "lib/serviceradar_web_ng_web/controllers/api/device_source_fact_controller.ex",
+    "matcher": "datetime_iso8601",
+    "occurrence": 1,
+    "fingerprint": "6ccf8700352d2c371210045c1eaf33cf64af6cb2b3cf89e593837bb8b905bcf2",
     "classification": "canonical_machine",
     "reason": null
   },

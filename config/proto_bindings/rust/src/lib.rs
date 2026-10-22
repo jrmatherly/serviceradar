@@ -25,7 +25,10 @@ mod tests {
         let db = DatabaseConfig::default();
         assert!(db.port.is_none(), "port must be absent, not 0");
         assert!(db.host.is_none(), "host must be absent, not empty string");
-        assert!(db.tls_mode.is_none(), "tls_mode must be absent, not the zero enum");
+        assert!(
+            db.tls_mode.is_none(),
+            "tls_mode must be absent, not the zero enum"
+        );
     }
 
     // The zero value of every enum is a sentinel the rule set rejects.

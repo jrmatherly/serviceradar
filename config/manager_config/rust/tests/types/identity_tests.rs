@@ -11,8 +11,14 @@ fn an_unset_variable_is_an_error_with_no_default() {
 /// tooling pins several variables to "" deliberately. Empty must not become a kind.
 #[test]
 fn an_empty_value_is_unset_not_a_choice() {
-    assert_eq!(Identity::parse(Some("")).unwrap_err(), SelectorError::Absent);
-    assert_eq!(Identity::parse(Some("   ")).unwrap_err(), SelectorError::Absent);
+    assert_eq!(
+        Identity::parse(Some("")).unwrap_err(),
+        SelectorError::Absent
+    );
+    assert_eq!(
+        Identity::parse(Some("   ")).unwrap_err(),
+        SelectorError::Absent
+    );
 }
 
 #[test]

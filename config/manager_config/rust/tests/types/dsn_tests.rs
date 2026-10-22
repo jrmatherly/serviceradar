@@ -56,7 +56,9 @@ fn an_unspecified_tls_mode_never_reaches_a_loaded_manager() {
 
 #[test]
 fn the_dsn_carries_the_typed_coordinates() {
-    let dsn = manager_with(TlsMode::VerifyFull).database_url(PASSWORD).unwrap();
+    let dsn = manager_with(TlsMode::VerifyFull)
+        .database_url(PASSWORD)
+        .unwrap();
     let text = dsn.expose();
     assert!(text.starts_with("postgres://srql:"), "{text}");
     assert!(text.contains("@db:5432/srql_fixture"), "{text}");
@@ -66,11 +68,19 @@ fn the_dsn_carries_the_typed_coordinates() {
 /// stop at the schema: an assembled DSN is as sensitive as the secret inside it.
 #[test]
 fn the_dsn_never_prints_its_password() {
-    let dsn = manager_with(TlsMode::VerifyFull).database_url(PASSWORD).unwrap();
+    let dsn = manager_with(TlsMode::VerifyFull)
+        .database_url(PASSWORD)
+        .unwrap();
 
     let rendered = format!("{dsn} {dsn:?} {:?} {:?}", Some(&dsn), vec![&dsn]);
-    assert!(!rendered.contains(PASSWORD), "the DSN leaked its password: {rendered}");
-    assert!(!rendered.contains("srql_fixture"), "and it should not print at all: {rendered}");
+    assert!(
+        !rendered.contains(PASSWORD),
+        "the DSN leaked its password: {rendered}"
+    );
+    assert!(
+        !rendered.contains("srql_fixture"),
+        "and it should not print at all: {rendered}"
+    );
 }
 
 /// A password containing `@` or `:` would otherwise truncate the host or the role, producing a
@@ -82,8 +92,14 @@ fn a_password_with_delimiters_is_encoded_not_truncated() {
         .unwrap();
     let text = dsn.expose();
 
-    assert!(text.contains("p%40ss%3Aword%2Fwith%3Fodd%23chars"), "{text}");
-    assert!(text.contains("@db:5432/"), "the host must still parse: {text}");
+    assert!(
+        text.contains("p%40ss%3Aword%2Fwith%3Fodd%23chars"),
+        "{text}"
+    );
+    assert!(
+        text.contains("@db:5432/"),
+        "the host must still parse: {text}"
+    );
 }
 
 /// A literal `%` needs no delimiter to do damage: left alone it turns the next two characters
@@ -91,7 +107,9 @@ fn a_password_with_delimiters_is_encoded_not_truncated() {
 /// failing. //config/manager_config/elixir encodes the same set.
 #[test]
 fn a_password_containing_a_percent_is_encoded() {
-    let dsn = manager_with(TlsMode::VerifyFull).database_url("100%25sure").unwrap();
+    let dsn = manager_with(TlsMode::VerifyFull)
+        .database_url("100%25sure")
+        .unwrap();
     let text = dsn.expose();
 
     assert!(text.contains("100%2525sure"), "{text}");
@@ -107,12 +125,23 @@ fn a_password_containing_a_percent_is_encoded() {
 /// it -- see `tls_connector_for` in //rust/integration-db.
 #[test]
 fn the_dsn_carries_no_tls_server_name_parameters() {
-    let dsn = manager_with(TlsMode::VerifyFull).database_url(PASSWORD).unwrap();
+    let dsn = manager_with(TlsMode::VerifyFull)
+        .database_url(PASSWORD)
+        .unwrap();
     let text = dsn.expose();
 
-    assert!(!text.contains("sslsni"), "sslsni is not a tokio-postgres option: {text}");
+    assert!(
+        !text.contains("sslsni"),
+        "sslsni is not a tokio-postgres option: {text}"
+    );
     // The fixture sets host and tls_server_name to the same value, so `host=` can only ever
     // match the query string -- the authority is `@db:5432`, which has no `host=`.
-    assert!(!text.contains("host="), "a query-string host is a second endpoint: {text}");
-    assert!(text.contains("sslmode=verify-full"), "the mode itself must survive: {text}");
+    assert!(
+        !text.contains("host="),
+        "a query-string host is a second endpoint: {text}"
+    );
+    assert!(
+        text.contains("sslmode=verify-full"),
+        "the mode itself must survive: {text}"
+    );
 }

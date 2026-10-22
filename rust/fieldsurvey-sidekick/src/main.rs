@@ -52,9 +52,7 @@ async fn main() -> Result<()> {
         .with_context(|| format!("failed to bind {}", config.listen_addr))?;
 
     if config.api_token.is_none() {
-        warn!(
-            "setup token is not configured; pairing and setup-token authentication are disabled"
-        );
+        warn!("setup token is not configured; pairing and setup-token authentication are disabled");
     }
 
     info!(

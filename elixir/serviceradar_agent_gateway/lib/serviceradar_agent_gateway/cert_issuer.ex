@@ -40,6 +40,8 @@ defmodule ServiceRadarAgentGateway.CertIssuer do
     end
   end
 
+  def issue_agent_bundle(_, _, _, _), do: {:error, :invalid_identity}
+
   @doc """
   The URI SAN every edge-site NATS leaf client certificate in `partition_id`
   carries. The hub's leafnode listener maps exactly this URI to the platform
@@ -78,8 +80,6 @@ defmodule ServiceRadarAgentGateway.CertIssuer do
   end
 
   defp server_host_san(_host), do: :error
-
-  def issue_agent_bundle(_, _, _, _), do: {:error, :invalid_identity}
 
   @doc false
   def default_validity_days, do: @default_validity_days

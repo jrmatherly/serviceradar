@@ -75,6 +75,8 @@ config :serviceradar_core, Oban,
        {"*/10 * * * *", ServiceRadar.Edge.RemoteAccessRecordingReaperWorker, queue: :maintenance},
        {"*/2 * * * *", ServiceRadar.Camera.RelaySessionReaperWorker, queue: :maintenance},
        {"*/5 * * * *", ServiceRadar.SweepJobs.ExecutionReaperWorker, queue: :maintenance},
+       {"*/5 * * * *", ServiceRadar.Observability.PluginServiceStateReconcileWorker,
+        queue: :maintenance},
        {"31 3 * * *", ServiceRadar.Edge.RemoteAccessVersionRetentionWorker, queue: :maintenance},
        {"23 3 * * *", ServiceRadar.Jobs.SecurityEventsRetentionWorker, queue: :maintenance},
        {"51 3 * * *", ServiceRadar.Observability.ApiEventsRetentionWorker, queue: :maintenance},
@@ -204,6 +206,12 @@ config :serviceradar_core, :plugin_storage,
   download_ttl_seconds: 86_400
 
 config :serviceradar_core, :required_agent_addons, ["otel-collector"]
+
+# Whether the rollout reconcile moves Wasm plugin owners that track the latest
+# approved package to a newly approved version. Off until operators can see and
+# pin the owners that would move; SERVICERADAR_WASM_PLUGIN_AUTOMATIC_ROLLOUTS
+# overrides it. See ServiceRadar.Plugins.WasmPluginRolloutArtifact.
+config :serviceradar_core, :wasm_plugin_automatic_rollouts, false
 
 config :serviceradar_core,
   age_graph_name: "platform_graph",

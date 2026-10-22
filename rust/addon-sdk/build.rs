@@ -11,13 +11,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // by the copy_file in BUILD.bazel, so it sits beside the add-on contract
     // under one `proto` include root), Cargo path second (cwd = this crate
     // dir, canonical source two levels up at the workspace root).
-    let discovery_proto_path = if std::path::Path::new("proto/agent/discovery/v1/discovery.proto")
-        .exists()
-    {
-        "proto/agent/discovery/v1/discovery.proto"
-    } else {
-        "../../proto/agent/discovery/v1/discovery.proto"
-    };
+    let discovery_proto_path =
+        if std::path::Path::new("proto/agent/discovery/v1/discovery.proto").exists() {
+            "proto/agent/discovery/v1/discovery.proto"
+        } else {
+            "../../proto/agent/discovery/v1/discovery.proto"
+        };
     let discovery_proto_root = if discovery_proto_path.starts_with("..") {
         "../../proto"
     } else {

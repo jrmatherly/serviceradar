@@ -16,6 +16,11 @@ fn deployed_environments_read_the_environment() {
 /// A developer machine has nothing injecting variables into a test action.
 #[test]
 fn localhost_reads_the_file_store() {
-    let described = EnvironmentProvider::for_kind("localhost").describe().to_string();
-    assert!(described.starts_with("file("), "localhost selected {described}");
+    let described = EnvironmentProvider::for_kind("localhost")
+        .describe()
+        .to_string();
+    assert!(
+        described.starts_with("file("),
+        "localhost selected {described}"
+    );
 }

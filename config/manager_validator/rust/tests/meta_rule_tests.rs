@@ -12,8 +12,8 @@ use prost::Message;
 use prost_types::FileDescriptorSet;
 use serviceradar_config_schema::RuleSet;
 use serviceradar_config_validator::coverage::leaf_field_paths;
-use std::collections::BTreeSet;
 use serviceradar_config_validator::utils_tests::data_path;
+use std::collections::BTreeSet;
 
 fn load<T: Message + Default>(relative: &str) -> T {
     let path = data_path(relative);
@@ -28,7 +28,11 @@ fn schema_fields() -> Vec<String> {
 
 fn ruled_fields() -> BTreeSet<String> {
     let rules: RuleSet = load("config/rules/ruleset.binpb");
-    rules.rules.iter().filter_map(|r| r.field_path.clone()).collect()
+    rules
+        .rules
+        .iter()
+        .filter_map(|r| r.field_path.clone())
+        .collect()
 }
 
 #[test]
@@ -55,7 +59,10 @@ fn every_rule_names_a_field_the_schema_has() {
     let ruled = ruled_fields();
     let dangling: Vec<&String> = ruled.iter().filter(|f| !fields.contains(*f)).collect();
 
-    assert!(dangling.is_empty(), "rules naming fields the schema lacks: {dangling:#?}");
+    assert!(
+        dangling.is_empty(),
+        "rules naming fields the schema lacks: {dangling:#?}"
+    );
 }
 
 /// The descriptor walk is the part that could silently under-report: a bug that returns only
@@ -73,12 +80,18 @@ fn the_descriptor_walk_reaches_nested_sections() {
         "core.security_mode",
         "dgraph.tls_mode",
     ] {
-        assert!(fields.iter().any(|f| f == expected), "{expected} missing from {fields:#?}");
+        assert!(
+            fields.iter().any(|f| f == expected),
+            "{expected} missing from {fields:#?}"
+        );
     }
 
     // A section is not a value, so no rule can constrain it and it must not be demanded.
     for section in ["database", "nats", "core", "dgraph"] {
-        assert!(!fields.iter().any(|f| f == section), "{section} is a message, not a leaf");
+        assert!(
+            !fields.iter().any(|f| f == section),
+            "{section} is a message, not a leaf"
+        );
     }
 }
 
@@ -99,7 +112,12 @@ fn a_conditional_pair_keyed_on_an_enum_is_exhaustive() {
 
     let mut checked = 0;
     for field_path in rules.rules.iter().filter_map(|r| r.field_path.clone()) {
-        let on_field = || rules.rules.iter().filter(|r| r.field_path.as_deref() == Some(&field_path));
+        let on_field = || {
+            rules
+                .rules
+                .iter()
+                .filter(|r| r.field_path.as_deref() == Some(&field_path))
+        };
 
         let mut keyed_on: Option<String> = None;
         let mut covered: BTreeSet<String> = BTreeSet::new();
@@ -126,7 +144,9 @@ fn a_conditional_pair_keyed_on_an_enum_is_exhaustive() {
             continue;
         }
         let Some(key) = keyed_on else { continue };
-        let Some(values) = enum_values_at(&descriptor, &key) else { continue };
+        let Some(values) = enum_values_at(&descriptor, &key) else {
+            continue;
+        };
 
         checked += 1;
         let missing: Vec<&String> = values.iter().filter(|v| !covered.contains(*v)).collect();

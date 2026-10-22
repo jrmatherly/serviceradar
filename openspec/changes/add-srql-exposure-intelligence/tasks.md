@@ -4,10 +4,10 @@ is synthetic: documentation address ranges (`192.0.2.0/24`, `198.51.100.0/24`,
 deployment.
 
 ## 0. Prerequisites and gates (no build work in 1.x until these pass)
-- [ ] 0.1 #5748 merged: incremental, write-on-change matching that publishes assessment transitions through a transactional outbox with `transition_seq` and ordinals, per *Assessment Transitions Are Published On JetStream*.
+- [x] 0.1 #5748 merged: incremental, write-on-change matching that publishes assessment transitions through a transactional outbox with `transition_seq` and ordinals, per *Assessment Transitions Are Published On JetStream*. Delivered with the producer-side parts of 1.1 and 1.3; see design.md, *Implementation record*.
 - [ ] 0.2 #5749 fixed: superseded-package matches resolve. Orphan cleanup must have run on the lab, with the actionable count re-checked after the next matcher run.
-- [ ] 0.3 #5752 merged: executable -> package ownership on leases and summaries, per *Running Executables Resolve To Owning Packages*.
-- [ ] 0.4 `stream-flow-attribution-via-ownership-index` (merged as #5753) implemented and live on the lab. It provides the ownership index, late decisions, address presence and the per-process connection summaries (*Hosts Report Per-Process Connection Summaries As Evidence*, stored in `host_connection_summaries`). This change consumes those summaries and does not redefine them.
+- [ ] 0.3 #5752 merged: executable -> package ownership (`ExecutableOwnership`) on FlowAttributionEvent and ProcessSnapshotEntry, per *Running Executables Resolve To Owning Packages*.
+- [ ] 0.4 `stream-flow-attribution-via-ownership-index` (merged as #5753) implemented and live on the lab. It provides the ownership index, late decisions, address presence and the per-process connection summaries (*Hosts Report Per-Process Connection Summaries As Evidence*, stored in `host_connection_summaries`). #5738 carries `ExecutableOwnership` on lease owner records and connection summary rows. This change consumes those summaries and does not redefine them.
 - [ ] 0.5 Measure on a lab deployment and record the results rounded in design.md, with no hostnames, addresses or cluster names:
   - distinct evidence keys per host per hour;
   - network evidence pre-aggregation ratio against flow rows, per exporter (gate: <= 25%);
@@ -19,7 +19,7 @@ deployment.
   - use case 1 rows <= 500 ms and counts <= 1 s.
 - [ ] 0.7 Widen `EndpointInventoryFleetOrdinal` allocation to every non-service device the address publisher emits. Confirm u32 headroom.
 - [ ] 0.8 CNPG migration: the `exposure_device_catalog` and `exposure_device_tags_catalog` views, column-scoped grants to `serviceradar_starrocks_reader` (guarded on the role existing; never `LOGIN`), `CatalogAllowlist` entries, and allowlist tests that reject the large tables.
-- [ ] 0.9 Obtain approval to extend the StarRocks-required exception to exposure intelligence (design Decision 15). Update `AGENTS.md` only after approval.
+- [x] 0.9 Obtain approval to extend the StarRocks-required exception to exposure intelligence (design Decision 15). Update `AGENTS.md` only after approval. Approved by the product owner on [2026-10-18](https://github.com/carverauto/serviceradar/issues/5745#issuecomment-6255360407); the exception is recorded in `AGENTS.md`.
 
 ## 1. Dictionaries, fact table and transitions
 - [ ] 1.1 CNPG migrations: `exposure_fact_watermarks` (key, terminal state, new sequence), `device_fleet_ordinals.retired_seq`, `exposure_advisory_ordinals` (starting at 10^12), `exposure_package_ordinals`, `exposure_package_version_ordinals`, the `transition_seq` sequence (drawn under the assessment row lock and stored on the assessment row), and `transition_xid` on outbox rows. Add a CVE ordinal function with unit tests at the 10^7 boundary.

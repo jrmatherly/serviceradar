@@ -4,6 +4,10 @@ defmodule ServiceRadarWebNGWeb.DashboardLive.EventWindow do
   alias ServiceRadar.Analytics.StarRocks.LogEventConsumers
   alias ServiceRadarWebNGWeb.DashboardLive.Window
 
+  Module.register_attribute(__MODULE__, :sobelow_skip, accumulate: true)
+
+  # sql/1 picks between two constant strings; the window bounds and bucket size are bound as $1..$3.
+  @sobelow_skip ["SQL.Query"]
   def load(window, opts \\ []) do
     bucket_seconds = Window.event_bucket_seconds(window)
     query = Keyword.get(opts, :query, &ServiceRadarWebNG.Repo.query/2)

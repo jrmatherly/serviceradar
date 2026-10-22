@@ -15,7 +15,9 @@ use serviceradar_config_schema::EnvironmentConfig;
 fn main() -> std::process::ExitCode {
     let args: Vec<String> = std::env::args().collect();
     let [_, section, input, output] = args.as_slice() else {
-        eprintln!("usage: extract_section <database|nats|core|dgraph> <input.binpb> <output.binpb>");
+        eprintln!(
+            "usage: extract_section <database|nats|core|dgraph> <input.binpb> <output.binpb>"
+        );
         return std::process::ExitCode::FAILURE;
     };
 

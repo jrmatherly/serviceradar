@@ -11,9 +11,9 @@
 //! kind. Random generation reaches an inclusive edge only by luck.
 
 use serviceradar_config_schema::{
-    rule::Predicate, DatabaseConfig, EnvironmentConfig, EnvironmentKind, ForbiddenIf,
-    ForbiddenValue, IntRange, Matches, NonEmpty, OneOf, Phase, Required, RequiredIf, Rule, RuleSet,
-    Scope, TlsMode,
+    DatabaseConfig, EnvironmentConfig, EnvironmentKind, ForbiddenIf, ForbiddenValue, IntRange,
+    Matches, NonEmpty, OneOf, Phase, Required, RequiredIf, Rule, RuleSet, Scope, TlsMode,
+    rule::Predicate,
 };
 use serviceradar_config_validator::validate;
 
@@ -42,7 +42,10 @@ fn fired(rules: &RuleSet, cfg: &EnvironmentConfig) -> bool {
 
 fn with_port(port: Option<u32>) -> EnvironmentConfig {
     EnvironmentConfig {
-        database: Some(DatabaseConfig { port, ..Default::default() }),
+        database: Some(DatabaseConfig {
+            port,
+            ..Default::default()
+        }),
         ..Default::default()
     }
 }
@@ -67,7 +70,10 @@ fn with_tls(mode: Option<TlsMode>) -> EnvironmentConfig {
     }
 }
 
-fn with_kind_and_instance(kind: Option<EnvironmentKind>, instance: Option<&str>) -> EnvironmentConfig {
+fn with_kind_and_instance(
+    kind: Option<EnvironmentKind>,
+    instance: Option<&str>,
+) -> EnvironmentConfig {
     EnvironmentConfig {
         kind: kind.map(|k| k as i32),
         instance: instance.map(str::to_string),
@@ -97,7 +103,13 @@ fn every_predicate() -> Vec<(&'static str, Predicate)> {
     vec![
         ("required", Predicate::Required(Required {})),
         ("non_empty", Predicate::NonEmpty(NonEmpty {})),
-        ("int_range", Predicate::IntRange(IntRange { min: Some(1), max: Some(10) })),
+        (
+            "int_range",
+            Predicate::IntRange(IntRange {
+                min: Some(1),
+                max: Some(10),
+            }),
+        ),
         (
             "one_of",
             Predicate::OneOf(OneOf {
@@ -105,7 +117,12 @@ fn every_predicate() -> Vec<(&'static str, Predicate)> {
                 string_values: vec!["x".into()],
             }),
         ),
-        ("matches", Predicate::Matches(Matches { pattern: Some("^x".into()) })),
+        (
+            "matches",
+            Predicate::Matches(Matches {
+                pattern: Some("^x".into()),
+            }),
+        ),
         (
             "required_if",
             Predicate::RequiredIf(RequiredIf {
@@ -158,7 +175,10 @@ fn int_range_is_inclusive_at_both_edges() {
     for (min, max) in [(1u32, 10u32), (0, 0), (5, 5), (1, 65535)] {
         let rules = one(
             "database.port",
-            Predicate::IntRange(IntRange { min: Some(min as i64), max: Some(max as i64) }),
+            Predicate::IntRange(IntRange {
+                min: Some(min as i64),
+                max: Some(max as i64),
+            }),
         );
         for v in [min.saturating_sub(1), min, max, max.saturating_add(1)] {
             let inside = v >= min && v <= max;
@@ -178,11 +198,17 @@ fn int_range_is_monotone_in_its_bounds() {
     for v in values {
         let narrow = one(
             "database.port",
-            Predicate::IntRange(IntRange { min: Some(5), max: Some(10) }),
+            Predicate::IntRange(IntRange {
+                min: Some(5),
+                max: Some(10),
+            }),
         );
         let wide = one(
             "database.port",
-            Predicate::IntRange(IntRange { min: Some(1), max: Some(100) }),
+            Predicate::IntRange(IntRange {
+                min: Some(1),
+                max: Some(100),
+            }),
         );
         if !fired(&narrow, &with_port(Some(v))) {
             assert!(
@@ -250,8 +276,17 @@ fn forbidden_value_is_disequality() {
 #[test]
 fn non_empty_is_length() {
     let rules = one("database.host", Predicate::NonEmpty(NonEmpty {}));
-    for (value, violates) in [(Some(""), true), (Some("a"), false), (Some("  "), false), (None, false)] {
-        assert_eq!(fired(&rules, &with_host(value)), violates, "value {value:?}");
+    for (value, violates) in [
+        (Some(""), true),
+        (Some("a"), false),
+        (Some("  "), false),
+        (None, false),
+    ] {
+        assert_eq!(
+            fired(&rules, &with_host(value)),
+            violates,
+            "value {value:?}"
+        );
     }
 }
 
@@ -290,13 +325,19 @@ fn conditional_predicates_fire_only_on_their_trigger() {
             kind.as_str_name()
         );
         assert!(
-            !fired(&required_if, &with_kind_and_instance(Some(*kind), Some("x"))),
+            !fired(
+                &required_if,
+                &with_kind_and_instance(Some(*kind), Some("x"))
+            ),
             "required_if must never fire when the value is present"
         );
 
         // forbidden_if: violated exactly when the trigger holds and the value is present.
         assert_eq!(
-            fired(&forbidden_if, &with_kind_and_instance(Some(*kind), Some("x"))),
+            fired(
+                &forbidden_if,
+                &with_kind_and_instance(Some(*kind), Some("x"))
+            ),
             !onprem,
             "forbidden_if on present instance, kind={}",
             kind.as_str_name()
@@ -314,7 +355,12 @@ fn conditional_predicates_fire_only_on_their_trigger() {
 #[test]
 fn every_predicate_is_total_over_the_input_matrix() {
     for (name, predicate) in every_predicate() {
-        for field in ["instance", "database.host", "database.port", "database.tls_mode"] {
+        for field in [
+            "instance",
+            "database.host",
+            "database.port",
+            "database.tls_mode",
+        ] {
             let rules = one(field, predicate.clone());
             for kind in ALL_KINDS {
                 let cases = [

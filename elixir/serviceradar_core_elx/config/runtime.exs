@@ -7,6 +7,7 @@ alias ServiceRadar.Automation.CallbackGrants.RuntimeConfig
 alias ServiceRadar.EventWriter.Config
 alias ServiceRadar.EventWriter.Processors.AnalyticsSignals
 alias ServiceRadar.EventWriter.Processors.Flows
+alias ServiceRadar.Inventory.ExposureTransitionRelay
 alias ServiceRadar.Jobs.AlertsRetentionWorker
 alias ServiceRadar.Jobs.RefreshTraceSummariesWorker
 alias ServiceRadar.Jobs.SecurityEventsRetentionWorker
@@ -522,6 +523,15 @@ mtr_stage_enabled = fn env_name ->
   end
 end
 
+# Exposure transition stream size (EXPOSURE_TRANSITIONS, reconciled when the
+# relay starts). Unset or blank means 1 GiB; an invalid value fails boot.
+config :serviceradar_core, ExposureTransitionRelay,
+  max_bytes:
+    StateBucketSizing.bytes_from_env!(
+      "SERVICERADAR_JS_EXPOSURE_TRANSITIONS_MAX_BYTES",
+      ExposureTransitionRelay.default_max_bytes()
+    )
+
 # ---------------------------------------------------------------------------
 # Config blocks owned by the serviceradar_core APPLICATION.
 #
@@ -1014,6 +1024,50 @@ if config_env() == :prod do
   logs_chunk_interval_hours =
     "SERVICERADAR_LOGS_CHUNK_INTERVAL_HOURS" |> parse_int_env.(24) |> max(1)
 
+  otel_metrics_retention_days =
+    "SERVICERADAR_OTEL_METRICS_RETENTION_DAYS" |> parse_int_env.(30) |> max(1)
+
+  otel_metric_points_retention_days =
+    "SERVICERADAR_OTEL_METRIC_POINTS_RETENTION_DAYS" |> parse_int_env.(30) |> max(1)
+
+  ocsf_events_retention_days =
+    "SERVICERADAR_OCSF_EVENTS_RETENTION_DAYS" |> parse_int_env.(14) |> max(1)
+
+  raw_metrics_retention_days =
+    "SERVICERADAR_RAW_METRICS_RETENTION_DAYS" |> parse_int_env.(7) |> max(1)
+
+  capacity_forecasts_retention_days =
+    "SERVICERADAR_CAPACITY_FORECASTS_RETENTION_DAYS" |> parse_int_env.(395) |> max(1)
+
+  otel_metrics_chunk_interval_hours =
+    "SERVICERADAR_OTEL_METRICS_CHUNK_INTERVAL_HOURS" |> parse_int_env.(24) |> max(1)
+
+  otel_metric_points_chunk_interval_hours =
+    "SERVICERADAR_OTEL_METRIC_POINTS_CHUNK_INTERVAL_HOURS" |> parse_int_env.(6) |> max(1)
+
+  ocsf_events_chunk_interval_hours =
+    "SERVICERADAR_OCSF_EVENTS_CHUNK_INTERVAL_HOURS" |> parse_int_env.(6) |> max(1)
+
+  raw_metrics_chunk_interval_hours =
+    "SERVICERADAR_RAW_METRICS_CHUNK_INTERVAL_HOURS" |> parse_int_env.(24) |> max(1)
+
+  capacity_forecasts_chunk_interval_hours =
+    "SERVICERADAR_CAPACITY_FORECASTS_CHUNK_INTERVAL_HOURS" |> parse_int_env.(24) |> max(1)
+
+  # Missing, blank, or non-positive means no ceiling. The worker then keeps
+  # each dataset's own window. A positive value caps raw CNPG telemetry.
+  cnpg_telemetry_default_days =
+    case System.get_env("SERVICERADAR_CNPG_TELEMETRY_DEFAULT_DAYS") do
+      value when value in [nil, ""] ->
+        nil
+
+      value ->
+        case Integer.parse(value) do
+          {int, ""} when int > 0 -> int
+          _ -> nil
+        end
+    end
+
   # Enable AshOban scheduler - core-elx is the only service that should run schedulers
   ash_oban_scheduler_enabled =
     System.get_env("SERVICERADAR_ASH_OBAN_SCHEDULER_ENABLED", "true") in ~w(true 1 yes)
@@ -1207,6 +1261,9 @@ if config_env() == :prod do
       # agent gone) otherwise stay running forever. Kept in step with
       # serviceradar_core's runtime.exs.
       {"*/5 * * * *", ServiceRadar.SweepJobs.ExecutionReaperWorker, queue: :maintenance},
+      # Converges plugin service state with plugin assignments changed outside the
+      # web-ng assignment actions. Kept in step with serviceradar_core's runtime.exs.
+      {"*/5 * * * *", ServiceRadar.Observability.PluginServiceStateReconcileWorker, queue: :maintenance},
       # Merged device availability (stage b): drains the invalidation log and re-resolves
       # devices whose evidence aged out. Neither resolves outside `shadow` mode. Kept
       # in step with serviceradar_core's runtime.exs and config.exs.
@@ -1298,8 +1355,19 @@ if config_env() == :prod do
     trace_summary_retention_days: trace_summary_retention_days,
     otel_traces_retention_days: otel_traces_retention_days,
     logs_retention_days: logs_retention_days,
+    otel_metrics_retention_days: otel_metrics_retention_days,
+    otel_metric_points_retention_days: otel_metric_points_retention_days,
+    ocsf_events_retention_days: ocsf_events_retention_days,
+    raw_metrics_retention_days: raw_metrics_retention_days,
+    capacity_forecasts_retention_days: capacity_forecasts_retention_days,
+    cnpg_telemetry_default_days: cnpg_telemetry_default_days,
     otel_traces_chunk_interval_hours: otel_traces_chunk_interval_hours,
     logs_chunk_interval_hours: logs_chunk_interval_hours,
+    otel_metrics_chunk_interval_hours: otel_metrics_chunk_interval_hours,
+    otel_metric_points_chunk_interval_hours: otel_metric_points_chunk_interval_hours,
+    ocsf_events_chunk_interval_hours: ocsf_events_chunk_interval_hours,
+    raw_metrics_chunk_interval_hours: raw_metrics_chunk_interval_hours,
+    capacity_forecasts_chunk_interval_hours: capacity_forecasts_chunk_interval_hours,
     timeseries_metrics_retention_days: "SERVICERADAR_TIMESERIES_METRICS_RETENTION_DAYS" |> parse_int_env.(7) |> max(1),
     timeseries_metrics_compress_after_hours:
       "SERVICERADAR_TIMESERIES_METRICS_COMPRESS_AFTER_HOURS" |> parse_int_env.(2) |> max(1),

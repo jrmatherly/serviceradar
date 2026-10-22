@@ -68,11 +68,18 @@ fn no_credential_can_appear_in_the_report() {
     let rendered = Explanation::new(&manager(), &["database.password"]).render();
 
     for forbidden in ["hunter2", "postgres://", "password="] {
-        assert!(!rendered.contains(forbidden), "report contained {forbidden}: {rendered}");
+        assert!(
+            !rendered.contains(forbidden),
+            "report contained {forbidden}: {rendered}"
+        );
     }
 }
 
 #[test]
 fn a_component_declaring_no_secrets_says_so() {
-    assert!(Explanation::new(&manager(), &[]).render().contains("(none)"));
+    assert!(
+        Explanation::new(&manager(), &[])
+            .render()
+            .contains("(none)")
+    );
 }

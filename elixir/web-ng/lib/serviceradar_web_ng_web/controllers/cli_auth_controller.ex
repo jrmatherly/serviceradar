@@ -46,6 +46,8 @@ defmodule ServiceRadarWebNGWeb.CliAuthController do
 
   require Logger
 
+  Module.register_attribute(__MODULE__, :sobelow_skip, accumulate: true)
+
   @device_ttl_seconds 900
   @poll_interval 5
   @valid_clients ["serviceradar-cli"]
@@ -470,6 +472,10 @@ defmodule ServiceRadarWebNGWeb.CliAuthController do
   defp parse_scopes(scope) when is_binary(scope), do: String.split(scope, ~r/[\s,]+/, trim: true)
 
   defp scope_to_atom(scope) when is_atom(scope), do: scope
+  # scope is read from a DeviceAuthorization or CliAuthorizationCode row whose every token was
+  # checked against the admin-set cli_allowed_scopes allowlist before the row was written
+  # (validate_scope/2, CliPkce.validate_authorize/2), so the atom set is bounded by that list.
+  @sobelow_skip ["DOS.StringToAtom"]
   defp scope_to_atom(scope) when is_binary(scope), do: String.to_atom(scope)
   defp scope_to_atom(_), do: :read
 

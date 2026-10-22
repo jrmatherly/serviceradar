@@ -444,8 +444,9 @@ endpoints. SRQL resolves the matched set exactly as the flow threat filters do: 
 ### Decision 9: Listening processes resolve to packages
 
 "Vulnerable listening process" requires a `(device, process) -> package identity` link.
-#5752 resolves an executable to its owning package once per executable inode, and attaches
-the inventory package reference to:
+#5752 resolves an executable to its owning package once per cache entry (Decision 18), and
+attaches the inventory package reference to the current owner fields
+(`FlowAttributionEvent` and `ProcessSnapshotEntry`). #5738 carries the same message onto:
 
 - ownership lease owner records, so flows attributed through the index carry it;
 - connection summary rows.
@@ -707,8 +708,8 @@ reads (`AGENTS.md`). The reasons:
 - Nothing is lost on a CNPG-only installation: assessments stay in CNPG, and use case 1 is
   still answered there by `in:devices cve:` and `in:endpoint_vulnerability_assessments`.
 
-This needs explicit approval, and the `AGENTS.md` text changes only after it (open
-question 1).
+The product owner [approved this requirement on 2026-10-18](https://github.com/carverauto/serviceradar/issues/5745#issuecomment-6255360407).
+The StarRocks-required exception is recorded in `AGENTS.md` (task 0.9).
 
 ### Decision 16: How the showcase queries compile
 
@@ -737,6 +738,111 @@ question 1).
 
 Every entity is listed in the `EntityAccess` map under one canonical name; the new
 entities have no aliases. Unknown-entity passthrough must not skip the gate.
+
+### Decision 18: Executable ownership is resolved by netprobe, by inode
+
+This settles how #5752 implements Decision 9.
+
+**Privilege.** Netprobe starts as root to load eBPF and then drops to the service user.
+Without a capability, that user cannot read `/proc/<pid>/exe` or `/proc/<pid>/root` of a
+process owned by another user, and those are the listeners that matter (sshd, web servers).
+Netprobe therefore keeps exactly one capability after the drop: `CAP_SYS_PTRACE`, in the
+permitted and effective sets only. It sets `PR_SET_KEEPCAPS` across `setuid`, reduces the
+permitted and effective sets to `CAP_SYS_PTRACE`, leaves the inheritable and ambient sets
+empty, and clears `PR_SET_KEEPCAPS` again. The service unit adds `CAP_SYS_PTRACE` to its
+bounding set and not to its ambient set. Capabilities are per thread, and netprobe's tokio
+workers and eBPF reader threads start before the drop and lose all capabilities in the
+`setuid`. The dropping thread therefore keeps `CAP_SYS_PTRACE` and spawns one dedicated
+executor thread, which inherits it and runs every ownership resolution; no other thread
+holds it. Netprobe uses it only for ptrace-read access to procfs.
+
+**Resolution.** For a process, netprobe stats `/proc/<pid>/exe` for the executable's
+`(dev, inode)`, which works for a deleted or replaced binary. It reads the package
+databases inside the process's own root (`/proc/<pid>/root`), so a containerized process
+resolves against its image's package database. `source_scope` is `host` for a process in
+the host root and `container` otherwise. Inventory rows are host-scoped, so a containerized process's reference deliberately never
+joins host exposure facts and stays `package_unknown` until container packages are
+inventoried; this is intended, not a miss. Supported databases are dpkg (`status` plus
+`info/*.list`), apk (`installed`) and the rpm sqlite backend (`rpmdb.sqlite`). The older rpm
+BerkeleyDB and NDB backends are reported as `UNSUPPORTED_DB` only when no supported database
+is present; a root with `rpmdb.sqlite` next to a leftover BerkeleyDB `Packages` file reads
+the sqlite database. A package owns the executable when one of its listed paths, resolved
+inside the process root with directory symlinks followed but never allowed to leave that
+root, has the executable's `(dev, inode)`. A listed path whose final component is itself a
+symlink owns nothing; the file it points to is listed by its own package. Comparing inodes,
+not path strings, handles merged `/usr` layouts and other directory symlinks. It also means that a binary whose package was
+upgraded or removed while the process kept running is never attributed to the package that
+now owns its path.
+
+**Cost.** Results are cached per (process root, executable `dev`, `inode`). An entry is valid
+while the file's mtime and size and that root's package-database state are unchanged; a
+reused inode or a package change in that root re-resolves it. A read where the kernel
+reports the executable deleted neither uses nor stores a cache entry. The cache and the number of
+cached package-database indexes are bounded. Resolution runs on netprobe's existing budgeted
+process-metadata path, so it happens once per cache entry and never once per connection or
+per event.
+
+**States.** `ExecutableOwnership.resolution_state` is the first of these that applies, in
+this order:
+1. `NOT_PERMITTED`: procfs or the root denied access.
+2. `UNKNOWN`: the process exited; or a procfs or root read failed other than by an access
+   denial; or the kernel reports the executable deleted (its file was
+   unlinked or replaced, for example by a package upgrade or removal, while the process kept
+   running, whether or not a package ever owned it); or the root has no package database; or
+   a database was unreadable, changing, truncated, or has a pending rpm write-ahead log.
+3. `UNSUPPORTED_DB`: no supported database is present, and an unsupported one is.
+4. `RESOLVED`: a supported database lists a path with the executable's `(dev, inode)`.
+5. `NOT_FOUND`: the executable is still linked on disk, every supported database present
+   was read completely, and no listed path has its inode, even if an unsupported database is
+   also present.
+
+A closed `detail` vocabulary names the reason. Only `RESOLVED` carries a package. No state
+is ever filled in from the process name or the command line.
+
+**Wire.** `ExecutableOwnership` in `proto/agent/netprobe/v1` carries:
+- the resolution state and detail;
+- the package identity fields `EndpointPackageAssessmentIdentity` uses: `source_scope`,
+  `package_type`, `package_manager`, `namespace`, `release`, `ecosystem`,
+  `binary_package`, `source_package` and `architecture`;
+- the installed version;
+- provenance: the resolver, the executable path, `dev` and `inode`. The resolver names
+  which database answered (`dpkg`, `rpm` or `apk`) and is distinct from `package_type`
+  (`deb` for dpkg).
+
+Netprobe fills the identity fields from the database it read and from the root's
+`os-release`, mirroring the live endpoint inventory producer, the ScaLibr add-on
+(`go/pkg/scalibrinventory`), whose package URLs come from osv-scalibr. Those URLs carry a
+namespace (the os-release `ID`; rpm maps `sles` to `suse` and `mariner`/`azurelinux` to
+`azurelinux`) and a `distro` qualifier, so core's canonicalization keeps them; its
+debian/alpine/rpm namespace default applies only to a package URL without a namespace.
+
+| Database | `package_type`, `package_manager`, `ecosystem` | `namespace` | `release` | `binary_package` / `source_package` | `architecture` | Installed version |
+|---|---|---|---|---|---|---|
+| dpkg | `deb`, `dpkg`, empty | os-release `ID`, else `linux` | `VERSION_CODENAME`, else `VERSION_ID` | package name / the `Source` field's package name when present, else the binary name | `Architecture` | the status `Version` |
+| apk | `apk`, `apk`, empty | `ID`, else `alpine` | `VERSION_ID` | the lower-cased package name for both (apk URLs carry `origin`, not `source`) | `A` | the installed version |
+| rpm | `rpm`, `rpm`, empty | `ID` mapped `sles` to `suse` and `mariner`/`azurelinux` to `azurelinux`; empty when `ID` is unset (no default) | `<raw ID>-<VERSION_ID, else BUILD_ID>` when `ID` is set; the version alone when `ID` is empty; empty when both version fields are empty | package name / the binary name (rpm URLs carry `sourcerpm`, not `source`) | the rpm arch | `<version>-<release>` |
+
+`architecture` is empty only when the database records none, and `source_scope` follows the
+resolution rule above. `ecosystem` is empty because the endpoint inventory stores no
+ecosystem for OS packages, so the matcher hashes it as absent.
+
+Netprobe does not compute the `pkgid:v1:` key. Core does not match the reference against inventory rows. It derives
+`package_identity_key` by applying `EndpointPackageAssessmentIdentity` to the reference's
+identity fields, the same derivation the matcher applies to inventory packages. Before
+hashing, core treats every blank identity field (for example an empty `namespace`,
+`release`, `architecture`, `ecosystem` or `source_package`) as the absent component (nil),
+as the matcher's package-URL parse does. The
+installed version is evidence and is not part of the key, so an upgrade does not change the
+key. A reference whose derived key matches no assessment simply has no exposure facts.
+
+**Placement.** Until #5738 lands the lease and summary messages of
+`stream-flow-attribution-via-ownership-index`, netprobe attaches `ExecutableOwnership` to
+`FlowAttributionEvent` and `ProcessSnapshotEntry`, the current owner fields. Core carries it
+through the existing attribution path. #5738 moves the same message onto lease owner records
+and connection summary rows. Neither step adds a CNPG table.
+
+Language package managers (pip, npm and similar) are not consulted. They own scripts, not
+the executable the kernel runs, which is the interpreter from an OS package.
 
 ## Capacity model
 
@@ -827,10 +933,96 @@ Refresh budgets:
 | A rule's expected exporter misses a contact that another exporter reports | Network evidence is keyed by `exporter_ord`; the coverage-gap check counts only the rule's exporters, so the gap is still raised for the expected exporter. |
 | Watermark growth | Kept permanently (about 24 bytes per key ever seen). Deferred: revisit a retirement-scoped expiry if the key count exceeds the capacity model by an order of magnitude. |
 
+## Implementation record: matcher transitions and incremental matching (#5748, task 0.1)
+
+**Producer.** Triggers on `platform.endpoint_vulnerability_assessments` own the outbox, so
+every writer (matcher upsert, absence resolution, unconfirmed marking, Ash actions, row
+deletion) is covered in the transaction that changes the row:
+
+- a `BEFORE INSERT OR UPDATE` row trigger decides whether the write is a transition (the
+  actionable predicate is entered or left, or an actionable row's installed version, KEV,
+  exploit, CVSS, severity or fixed version changed) and, if so, draws `transition_seq` from
+  `platform.exposure_transition_seq` while the row is locked and stores it in the
+  trigger-owned column `last_transition_seq` (with `exposed_at`, the start of the current
+  actionable episode);
+- `AFTER` row triggers, which fire only for rows actually written, insert one
+  `platform.exposure_transition_outbox` row: the complete after-image as JSON
+  (`schema_version` 1), `transition_xid = pg_current_xact_id()`, the changed fields, the
+  reason (`entered_actionable`, `left_actionable`, `actionable_attributes_changed`,
+  `assessment_deleted`, `assessment_key_changed`) and the device, CVE, package and
+  package-version ordinals, allocated in that transaction;
+- deleting a row that was ever published (or is actionable) draws a new sequence, publishes
+  `resolved` and records `platform.exposure_fact_watermarks`; re-creating the key as
+  actionable deletes the watermark in the same transaction.
+
+Rows that were actionable before the outbox existed carry `last_transition_seq` NULL until
+their next transition. The snapshot (task 1.6) treats NULL as sequence 0, so any real
+transition supersedes it. `device_ord` is read from `platform.device_fleet_ordinals`
+without locking the device row; a device with no ordinal is published with `device_ord`
+null for the ingestion boundary to count and drop.
+
+**Transport.** `ExposureTransitionRelay` (a coordinator child) publishes outbox rows oldest
+first to `vulnerability.assessment.transitions.<bucket>`, where the bucket (0-15) hashes the
+device uid, with `Nats-Msg-Id = exposure-transition-<transition_seq>`, and deletes a row
+only after its PubAck. The relay creates the `EXPOSURE_TRANSITIONS` stream (limits, file,
+R1, `max_age` 7 days, 2-minute duplicate window, `max_bytes` from the JetStream sizing
+profile: 1 GiB small, 2 GiB medium, 8 GiB large, 32 MiB tenant-2g) when it starts and
+whenever a publish fails, and reconciles an existing stream's `max_bytes` to the profile
+size. It publishes `exposure_transition_outbox_oldest_age_seconds`,
+`exposure_transition_outbox_pending` and `exposure_transitions_relayed` on
+`metrics.exposure_transitions`, and records a health state change for
+`exposure_transition_outbox` when the oldest row crosses 10 minutes. The EventWriter
+consumer (task 1.4) attaches to this producer-owned stream; it must not create it.
+
+This delivers the producer-side parts of tasks 1.1 (the `transition_seq` sequence,
+`transition_xid` on outbox rows, `exposure_fact_watermarks`, the advisory, package and
+package-version dictionaries and the CVE ordinal function) and 1.3 (the transitions subject,
+its stream limits and the core publish permission). Device retirement (`retired_seq`,
+task 1.5), the snapshot (1.6) and the `exposure.dimensions.*` subjects remain open.
+
+**Incremental matching.** The hourly full recompute is replaced by a run every 5 minutes
+that evaluates only devices whose inputs changed:
+
+- triggers queue a device when any writer changes its current package rows, or advances its
+  current complete scan while one of its active assessments is unconfirmed;
+- triggers record an advisory when its content, coordinates or package assertions change;
+  the run maps changed advisories to devices through the matcher's own candidate-discovery
+  keys (PURL, vendor/product name, CPE vendor/product or `cpe_any`, Ubuntu product lookup
+  key, explicit source-package scope), stored per fleet-deduplicated endpoint package, plus
+  devices that already hold a match or assessment for an affected CVE;
+- promoting a feed generation re-evaluates the advisories whose assertions it made current,
+  because the loader rewrites changed advisories in place and promotion changes no row;
+- a full pass still runs on first start, every 24 hours, when the feed state (enabled set,
+  success and generation presence, assertion freshness) changes, or when more than 5,000
+  advisories changed at once.
+
+An inventory or advisory change therefore reaches the assessment, and its transition, within
+one run interval plus the run time. Evaluating each distinct package version once across
+the fleet (#5748 item 4) is not part of this change.
+
+**Measurements** (scratch CNPG database; synthetic fleets of 13 and 1,000 hosts with 1,000
+current packages each; server-side execution times, rounded):
+
+| Quantity | 13 hosts | 1,000 hosts |
+|---|---|---|
+| Devices evaluated per idle hour | 0 (was 13, hourly) | 0 (was 1,000, hourly) |
+| DB time of one idle run (5 small reads and the finding drain) | under 1 ms | under 1 ms |
+| Finding-drain read with nothing pending | under 1 ms (was about 1 ms) | under 1 ms (was about 130 ms, a full scan) |
+| Full pass: reading every current package | about 10 ms | about 0.2-0.3 s |
+| Full pass: unchanged assessment upsert, with / without the sequence trigger | about 25 / 15 ms | about 1.9 / 1.3 s (about 4 us per row) |
+| Transition write (outbox row and ordinals) | about 0.1 ms each | about 0.09 ms each (10k KEV flips: 0.55 s to 1.4 s) |
+| Change capture on a promoted 1,000-package scan | about 25 ms added | about 20-40 ms added |
+| 100 changed advisory keys to affected devices | about 2 ms | about 15 ms |
+
+Full passes drop from 24 a day to 1. The lab measurement in #5745 (about 50 s wall clock
+per 13-host pass, most of it outside the database) now applies once a day and, between full
+passes, only to the devices a change reaches. Elixir wall time was not re-measured here;
+the integration suite asserts which devices each run evaluates.
+
 ## Open Questions
 
-1. Approval to extend the StarRocks-required exception in `AGENTS.md` to exposure
-   intelligence and its host evidence (Decision 15).
+1. Resolved: the product owner approved the StarRocks-required exception for exposure
+   intelligence and its host evidence (Decision 15; task 0.9).
 2. EPSS availability. If neither feed payload carries EPSS (`add-cve-priority-context`,
    open question), `epss_score` is null and the `epss_score` filter returns an explicit
    `epss_unavailable` state. A dedicated EPSS feed would be a follow-on.

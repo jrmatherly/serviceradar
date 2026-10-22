@@ -5,6 +5,8 @@ defmodule ServiceRadarWebNG.FieldSurveySessionOwnership do
 
   alias ServiceRadar.Repo
 
+  Module.register_attribute(__MODULE__, :sobelow_skip, accumulate: true)
+
   @session_id_pattern ~r/\A[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}\z/
   # One row per survey. High enough for years of daily walks, finite so a
   # token cannot mint session ids without limit.
@@ -18,6 +20,8 @@ defmodule ServiceRadarWebNG.FieldSurveySessionOwnership do
           | {:error, :invalid_session_id | :forbidden | :too_many_sessions | term()}
   def claim_or_verify(session_id, user_id, opts \\ [])
 
+  # Both statements are constant SQL; session_id and user_id are always bound as $1 and $2.
+  @sobelow_skip ["SQL.Query"]
   def claim_or_verify(session_id, user_id, opts) when is_binary(session_id) and is_binary(user_id) and is_list(opts) do
     query = Keyword.get(opts, :query, &Repo.query/2)
 

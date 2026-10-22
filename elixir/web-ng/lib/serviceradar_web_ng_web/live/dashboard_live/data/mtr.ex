@@ -3,6 +3,8 @@ defmodule ServiceRadarWebNGWeb.DashboardLive.Data.Mtr do
 
   alias ServiceRadarWebNGWeb.DiagnosticsLive.MtrWarehouse
 
+  Module.register_attribute(__MODULE__, :sobelow_skip, accumulate: true)
+
   @doc """
   The MTR card's summary row from the warehouse, or `:cnpg` when StarRocks is
   not enabled and the caller should run its CNPG query instead.
@@ -129,6 +131,8 @@ defmodule ServiceRadarWebNGWeb.DashboardLive.Data.Mtr do
     end
   end
 
+  # Constant SQL; the only input, cutoff, is a server-computed DateTime bound as $1.
+  @sobelow_skip ["SQL.Query"]
   defp timeseries_definitions do
     quote do
       defp mtr_timeseries_summary(time_window) do

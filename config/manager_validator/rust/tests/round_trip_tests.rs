@@ -6,8 +6,8 @@
 //! that source -- which is the property that starts carrying weight the moment the binary is
 //! copied into a release artifact's priv/ rather than read out of bazel-bin.
 
-use serviceradar_config_validator::text::{flatten, Pair};
-use serviceradar_config_validator::utils_tests::{read, INSTANCES};
+use serviceradar_config_validator::text::{Pair, flatten};
+use serviceradar_config_validator::utils_tests::{INSTANCES, read};
 
 fn committed(name: &str) -> Vec<Pair> {
     let src = read(&format!("config/environments/{name}.textproto"));
@@ -71,7 +71,10 @@ fn a_binary_built_from_a_different_source_is_rejected() {
 #[ignore = "needs artifacts built by Bazel (protoc-compiled .binpb); run //config/manager_validator/rust/tests, which passes --include-ignored"]
 fn comments_and_blank_lines_do_not_affect_the_comparison() {
     let plain = flatten("a: 1\nb { c: \"x\" }\n");
-    assert!(plain.is_err(), "inline braces are not emitted by protoc and are not accepted");
+    assert!(
+        plain.is_err(),
+        "inline braces are not emitted by protoc and are not accepted"
+    );
 
     let with_noise = flatten("# lead\n\na: 1\n\nb {\n  c: \"x\"  # trailing\n}\n").unwrap();
     let without = flatten("a: 1\nb {\n  c: \"x\"\n}\n").unwrap();
