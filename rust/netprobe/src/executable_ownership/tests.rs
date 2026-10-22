@@ -329,7 +329,7 @@ fn unowned_executable_is_not_found_and_names_no_package() {
 }
 
 #[test]
-fn unsupported_and_incomplete_databases_are_never_reported_as_unowned() {
+fn unsupported_and_incomplete_databases_are_reported_by_precedence() {
     let cases: [PrecedenceCase; 5] = [
         (
             "berkeleydb",
@@ -342,6 +342,23 @@ fn unsupported_and_incomplete_databases_are_never_reported_as_unowned() {
             |root| write(&root.join("var/lib/rpm/Packages.db"), b"\0\0\0\0"),
             OwnershipState::UnsupportedDb,
             DETAIL_RPM_NDB,
+        ),
+        (
+            "dpkg read with a leftover berkeleydb",
+            |root| {
+                dpkg(
+                    root,
+                    &[(
+                        "example-docs",
+                        "1.0-1",
+                        "example-docs",
+                        &["/usr/share/doc/example/README"],
+                    )],
+                );
+                write(&root.join("var/lib/rpm/Packages"), b"\0\0\0\0");
+            },
+            OwnershipState::NotFound,
+            DETAIL_NOT_OWNED,
         ),
         (
             "wal pending",
@@ -358,25 +375,6 @@ fn unsupported_and_incomplete_databases_are_never_reported_as_unowned() {
             |_| {},
             OwnershipState::Unknown,
             DETAIL_NO_PACKAGE_DATABASE,
-        ),
-        (
-            // A supported database that does not own the inode never turns an
-            // unsupported one into "not owned".
-            "dpkg present but not owning, berkeleydb present",
-            |root| {
-                dpkg(
-                    root,
-                    &[(
-                        "example-tools",
-                        "1.0-1",
-                        "example-tools",
-                        &["/usr/bin/example-tool"],
-                    )],
-                );
-                write(&root.join("var/lib/rpm/Packages"), b"\0\0\0\0");
-            },
-            OwnershipState::UnsupportedDb,
-            DETAIL_RPM_BERKELEYDB,
         ),
     ];
     for (name, setup, state, detail) in cases {
