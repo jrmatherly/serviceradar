@@ -1,0 +1,22 @@
+# Overlay for arm64 hosts (Apple Silicon). Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.arm64.yml up -d
+# or set COMPOSE_FILE=docker-compose.yml:docker-compose.arm64.yml in .env.
+#
+# The cnpg, core-elx and web-ng images are published for amd64 only, so they
+# run under emulation. The BEAM JIT's double-mapped code memory does not work
+# under Rosetta: the prim_tty NIF never loads and the VM halts at boot with
+# `{failed_to_start_child,user,nouser}`. `+JMsingle true` maps JIT code once.
+
+x-beam-amd64: &beam-amd64
+  platform: linux/amd64
+  environment:
+    ELIXIR_ERL_OPTIONS: "${ELIXIR_ERL_OPTIONS:-+fnu} +JMsingle true"
+
+services:
+  cnpg:
+    platform: linux/amd64
+  cnpg-app-bootstrap:
+    platform: linux/amd64
+  core-elx-migrations: *beam-amd64
+  core-elx: *beam-amd64
+  web-ng: *beam-amd64
