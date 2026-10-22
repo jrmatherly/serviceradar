@@ -267,28 +267,28 @@ defmodule ServiceRadarWebNG.NetworkCredentials do
   end
 
   defp maybe_filter_provider(query, filters) do
-    case filter_string(filters, "provider") do
+    case filter_string(filters, :provider) do
       nil -> query
       value -> Ash.Query.filter(query, provider == ^value)
     end
   end
 
   defp maybe_filter_name(query, filters) do
-    case filter_string(filters, "name") do
+    case filter_string(filters, :name) do
       nil -> query
       value -> Ash.Query.filter(query, name == ^value)
     end
   end
 
   defp maybe_filter_scope_type(query, filters) do
-    case filter_string(filters, "scope_type") do
+    case filter_string(filters, :scope_type) do
       nil -> query
       value -> Ash.Query.filter(query, scope_type == ^value)
     end
   end
 
   defp maybe_filter_scope_value(query, filters) do
-    case filter_string(filters, "scope_value") do
+    case filter_string(filters, :scope_value) do
       nil -> query
       value -> Ash.Query.filter(query, scope_value == ^value)
     end
@@ -304,8 +304,8 @@ defmodule ServiceRadarWebNG.NetworkCredentials do
     end
   end
 
-  defp filter_string(filters, key) do
-    value = Map.get(filters, key) || Map.get(filters, String.to_atom(key))
+  defp filter_string(filters, key) when is_atom(key) do
+    value = Map.get(filters, Atom.to_string(key)) || Map.get(filters, key)
 
     if is_binary(value) and String.trim(value) != "" do
       String.trim(value)

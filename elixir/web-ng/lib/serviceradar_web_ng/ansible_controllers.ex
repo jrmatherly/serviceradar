@@ -136,14 +136,14 @@ defmodule ServiceRadarWebNG.AnsibleControllers do
   end
 
   defp maybe_filter_name(query, filters) do
-    case filter_string(filters, "name") do
+    case filter_string(filters, :name) do
       nil -> query
       value -> Ash.Query.filter(query, name == ^value)
     end
   end
 
   defp maybe_filter_agent_id(query, filters) do
-    case filter_string(filters, "agent_id") do
+    case filter_string(filters, :agent_id) do
       nil -> query
       value -> Ash.Query.filter(query, agent_id == ^value)
     end
@@ -159,8 +159,8 @@ defmodule ServiceRadarWebNG.AnsibleControllers do
     end
   end
 
-  defp filter_string(filters, key) do
-    value = Map.get(filters, key) || Map.get(filters, String.to_atom(key))
+  defp filter_string(filters, key) when is_atom(key) do
+    value = Map.get(filters, Atom.to_string(key)) || Map.get(filters, key)
 
     if is_binary(value) and String.trim(value) != "" do
       String.trim(value)

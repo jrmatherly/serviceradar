@@ -1086,8 +1086,12 @@ defmodule ServiceRadarWebNGWeb.DiagnosticsLive.MtrData do
   defp cnpg_condition({:time_range, start_dt, end_dt}, idx, prefix),
     do: {"#{prefix}time >= $#{idx} AND #{prefix}time < $#{idx + 1}", [start_dt, end_dt]}
 
-  defp cnpg_column(prefix, field), do: prefix <> Map.get(@safe_filter_columns, field, field)
+  # Fail closed: a field missing from the allowlist raises rather than reaching the SQL text.
+  defp cnpg_column(prefix, field), do: prefix <> Map.fetch!(@safe_filter_columns, field)
 
+  # Column names and ORDER BY come only from @safe_filter_columns / @allowed_sort_fields or literals;
+  # every user value is a bound $n parameter.
+  @sobelow_skip ["SQL.Query"]
   defp cnpg_query(opts), do: Keyword.get(opts, :cnpg_query, &Repo.query/2)
 
   defp rows_to_maps({:ok, %{rows: rows, columns: columns}}),

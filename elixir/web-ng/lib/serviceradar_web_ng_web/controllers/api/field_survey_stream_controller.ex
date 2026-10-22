@@ -51,7 +51,6 @@ defmodule ServiceRadarWebNGWeb.Api.FieldSurveyStreamController do
              {:ok, artifact} <-
                FieldSurveyRoomArtifacts.store(session_id, to_string(user_id), body,
                  artifact_type: artifact_type,
-                 content_type: content_type,
                  captured_at: captured_at(conn),
                  metadata: artifact_metadata(conn),
                  scope: scope

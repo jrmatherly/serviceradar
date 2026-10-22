@@ -57,6 +57,9 @@ defmodule ServiceRadarWebNGWeb.Router do
                   "base-uri 'self'; " <>
                   "form-action 'self'"
 
+  # Config.CSP: the pipeline passes @csp to put_secure_browser_headers (sobelow cannot resolve the
+  # attribute); Plugs.SecurityHeaders csp_mode decides enforce vs report-only.
+  # sobelow_skip ["Config.CSP"]
   pipeline :browser do
     plug(:accepts, ["html"])
     plug(:fetch_session)
@@ -81,6 +84,11 @@ defmodule ServiceRadarWebNGWeb.Router do
   # assertion replay ledger (see SAMLController). Also excluded: GatewayAuth and
   # the current-user plugs, which need a session this request does not have.
   # The session is still fetched so a successful login can write one.
+  # Config.CSRF: the SAML HTTP-POST binding cannot carry a Phoenix token; the one-use RelayState,
+  # InResponseTo match and replay ledger above replace it.
+  # Config.CSP: the pipeline passes @csp to put_secure_browser_headers (sobelow cannot resolve the
+  # attribute); Plugs.SecurityHeaders csp_mode decides enforce vs report-only.
+  # sobelow_skip ["Config.CSRF", "Config.CSP"]
   pipeline :saml_acs do
     plug(:accepts, ["html"])
     plug(:fetch_session)
@@ -91,6 +99,11 @@ defmodule ServiceRadarWebNGWeb.Router do
 
   # Authenticated browser pipeline without content negotiation.
   # Used for binary endpoints where clients may send non-HTML Accept headers.
+  # Config.CSRF: GET-only static assets and websocket upgrades, and require_same_origin_websocket
+  # rejects an upgrade whose Origin is not this host.
+  # Config.CSP: the pipeline passes @csp to put_secure_browser_headers (sobelow cannot resolve the
+  # attribute); Plugs.SecurityHeaders csp_mode decides enforce vs report-only.
+  # sobelow_skip ["Config.CSRF", "Config.CSP"]
   pipeline :browser_raw_auth do
     plug(:fetch_session)
     plug(:fetch_live_flash)
@@ -113,6 +126,11 @@ defmodule ServiceRadarWebNGWeb.Router do
   # Topology HTTP clients need JSON auth failures for both binary snapshots and
   # revision metadata. The controller checks scope and permission after these
   # session plugs; ordinary browser routes retain their login redirects.
+  # Config.CSRF: every POST on this pipeline also pipes through :topology_mutation
+  # (protect_from_forgery).
+  # Config.CSP: the pipeline passes @csp to put_secure_browser_headers (sobelow cannot resolve the
+  # attribute); Plugs.SecurityHeaders csp_mode decides enforce vs report-only.
+  # sobelow_skip ["Config.CSRF", "Config.CSP"]
   pipeline :topology_api do
     plug(:fetch_session)
     plug(:put_secure_browser_headers, %{"content-security-policy" => @csp, "cache-control" => "no-store"})
@@ -136,6 +154,10 @@ defmodule ServiceRadarWebNGWeb.Router do
   # `require_authenticated_user` redirects unauthenticated browsers to log in.
   # The SwaggerUI mounted on this pipeline is configured as an RBAC-backed API
   # console — see the `/api/v2/swaggerui` route below.
+  # Config.CSP: the pipeline passes @api_docs_csp to put_secure_browser_headers;
+  # Plugs.SecurityHeaders
+  # csp_mode decides enforce vs report-only.
+  # sobelow_skip ["Config.CSP"]
   pipeline :api_docs_ui do
     plug(:accepts, ["html"])
     plug(:fetch_session)
@@ -155,6 +177,9 @@ defmodule ServiceRadarWebNGWeb.Router do
   # accepts either a browser session cookie (used by the in-app SwaggerUI console)
   # or an `Authorization: Bearer` token, and `require_authenticated_user_api`
   # returns a 401 JSON body (rather than an HTML redirect) for anonymous callers.
+  # Config.CSRF: its one route is GET /api/v2/open_api, which changes no state, and no CORS lets
+  # another origin read the response.
+  # sobelow_skip ["Config.CSRF"]
   pipeline :api_docs_spec do
     plug(:accepts, ["json"])
     plug(SecurityHeaders)
@@ -249,6 +274,9 @@ defmodule ServiceRadarWebNGWeb.Router do
   # a mail client while buying nothing (an attacker who could forge the
   # submission would need the token to address it, and holding it could POST
   # directly). HTML rather than JSON, because a human clicked a link.
+  # Config.CSP: the pipeline passes @csp to put_secure_browser_headers (sobelow cannot resolve the
+  # attribute); Plugs.SecurityHeaders csp_mode decides enforce vs report-only.
+  # sobelow_skip ["Config.CSP"]
   pipeline :notification_action do
     plug(:accepts, ["html"])
     plug(:put_root_layout, html: {ServiceRadarWebNGWeb.Layouts, :root})
@@ -1127,6 +1155,9 @@ defmodule ServiceRadarWebNGWeb.Router do
 
   ## Authenticated routes
 
+  # sobelow Config.CSRFRoute, accepted in .sobelow-skips: show, details and search are read-only.
+  # Their POST twins exist only to carry large selection bodies and pipe through
+  # :topology_mutation (protect_from_forgery).
   scope "/topology/snapshot", ServiceRadarWebNGWeb do
     pipe_through([:topology_api])
 

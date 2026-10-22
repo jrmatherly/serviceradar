@@ -20,6 +20,8 @@ defmodule ServiceRadarWebNG.Dashboards.DefinitionLoader do
 
   require Logger
 
+  Module.register_attribute(__MODULE__, :sobelow_skip, accumulate: true)
+
   @definition_dir "dashboards"
 
   @doc "Directory holding the shipped definitions."
@@ -111,6 +113,9 @@ defmodule ServiceRadarWebNG.Dashboards.DefinitionLoader do
     end
   end
 
+  # path is priv/dashboards joined with an index.json entry that ReportIndex.entry_path/2 normalizes
+  # (no leading /, no .., no backslash or NUL); no request input reaches it.
+  @sobelow_skip ["Traversal.FileModule"]
   defp read_file(path, source) do
     case File.read(path) do
       {:ok, body} -> {:ok, body}

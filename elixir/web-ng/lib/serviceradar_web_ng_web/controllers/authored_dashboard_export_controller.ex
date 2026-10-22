@@ -22,10 +22,10 @@ defmodule ServiceRadarWebNGWeb.AuthoredDashboardExportController do
         |> send_resp(200, Jason.encode!(definition, pretty: true))
 
       {:error, :not_found} ->
-        send_resp(conn, 404, "Dashboard not found")
+        conn |> put_status(404) |> text("Dashboard not found")
 
       {:error, reason} ->
-        send_resp(conn, 422, "Could not export dashboard: #{format_error(reason)}")
+        conn |> put_status(422) |> text("Could not export dashboard: #{format_error(reason)}")
     end
   end
 
@@ -51,10 +51,10 @@ defmodule ServiceRadarWebNGWeb.AuthoredDashboardExportController do
       |> stream_csv(preview)
     else
       {:error, :not_found} ->
-        send_resp(conn, 404, "Dashboard panel not found")
+        conn |> put_status(404) |> text("Dashboard panel not found")
 
       {:error, reason} ->
-        send_resp(conn, 422, "Could not export panel CSV: #{format_error(reason)}")
+        conn |> put_status(422) |> text("Could not export panel CSV: #{format_error(reason)}")
     end
   end
 
@@ -78,8 +78,9 @@ defmodule ServiceRadarWebNGWeb.AuthoredDashboardExportController do
       {:ok, _other} ->
         {:error, :invalid_variables}
 
-      {:error, reason} ->
-        {:error, reason}
+      # A decode error carries the raw parameter; report the class, not the bytes.
+      {:error, %Jason.DecodeError{}} ->
+        {:error, :invalid_variables}
     end
   end
 
@@ -134,6 +135,7 @@ defmodule ServiceRadarWebNGWeb.AuthoredDashboardExportController do
     end
   end
 
+  # Error bodies go out through text/2 (text/plain) because format_error/1 can echo query text.
   defp format_error(reason) when is_binary(reason), do: reason
   defp format_error(reason), do: inspect(reason)
 end

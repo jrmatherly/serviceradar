@@ -8,6 +8,8 @@ defmodule ServiceRadarWebNGWeb.PluginResults do
 
   require Logger
 
+  Module.register_attribute(__MODULE__, :sobelow_skip, accumulate: true)
+
   attr :display, :list, default: []
   attr :fallback, :map, default: %{}
 
@@ -224,6 +226,9 @@ defmodule ServiceRadarWebNGWeb.PluginResults do
   attr :content, :string, required: true
 
   @doc "Renders Markdown using the same HTML and URL safety policy as plugin results."
+  # MDEx renders with escape: true / unsafe: false, so raw HTML in the source is escaped, and
+  # sanitize_rendered_markdown/1 allowlists href/src schemes and drops on* attributes before raw/1.
+  @sobelow_skip ["XSS.Raw"]
   def markdown(assigns) do
     assigns = assign(assigns, :html, markdown_to_html(assigns.content))
 

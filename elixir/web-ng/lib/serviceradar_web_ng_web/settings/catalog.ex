@@ -1707,6 +1707,13 @@ defmodule ServiceRadarWebNGWeb.Settings.Catalog do
     |> Enum.map(fn [%{subgroup: subgroup} | _] = chunk -> %{subgroup: subgroup, views: chunk} end)
   end
 
+  # Palette ids for tabs, built at compile time from @views so palette_index/1 never
+  # constructs atoms at runtime.
+  @tab_palette_ids for view <- @views,
+                       tab <- Map.get(view, :tabs, []),
+                       into: %{},
+                       do: {{view.id, tab.id}, :"#{view.id}_#{tab.id}"}
+
   @doc """
   Flattened palette index for the Ctrl+K command palette, over the views visible
   to `scope` (including nav-hidden but deep-linkable views) and their visible
@@ -1740,7 +1747,7 @@ defmodule ServiceRadarWebNGWeb.Settings.Catalog do
         |> visible_tabs(view)
         |> Enum.map(fn tab ->
           %{
-            id: :"#{view.id}_#{tab.id}",
+            id: Map.fetch!(@tab_palette_ids, {view.id, tab.id}),
             parent_view_id: view.id,
             tab_id: tab.id,
             category_title: category_title,

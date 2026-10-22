@@ -9,13 +9,18 @@ defmodule ServiceRadarWebNG.FieldSurveyRoomArtifacts do
 
   require Ash.Changeset
 
-  @allowed_artifact_types MapSet.new(["roomplan_usdz", "floorplan_geojson", "point_cloud_ply"])
+  # The one place an artifact type maps to its file extension and Content-Type. The
+  # uploader's Content-Type header is never stored or served: it is client-controlled.
+  @artifact_formats %{
+    "roomplan_usdz" => {"usdz", "model/vnd.usdz+zip"},
+    "floorplan_geojson" => {"geojson", "application/geo+json"},
+    "point_cloud_ply" => {"ply", "application/octet-stream"}
+  }
+  @unknown_format {"bin", "application/octet-stream"}
   @default_artifact_type "roomplan_usdz"
-  @default_content_type "application/octet-stream"
 
   @type store_opts :: [
           artifact_type: String.t() | nil,
-          content_type: String.t() | nil,
           captured_at: DateTime.t() | nil,
           metadata: map(),
           scope: any()
@@ -28,7 +33,7 @@ defmodule ServiceRadarWebNG.FieldSurveyRoomArtifacts do
   def store(session_id, user_id, payload, opts)
       when is_binary(session_id) and is_binary(user_id) and is_binary(payload) do
     artifact_type = normalize_artifact_type(Keyword.get(opts, :artifact_type))
-    content_type = normalize_content_type(Keyword.get(opts, :content_type))
+    {_extension, content_type} = format(artifact_type)
     object_id = Ecto.UUID.generate()
     object_key = object_key(session_id, artifact_type, object_id)
     byte_size = byte_size(payload)
@@ -56,6 +61,10 @@ defmodule ServiceRadarWebNG.FieldSurveyRoomArtifacts do
   end
 
   def store(_session_id, _user_id, _payload, _opts), do: {:error, :invalid_artifact}
+
+  @doc "The file extension and Content-Type for an artifact type."
+  @spec format(String.t()) :: {String.t(), String.t()}
+  def format(artifact_type), do: Map.get(@artifact_formats, artifact_type, @unknown_format)
 
   @spec fetch(String.t()) :: {:ok, binary()} | {:error, term()}
   def fetch(object_key), do: FieldSurveyArtifactStore.fetch_blob(object_key)
@@ -86,7 +95,7 @@ defmodule ServiceRadarWebNG.FieldSurveyRoomArtifacts do
   defp normalize_artifact_type(artifact_type) when is_binary(artifact_type) do
     artifact_type = String.trim(artifact_type)
 
-    if MapSet.member?(@allowed_artifact_types, artifact_type) do
+    if Map.has_key?(@artifact_formats, artifact_type) do
       artifact_type
     else
       @default_artifact_type
@@ -94,21 +103,6 @@ defmodule ServiceRadarWebNG.FieldSurveyRoomArtifacts do
   end
 
   defp normalize_artifact_type(_), do: @default_artifact_type
-
-  defp normalize_content_type(nil), do: @default_content_type
-
-  defp normalize_content_type(content_type) when is_binary(content_type) do
-    content_type
-    |> String.split(";", parts: 2)
-    |> hd()
-    |> String.trim()
-    |> case do
-      "" -> @default_content_type
-      normalized -> normalized
-    end
-  end
-
-  defp normalize_content_type(_), do: @default_content_type
 
   defp sanitize_segment(segment) when is_binary(segment) do
     segment

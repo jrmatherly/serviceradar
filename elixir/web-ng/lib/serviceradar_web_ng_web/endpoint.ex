@@ -38,6 +38,9 @@ defmodule ServiceRadarWebNGWeb.Endpoint do
     secure: Application.compile_env(:serviceradar_web_ng, [:session, :secure], false)
   ]
 
+  # sobelow Config.CSWH, accepted in .sobelow-skips: both sockets authenticate only from the
+  # cookie session, Phoenix attaches it only when the _csrf_token connect param validates
+  # (check_csrf defaults to true), and runtime.exs sets check_origin to :conn.
   socket "/live", Phoenix.LiveView.Socket,
     websocket: [connect_info: [session: @session_options, uri: true]],
     longpoll: [connect_info: [session: @session_options, uri: true]]
@@ -60,6 +63,8 @@ defmodule ServiceRadarWebNGWeb.Endpoint do
   # Code reloading can be explicitly enabled under the
   # :code_reloader configuration of your endpoint.
   if code_reloading? do
+    # sobelow Config.CSWH, accepted in .sobelow-skips: compiled in only when code_reloading?
+    # is set, which only config/dev.exs does.
     socket "/phoenix/live_reload/socket", Phoenix.LiveReloader.Socket
     plug Phoenix.LiveReloader
     plug Phoenix.CodeReloader
