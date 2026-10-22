@@ -13,12 +13,6 @@ on:
         description: "Image tag to publish, for example v1.0.25.1-fork.1."
         required: true
         type: string
-  # TEMPORARY (remove before merge): a dispatch-only workflow is not registered
-  # until it exists on the default branch, so the first build runs on push to the
-  # branch that introduces it.
-  push:
-    branches: [fork-ci-refactor]
-    paths: ['.github/workflows/rbe-executor-image.yml']
 
 permissions:
   contents: read

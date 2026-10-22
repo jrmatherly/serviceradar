@@ -33,10 +33,6 @@ jobs:
       BAZELISK_HOME: ${{ github.workspace }}/.cache/bazelisk
       GH_TOKEN: ${{ github.token }}
       GITHUB_TOKEN: ${{ github.token }}
-      # Wasm upload signatures: a fork-owned Ed25519 key unless OpenBao signing is enabled.
-      PLUGIN_UPLOAD_SIGNING_PRIVATE_KEY: ${{ secrets.PLUGIN_UPLOAD_SIGNING_PRIVATE_KEY }}
-      PLUGIN_UPLOAD_SIGNING_KEY_ID: ${{ secrets.PLUGIN_UPLOAD_SIGNING_KEY_ID }}
-      PLUGIN_UPLOAD_SIGNING_SIGNER: ${{ secrets.PLUGIN_UPLOAD_SIGNING_SIGNER }}
       # github.com/carverauto/* modules (serviceradar-sdk-go and friends) are
       # not served via the public Go proxy or checksum database, so every Go
       # module resolution in this job fetches them directly from GitHub. Keep
@@ -179,6 +175,10 @@ jobs:
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
           COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
           OPENBAO_SIGNING_ALLOWED_REFS_REGEX: '^refs/tags/v.*$'
+          # Wasm upload signatures: a fork-owned Ed25519 key unless OpenBao signing is enabled.
+          PLUGIN_UPLOAD_SIGNING_PRIVATE_KEY: ${{ secrets.PLUGIN_UPLOAD_SIGNING_PRIVATE_KEY }}
+          PLUGIN_UPLOAD_SIGNING_KEY_ID: ${{ secrets.PLUGIN_UPLOAD_SIGNING_KEY_ID }}
+          PLUGIN_UPLOAD_SIGNING_SIGNER: ${{ secrets.PLUGIN_UPLOAD_SIGNING_SIGNER }}
           COSIGN_YES: "true"
           COSIGN_DOCKER_MEDIA_TYPES: "1"
         run: |
@@ -199,6 +199,8 @@ jobs:
           # right before each phase that uses Transit (upload signatures,
           # cosign signing, cosign verification), so no phase inherits a token
           # an earlier phase has already aged.
+          # Ref allowlist applies to every signing backend, not only OpenBao.
+          [[ "${GITHUB_REF}" =~ ${OPENBAO_SIGNING_ALLOWED_REFS_REGEX} ]] || { echo "Signing is not allowed for ref '${GITHUB_REF}'" >&2; exit 1; }
           if [[ "${OPENBAO_SIGNING_ENABLED}" == "true" ]]; then source ./scripts/ci/prepare-openbao-cosign-env.sh; fi
           if [[ -z "${PLUGIN_UPLOAD_SIGNING_TRANSIT_KEY:-}" && -z "${PLUGIN_UPLOAD_SIGNING_PRIVATE_KEY:-}" ]]; then
             echo "Missing Wasm upload signing: set PLUGIN_UPLOAD_SIGNING_TRANSIT_KEY or PLUGIN_UPLOAD_SIGNING_PRIVATE_KEY." >&2

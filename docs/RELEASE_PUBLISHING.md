@@ -1,13 +1,16 @@
 # Publishing ServiceRadar Releases with GitHub Actions and Bazel
 
-ServiceRadar releases are published to the CarverAuto Harbor registry and
-GitHub Releases. Tag-gated package, image, native add-on, Wasm plugin, and
-security workflows live under `.github/workflows/` and run on in-cluster ARC
-runners (`serviceradar-signing` for publish/sign, `arc-runner-set` for lint
-and checks). The supported workflow is tag gated: a `v*` tag starts the
-image/package release together with the native add-on, Wasm plugin and
-source-security workflows. Image security starts after publication produces
-the images and draft release, so a delayed publisher cannot exhaust its wait.
+ServiceRadar releases are published to the registry named by the `OCI_REGISTRY`
+and `OCI_PROJECT` repository variables (GHCR, `ghcr.io/<owner>`, by default)
+and to GitHub Releases. Tag-gated package, image, native add-on, Wasm plugin,
+and security workflows live under `.github/workflows/` and run on GitHub-hosted
+runners; Bazel builds execute remotely on BuildBuddy Cloud (see
+`docs/fork-ci.md` for the variables and secrets involved). Nothing publishes
+until the repository variable `PUBLISH_ENABLED` is `true`. The supported
+workflow is tag gated: a `v*` tag starts the image/package release together
+with the native add-on, Wasm plugin and source-security workflows. Image
+security starts after publication produces the images and draft release, so a
+delayed publisher cannot exhaust its wait.
 
 The primary workflow is `.github/workflows/release.yml`. It:
 
@@ -100,8 +103,8 @@ for the operator to run.
 Use the repository's authenticated `gh` client:
 
 ```bash
-gh run list --repo carverauto/serviceradar --branch v1.4.10
-gh release view v1.4.10 --repo carverauto/serviceradar
+gh run list --repo jrmatherly/serviceradar --branch v1.4.10
+gh release view v1.4.10 --repo jrmatherly/serviceradar
 ```
 
 The tag starts four release workflows:
@@ -173,20 +176,32 @@ prune and self-heal off. Image Updater stays disabled. Do not patch
 
 ## CI Prerequisites
 
+Repository variables: `PUBLISH_ENABLED=true`, and optionally `OCI_REGISTRY` /
+`OCI_PROJECT` (default `ghcr.io` / the repository owner), `BUILDBUDDY_ENDPOINT`
+/ `BUILDBUDDY_APP_URL`, `MACOS_SIGNING_ENABLED`, `LARGE_INGESTION_GATE_ENABLED`,
+`OPENBAO_SIGNING_ENABLED`, `DEMO_RELEASE_BRANCH_ENABLED`.
+
 The GitHub `release` environment must provide:
 
-- Harbor robot credentials (`HARBOR_ROBOT_USERNAME` / `HARBOR_ROBOT_SECRET`)
-- BuildBuddy credentials used by remote Bazel builds
-- the release signing identity and OpenBao Transit access (in-cluster
-  `github-signing-runner` Kubernetes auth)
-- the managed-agent Ed25519 release key
-- Wasm upload signatures come from OpenBao Transit (`plugin-upload-signing`),
-  not a long-lived private key in Actions secrets
+- `BUILDBUDDY_API_KEY` (or a release-scoped `BUILDBUDDY_ORG_API_KEY`) for
+  remote Bazel builds
+- `COSIGN_PRIVATE_KEY` and `COSIGN_PASSWORD`: the fork's cosign key, whose
+  public half is committed as `docs/cosign.pub` (and mirrored in
+  `elixir/web-ng/config/config.exs` and the Helm values)
+- `SERVICERADAR_AGENT_RELEASE_PRIVATE_KEY`: the managed-agent Ed25519 release
+  key (base64 or hex seed), whose public half is committed as
+  `go/pkg/agent/release_signing_key.txt`
+- `PLUGIN_UPLOAD_SIGNING_PRIVATE_KEY`, `PLUGIN_UPLOAD_SIGNING_KEY_ID`,
+  `PLUGIN_UPLOAD_SIGNING_SIGNER` for Wasm upload signatures
+- optionally `OCI_USERNAME` / `OCI_TOKEN` (both or neither) for a registry other
+  than GHCR, `CHART_OCI_USERNAME` / `CHART_OCI_TOKEN` for a dedicated chart
+  publisher, `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` to lift Docker Hub's
+  anonymous pull limit, and the `MACOS_*` signing secrets
 
-Do not print these values or URLs containing embedded credentials. The
-`serviceradar-signing` runner label is reserved for signing/publishing work;
-catalog finalization should not hold that runner while waiting for parallel
-workflows.
+OpenBao Transit signing (upstream's path) is available when
+`OPENBAO_SIGNING_ENABLED` is `true` and the runner can reach the vault.
+
+Do not print these values or URLs containing embedded credentials.
 
 ## Recovery
 
@@ -199,7 +214,7 @@ build remains an optional publish dependency: its failure must not prevent
 the successful Linux/image and Windows artifacts from being published.
 
 Wasm plugin recovery is GitHub Actions: rerun **Publish Wasm Plugins** at the
-release tag (`runs-on: serviceradar-signing`). `make push_all_release` covers
+release tag. `make push_all_release` covers
 container images and Wasm plugins only; it does not publish the Helm chart,
 packages, managed-agent manifest, or native add-on catalog, so it must not be
 treated as a complete formal release.

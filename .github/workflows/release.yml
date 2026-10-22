@@ -800,6 +800,8 @@ jobs:
           if [[ -n "${RELEASE_TAG}" ]]; then
             verify_tags+=("${RELEASE_TAG}")
           fi
+          # Ref allowlist applies to every signing backend, not only OpenBao.
+          [[ "${GITHUB_REF}" =~ ${OPENBAO_SIGNING_ALLOWED_REFS_REGEX} ]] || { echo "Signing is not allowed for ref '${GITHUB_REF}'" >&2; exit 1; }
           if [[ "${OPENBAO_SIGNING_ENABLED}" == "true" ]]; then source ./scripts/ci/prepare-openbao-cosign-env.sh; fi
           sign_script="./scripts/sign-oci-publish.sh"
           if [[ -x "${RUNNER_TEMP}/sign-oci-publish.sh" ]]; then

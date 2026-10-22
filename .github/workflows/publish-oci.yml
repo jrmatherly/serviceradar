@@ -269,6 +269,8 @@ jobs:
           if [[ -n "${EXTRA_TAG}" ]]; then
             verify_tags+=("${EXTRA_TAG}")
           fi
+          # Ref allowlist applies to every signing backend, not only OpenBao.
+          [[ "${GITHUB_REF}" =~ ${OPENBAO_SIGNING_ALLOWED_REFS_REGEX} ]] || { echo "Signing is not allowed for ref '${GITHUB_REF}'" >&2; exit 1; }
           if [[ "${OPENBAO_SIGNING_ENABLED}" == "true" ]]; then source ./scripts/ci/prepare-openbao-cosign-env.sh; fi
           # Sign what the registry holds under this commit's tag, as release.yml does.
           # Without the tag the signer reads image digests out of `bazel info bazel-bin`,

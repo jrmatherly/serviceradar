@@ -5,7 +5,7 @@ ServiceRadar generates SBOMs and vulnerability reports in GitHub Actions using:
 - **Syft** for SPDX SBOM generation
 - **OSV-Scanner** for vulnerability detection
 - **GitHub Actions** for automation
-- **Harbor** for published container images
+- the OCI registry named by `OCI_REGISTRY`/`OCI_PROJECT` (GHCR by default) for published container images
 
 Trivy is intentionally not part of this workflow.
 
@@ -34,7 +34,7 @@ For tagged releases, it uploads a bundled archive named:
 ### 2. Image Security Scan
 **Workflow:** `.github/workflows/image-security.yml`
 
-This workflow scans the released Harbor images for a given tag and generates, for each publishable image:
+This workflow scans the released images for a given tag and generates, for each publishable image:
 
 - SPDX JSON SBOM
 - human-readable text SBOM
@@ -51,10 +51,10 @@ For releases, it uploads a bundled archive named:
 
 ## Registry Paths
 
-Container images are scanned from Harbor, not GHCR:
+Container images are scanned from the publish registry:
 
 ```text
-registry.carverauto.dev/serviceradar/<image>:<tag>
+${OCI_REGISTRY}/${OCI_PROJECT}/<image>:<tag>   (ghcr.io/jrmatherly/<image>:<tag> by default)
 ```
 
 The image list is derived from:
@@ -84,9 +84,9 @@ osv-scanner scan source -r . \
   --output-file serviceradar-source.osv.json
 ```
 
-### Scan a Released Harbor Image
+### Scan a Released Image
 ```bash
-IMAGE="registry.carverauto.dev/serviceradar/serviceradar-core-elx:v1.2.10"
+IMAGE="ghcr.io/jrmatherly/serviceradar-core-elx:v1.2.10"
 
 syft scan "registry:${IMAGE}" \
   -o spdx-json=serviceradar-core-elx.spdx.json \
@@ -138,4 +138,4 @@ These exclusions remove bulky or generated trees such as:
 
 - Syft produces the SBOMs; it does not decide vulnerability severity.
 - OSV-Scanner reports vulnerabilities based on the OSV database.
-- Harbor stores the released images, but the trust and scanning policy is driven by the GitHub Actions workflows in this repository.
+- The registry stores the released images, but the trust and scanning policy is driven by the GitHub Actions workflows in this repository.

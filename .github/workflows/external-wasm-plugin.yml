@@ -348,6 +348,8 @@ jobs:
             --commit-sha "${SOURCE_COMMIT}" \
             --tag "${PLUGIN_TAG}"
 
+          # Ref allowlist applies to every signing backend, not only OpenBao.
+          [[ "${GITHUB_REF}" =~ ${OPENBAO_SIGNING_ALLOWED_REFS_REGEX} ]] || { echo "Signing is not allowed for ref '${GITHUB_REF}'" >&2; exit 1; }
           if [[ "${OPENBAO_SIGNING_ENABLED}" == "true" ]]; then source ./scripts/ci/prepare-openbao-cosign-env.sh; fi
           export WASM_PLUGIN_METADATA_DIR="${GITHUB_WORKSPACE}/external-plugin-dist"
           export WASM_PLUGIN_UPLOAD_SIGNATURE_TOOL="${UPLOAD_SIGNATURE_TOOL}"

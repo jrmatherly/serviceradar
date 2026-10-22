@@ -67,23 +67,24 @@ or interrupted release.
 
 ## Protect chart publication credentials
 
-The protected GitHub `release` environment must provide these chart-specific
-secrets:
+By default the release publishes images and the Helm chart to GHCR with the
+workflow's `GITHUB_TOKEN` (`packages: write`). A registry with separate
+accounts can keep the chart publisher distinct: the protected GitHub `release`
+environment may provide
 
-- `HARBOR_CHART_ROBOT_USERNAME`
-- `HARBOR_CHART_ROBOT_SECRET`
+- `CHART_OCI_USERNAME`
+- `CHART_OCI_TOKEN`
 
-The associated Harbor robot account must have only the permissions needed to
-pull and push `serviceradar/charts/serviceradar`. Do not grant delete authority.
-Protect the GitHub environment with release approvals and the repository's
-release tag policy.
+which the chart step prefers over the general `OCI_USERNAME` / `OCI_TOKEN`
+pair. The chart account should have only the permissions needed to pull and
+push the chart repository; do not grant delete authority. Protect the GitHub
+environment with release approvals and the repository's release tag policy.
 
-The general `HARBOR_ROBOT_USERNAME` and `HARBOR_ROBOT_SECRET` credentials used
-by image builds and ordinary CI must not have push or delete authority for the
-product chart repository. Developer and validation paths may receive read-only
-access when they need to check whether a chart version exists.
+The general image-publisher credentials used by ordinary CI must not have push
+or delete authority for the product chart repository when the registry can
+distinguish them. Developer and validation paths may receive read-only access
+when they need to check whether a chart version exists.
 
-These Harbor and GitHub access controls are deployment configuration. Verify
-them whenever credentials are rotated or a new runner is introduced; the
-workflow's separate secret names prevent accidental reuse but cannot replace
-registry-side authorization.
+These registry and GitHub access controls are deployment configuration. Verify
+them whenever credentials are rotated; the workflow's separate secret names
+prevent accidental reuse but cannot replace registry-side authorization.
