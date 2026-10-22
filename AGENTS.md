@@ -249,7 +249,10 @@ ServiceRadar is a multi-component system made up of Go services (core, sync, reg
 
 Before inspecting or editing a subtree, read its closest `AGENTS.md`; `elixir/web-ng/AGENTS.md` is mandatory for `elixir/web-ng/**`.
 
-Before writing or changing any test, load the `test-audit` skill.
+Before writing or changing any test, load the `test-audit` skill when it is
+installed. It is an upstream (carverauto) skill that this fork does not carry
+(checked 2026-10-21: absent from the checkout and every installed plugin); until
+the fork adopts or replaces it, record "test-audit: not available" in the PR body.
 
 - **Bringing a database up to date: `mix serviceradar.db.migrate`, NOT `mix ecto.migrate`.**
   An empty database is built from the committed baseline and only newer migrations run;

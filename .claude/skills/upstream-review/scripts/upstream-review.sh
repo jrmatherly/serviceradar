@@ -42,8 +42,9 @@ is_sha()  { [[ "$1" =~ ^[0-9a-f]{40}$ ]] || die "watermark.json: $2 is not a ful
 is_name() { [[ "$1" =~ ^[A-Za-z0-9._][A-Za-z0-9._/-]*$ ]] || die "watermark.json: $2 is not a safe git name: $1"; }
 
 # A missing field reads as "-" (a tab-IFS read would otherwise collapse it), which every validator rejects.
-IFS=$'\t' read -r URL REMOTE BRANCH FORKSHA WATERMARK < <(
-  jq -r '[.upstreamUrl, .upstreamRemote, .upstreamBranch, .forkPointSha, .lastReviewedSha] | map(. // "-") | @tsv' "$STATE")
+fields="$(jq -r '[.upstreamUrl, .upstreamRemote, .upstreamBranch, .forkPointSha, .lastReviewedSha] | map(. // "-") | @tsv' "$STATE" 2>/dev/null)" \
+  || die "watermark.json is not valid JSON"
+IFS=$'\t' read -r URL REMOTE BRANCH FORKSHA WATERMARK <<<"$fields"
 is_name "$REMOTE" upstreamRemote
 is_name "$BRANCH" upstreamBranch
 is_sha "$FORKSHA" forkPointSha
@@ -73,8 +74,9 @@ ensure_upstream() {
   g merge-base --is-ancestor "$WATERMARK" "$TIP" || die "lastReviewedSha is not an ancestor of $REMOTE/$BRANCH (history rewritten?)"
 }
 
-# The PR title GitHub writes into the merge commit body: its first non-empty line.
-pr_title() { g log -1 --format=%b "$1" | sed -n '/./{p;q;}'; }
+# The PR title GitHub writes into the merge commit body: its first non-empty line. The body is read whole
+# first; a reader that quit early on a pipe would SIGPIPE git log and, under pipefail, abort the listing.
+pr_title() { awk 'NF { print; exit }' <<<"$(g log -1 --format=%b "$1")"; }
 
 # Print one line per file the commit touches: marker, +adds, -dels, path. Three git calls per commit:
 # diff-tree --raw gives the pre-image blob, --numstat the counts, cat-file --batch-check our HEAD and fork-point blobs.
@@ -140,7 +142,7 @@ case "$cmd" in
       "$STATE" > "$tmp" && cat "$tmp" > "$STATE" && rm -f "$tmp"
     echo "[upstream-review] watermark -> $NEWSHORT ($NEWDATE). Commit .upstream-review/ to share it." >&2
     exit 0 ;;
-  list|--stat|--urls) ;;
+  list|--stat|--urls) [ $# -le 1 ] || die "unexpected argument '$2' (modes do not combine; see --help)" ;;
   *) die "unknown option '$cmd' (see --help)" ;;
 esac
 
@@ -159,7 +161,7 @@ g log --first-parent --reverse --date=short --pretty='%H%x09%h%x09%ad%x09%P%x09%
 while IFS=$'\t' read -r full short date parents subj; do
   echo
   if [[ "$parents" == *" "* ]]; then
-    k="$(g rev-list --count "$full^1..$full^2")"
+    k="$(g rev-list --no-merges --count "$full^1..$full^2")"   # inner merges are listed but not picked
     if [[ "$subj" =~ $PR_SUBJECT ]]; then
       title="$(pr_title "$full")"
       echo "* $short  $date  PR #${BASH_REMATCH[1]} ${BASH_REMATCH[2]}${title:+: $title}  [$k commits]"

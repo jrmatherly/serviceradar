@@ -157,7 +157,7 @@ setup() { REPO="$BATS_TEST_TMPDIR/repo"; git init -q "$REPO"; cd "$REPO"; git -c
   [ "$(jq -r .lastReviewedSha .upstream-review/watermark.json)" = "$M12" ]
 }
 
-@test "--advance refuses a sha that is not on carverauto/staging" {
+@test "--advance refuses our own commit, which is off the first-parent chain" {
   make_fixture
   ours="$(git rev-parse HEAD)"
   run "$DRIVER" --advance "$ours"
@@ -224,18 +224,48 @@ setup() { REPO="$BATS_TEST_TMPDIR/repo"; git init -q "$REPO"; cd "$REPO"; git -c
 
 @test "an inner merge commit inside a PR is listed as not picked and gets no stat lines" {
   make_fixture
-  local G="git -C $WORK -c user.name=t -c user.email=t@example.com"
-  $G switch -q -c feat/delta "$C0"
-  printf 'eff\n' > "$WORK/f.txt"; $G add f.txt; $G commit -q -m "add f.txt"
-  $G merge -q --no-ff -m "Merge branch 'staging' into feat/delta" staging
-  printf 'eff\nenn\n' > "$WORK/f.txt"; $G commit -q -am "f.txt enn"
-  $G switch -q staging
-  $G merge -q --no-ff -m "Merge pull request #14 from carverauto/feat/delta" -m "add delta" feat/delta
-  $G push -q "$UP" staging
+  w() { git -C "$WORK" -c user.name=t -c user.email=t@example.com "$@"; }
+  w switch -q -c feat/delta "$C0"
+  printf 'eff\n' > "$WORK/f.txt"; w add f.txt; w commit -q -m "add f.txt"
+  w merge -q --no-ff -m "Merge branch 'staging' into feat/delta" staging
+  printf 'eff\nenn\n' > "$WORK/f.txt"; w commit -q -am "f.txt enn"
+  w switch -q staging
+  w merge -q --no-ff -m "Merge pull request #14 from carverauto/feat/delta" -m "add delta" feat/delta
+  w push -q "$UP" staging
   run "$DRIVER" --stat
   [ "$status" -eq 0 ]
   inner="$(echo "$output" | grep "Merge branch 'staging' into feat/delta")"
   [[ "$inner" == *"[merge: not picked]"* ]]
   [ "$(line_after "Merge branch 'staging' into feat/delta" | awk '{print $1}')" = "-" ]   # next line is the next commit, not a stat line
   echo "$output" | grep -Eq '^ +[+] +\+1 +-0 +f\.txt$'
+  [[ "$output" == *"PR #14 feat/delta: add delta  [2 commits]"* ]]   # the inner merge is not a pick
+}
+
+@test "a merge body larger than a pipe buffer does not abort the listing" {
+  make_fixture
+  w() { git -C "$WORK" -c user.name=t -c user.email=t@example.com "$@"; }
+  w switch -q -c feat/big "$C0"
+  printf 'big\n' > "$WORK/big.txt"; w add big.txt; w commit -q -m "add big.txt"
+  w switch -q staging
+  big="$(head -c 300000 /dev/zero | tr '\0' x)"
+  w merge -q --no-ff -m "Merge pull request #15 from carverauto/feat/big" -m "big title" -m "$big" feat/big
+  w push -q "$UP" staging
+  run "$DRIVER"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"PR #15 feat/big: big title  [1 commits]"* ]]
+}
+
+@test "a malformed watermark is an ERROR, not a jq trace" {
+  make_fixture
+  printf '{bad\n' > .upstream-review/watermark.json
+  run "$DRIVER"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"ERROR: watermark.json is not valid JSON"* ]]
+}
+
+@test "a stray argument to a listing mode is an error" {
+  make_fixture
+  run "$DRIVER" --stat --urls
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"unexpected argument '--urls'"* ]]
 }

@@ -334,5 +334,6 @@ __pycache__/
 .local-secrets/
 *.beam
 
-# Local working notes (findings, plans, scratch); never tracked
-private/
+# Local working notes (findings, plans, scratch) at the repo root; never tracked.
+# Anchored: vendored code under third_party/ has its own private/ directories.
+/private/

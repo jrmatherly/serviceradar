@@ -72,11 +72,12 @@ merges from), falling back to the fork point:
    Before writing, read `references/decision-log-template.md`.
 6. Adopt in a batch on a branch: for each adopted PR, cherry-pick its inner
    commits oldest first with `-x`, skipping any commit `--stat` tagged
-   `[merge: not picked]` (a merge of staging into the PR branch; its content
-   arrives through earlier entries, and a conflict resolution baked into it
-   shows up as a `~` on a later commit, so read it with `--show <sha>`); then
-   run the per-area commands in `references/validation.md` for every area the
-   batch touched.
+   `[merge: not picked]` (a merge of staging into the PR branch; its
+   staging-side content arrives through earlier entries). If a pick after such
+   a merge conflicts, or the merge is the last commit to touch a file, the
+   upstream resolution lives only in that merge: read it with `--show <sha>`
+   and resolve by hand. Then run the per-area commands in
+   `references/validation.md` for every area the batch touched.
 7. Then `--advance <tip-sha>` with the tip SHA from the listing you reviewed
    (a fresh fetch may have moved on) and commit `.upstream-review/` with the
    adopted commits. Push only when the user asks, with an explicit refspec:
@@ -101,7 +102,8 @@ one log.
 - Rebrand step: when `scripts/rebrand/apply.sh` exists, run it on every file a
   pick touched and `scripts/rebrand/check-repo.sh` before validation. Until
   the rebrand lands this step is a no-op; `references/deviations.md` tracks it.
-- Version, changelog and dependency-only PRs: ADOPT while their files show `=`;
+- Version, changelog and dependency-only PRs: ADOPT while they would ADOPT by
+  the step 4 rule (every file `=`, `+`, or `<` with its predecessors adopted);
   at the first `~` the file is ours, so SKIP and take only the versions the PR
   names, never the hunk (the row in `references/deviations.md` has the commands).
 - A deviation we decide gets a row in `references/deviations.md`; a path we
