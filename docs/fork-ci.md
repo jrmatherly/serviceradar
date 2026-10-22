@@ -15,8 +15,15 @@ commit that touches CI.
 ## Services and their free tiers
 
 All of the fork's CI runs on services that are free for a public repository.
-Researched 2026-10-21; the plan name and transfer figures in the BuildBuddy row
-are what the owner reports after Task 2 of the refactor plan.
+Researched 2026-10-21. Verified the same day: `bazel-remote-smoke.yml` built
+`//build/ci:verify_git_metadata` on BuildBuddy executors (`remote, disk-cache,
+remote-cache`) using the fork's executor image, and a `v*` tag pushed with
+`PUBLISH_ENABLED` unset skipped every release, add-on and Wasm job and created
+no release while `source-security` finished in under three minutes.
+
+The org created on app.buildbuddy.io also answers at `matherly.buildbuddy.io`
+(the Workflows status links point there); `remote.buildbuddy.io` with the org
+API key is what the smoke test used and is the default endpoint.
 
 | Service | Free tier for a public repo | Used for |
 | --- | --- | --- |
