@@ -231,7 +231,7 @@ end
 # API authentication for CLI tools
 # In production, use proper secrets management
 config :serviceradar_web_ng, :api_auth, api_keys: [System.get_env("SERVICERADAR_API_KEY", "dev-api-key-for-testing")]
-config :serviceradar_web_ng, :base_url, System.get_env("BASE_URL", "http://192.168.2.134:4000")
+config :serviceradar_web_ng, :base_url, System.get_env("BASE_URL", "http://localhost:4000")
 
 # AshAuthentication token signing secret for development
 config :serviceradar_web_ng,

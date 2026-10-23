@@ -159,7 +159,7 @@ ssl_server_name =
 # refused the connection:
 #
 #   FATAL 28000 (invalid_authorization_specification) pg_hba.conf rejects connection
-#   for host "10.42.68.107", user "srql", database "sr_core_template", no encryption
+#   for host "192.0.2.107", user "srql", database "sr_core_template", no encryption
 #
 # Being handed a CA means TLS was intended, whichever form it arrived in. An explicit
 # sslmode=disable|allow|prefer still wins, because that clause is evaluated first.

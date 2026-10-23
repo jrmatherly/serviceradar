@@ -4,7 +4,7 @@ services:
     container_name: serviceradar-cert-generator-mtls
     environment:
       # Optional extra SAN entries for `cnpg.pem` so clients can connect using a LAN IP
-      # (example: CNPG_CERT_EXTRA_IPS=192.168.2.134)
+      # (example: CNPG_CERT_EXTRA_IPS=192.0.2.10)
       - CNPG_CERT_EXTRA_IPS=${CNPG_CERT_EXTRA_IPS:-}
       - CNPG_SUPERUSER=${CNPG_SUPERUSER:-}
       - CNPG_SUPERUSER_FILE=/etc/serviceradar/cnpg/superuser-username

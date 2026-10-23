@@ -41,7 +41,7 @@
 NATS Configuration Context "serviceradar"
 
    Description: ServiceRadar NATS Context for Debugging
-   Server URLs: tls://serviceradar-nats.serviceradar-staging.svc.cluster.local:4222
+   Server URLs: tls://serviceradar-nats.<namespace>.svc.cluster.local:4222
    Certificate: /etc/serviceradar/certs/client.pem (OK)
            Key: /etc/serviceradar/certs/client-key.pem (OK)
             CA: /etc/serviceradar/certs/root.pem (OK)

@@ -15,8 +15,8 @@ This app is intended to run against the existing ServiceRadar CNPG/AGE database 
 
 The repo’s `docker-compose.yml` publishes CNPG on `${CNPG_PUBLIC_BIND:-127.0.0.1}:${CNPG_PUBLIC_PORT:-5455}` on the docker host.
 
-1. On the docker host, ensure CNPG’s server cert allows IP-based clients (example IP: `192.168.2.134`):
-   - Set `CNPG_CERT_EXTRA_IPS=192.168.2.134` and (re)run `docker compose up cert-generator` so `cnpg.pem` includes that SAN.
+1. On the docker host, ensure CNPG’s server cert allows IP-based clients (example IP: `192.0.2.10`):
+   - Set `CNPG_CERT_EXTRA_IPS=192.0.2.10` and (re)run `docker compose up cert-generator` so `cnpg.pem` includes that SAN.
    - Set `CNPG_PUBLIC_BIND=0.0.0.0` (or a specific LAN interface IP) so the published port is reachable from your workstation (put it in `.env` or export it before running compose).
    - Restart the `cnpg` container after regenerating `cnpg.pem`.
 
@@ -28,7 +28,7 @@ The repo’s `docker-compose.yml` publishes CNPG on `${CNPG_PUBLIC_BIND:-127.0.0
 
 ```bash
 cd elixir/web-ng
-export CNPG_HOST=192.168.2.134
+export CNPG_HOST=192.0.2.10
 export CNPG_PORT=5455
 export CNPG_DATABASE=serviceradar
 export CNPG_USERNAME=serviceradar

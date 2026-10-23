@@ -512,7 +512,7 @@ cd elixir/web-ng
 CNPG_HOST=localhost CNPG_PORT=5455 mix phx.server
 
 # Connect to remote docker host
-CNPG_HOST=192.168.2.134 CNPG_PORT=5455 mix phx.server
+CNPG_HOST=192.0.2.10 CNPG_PORT=5455 mix phx.server
 ```
 
 Access the app at http://localhost:4000
