@@ -1,37 +1,46 @@
 #!/usr/bin/env bash
+# Every compose app image must be <fork prefix>/<name>:${APP_TAG:-latest} so that
+# APP_TAG=local runs what `make compose-load-local` loaded. The prefix comes from
+# scripts/lib/fork-registry.sh, so a rebrand that forgets compose fails here.
 set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
 
+read -r registry project < <(env -u OCI_REGISTRY -u OCI_PROJECT bash -c '. scripts/lib/fork-registry.sh && echo "$OCI_REGISTRY $OCI_PROJECT"')
+prefix="\${OCI_REGISTRY:-${registry}}/\${OCI_PROJECT:-${project}}/"
+compose_files=(docker-compose.yml docker-compose.dev.yml)
 fail=0
 
-if ! rg -n 'appTag: &appTag "latest"' helm/serviceradar/values.yaml >/dev/null; then
-  echo "Expected helm/serviceradar/values.yaml to default appTag to latest." >&2
-  fail=1
-fi
+# CNPG stays on upstream's digest until the fork publishes it (docs/fork-ci.md, "Fork identity in code").
+app_images() {
+  grep -n -E 'image:.*(serviceradar-|/arancini:)' "$1" | grep -v 'serviceradar-cnpg' || true
+}
 
-if ! rg -n 'imageTag: "latest"' helm/serviceradar/values-demo-staging.yaml >/dev/null; then
-  echo "Expected helm/serviceradar/values-demo-staging.yaml to set global.imageTag to latest." >&2
-  fail=1
-fi
-
-compose_files=(docker-compose.yml docker-compose.spiffe.yml)
 for file in "${compose_files[@]}"; do
-  matched=$(rg -n 'image:\s+ghcr.io/carverauto/serviceradar-' "$file" || true)
-  matched=$(printf '%s\n' "$matched" | rg -v 'serviceradar-cnpg' || true)
-  matched=$(printf '%s\n' "$matched" | rg -F -v '${APP_TAG:-latest}' || true)
-  if [[ -n "$matched" ]]; then
-    echo "Found ServiceRadar images without APP_TAG default in $file:" >&2
-    echo "$matched" >&2
+  bad=$(
+    app_images "$file" | { grep -F -v "$prefix" || true; }
+    app_images "$file" | { grep -F -v '${APP_TAG:-latest}' || true; }
+  )
+  if [[ -n "$bad" ]]; then
+    echo "App images in $file must be ${prefix}<name>:\${APP_TAG:-latest}:" >&2
+    echo "$bad" >&2
     fail=1
   fi
 done
 
-if ! rg -n 'static_tags = \["latest"\] \+ target.get\("static_tags", \[\]\)' docker/images/push_targets.bzl >/dev/null; then
+want=$(cat "${compose_files[@]}" | grep -o -E 'serviceradar-[a-z-]+:\$\{APP_TAG|/arancini:' \
+  | sed -E 's/:.*//; s#^/##; s/^serviceradar-//; s/^arancini$/bmp_collector/; s/-/_/g' | sort -u)
+have=$(sed -n -E 's/^COMPOSE_LOCAL_IMAGES \?= //p' Makefile | tr ' ' '\n' | sort -u)
+missing=$(comm -23 <(echo "$want") <(echo "$have"))
+if [[ -n "$missing" ]]; then
+  echo "Add to COMPOSE_LOCAL_IMAGES in Makefile (compose uses them, make compose-load-local would skip them):" >&2
+  echo "$missing" >&2
+  fail=1
+fi
+
+if ! grep -q -E 'static_tags = \["latest"\] \+ target.get\("static_tags", \[\]\)' docker/images/push_targets.bzl; then
   echo "Expected docker/images/push_targets.bzl to include latest in static tags." >&2
   fail=1
 fi
 
-if [[ "$fail" -ne 0 ]]; then
-  exit 1
-fi
-
-echo "Dev image tag defaults look good."
+[[ "$fail" -eq 0 ]] && echo "Compose image defaults look good."
+exit "$fail"

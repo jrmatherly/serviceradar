@@ -11,12 +11,15 @@ Uses pre-built images from GitHub Container Registry (GHCR). Fast, consistent, a
 ## Development (Local Build)
 
 ```bash
-docker compose -f docker-compose.dev.yml up
+make compose-load-local
+APP_TAG=local docker compose up
 ```
 
-Builds images locally from source. Best for development and testing changes.
+Builds the app images from this checkout with Bazel, loads them into Docker as `:local`,
+and runs them. `docker-compose.dev.yml` is an overlay that adds dev-only services such as
+`faker` (`--profile faker`).
 
-Tip: To make the dev file the default (no `-f` needed), set this in `.env`:
+Tip: To make the dev overlay the default (no `-f` needed), set this in `.env`:
 ```
 COMPOSE_FILE=docker-compose.yml:docker-compose.dev.yml
 ```
@@ -35,8 +38,8 @@ COMPOSE_FILE=docker-compose.yml:docker-compose.dev.yml
 # Production deployment with pre-built images (default)
 docker compose up
 
-# Development with local builds  
-docker compose -f docker-compose.dev.yml up
+# Development with images built from this checkout
+make compose-load-local && APP_TAG=local docker compose up
 
 # Using Makefile (uses pre-built images)
 make -f Makefile.docker start
