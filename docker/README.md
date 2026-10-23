@@ -17,7 +17,7 @@ This directory contains Docker configurations for ServiceRadar components.
    docker compose up -d
    ```
    This automatically:
-   - Pulls pre-built images from `registry.carverauto.dev`
+   - Pulls the fork's pre-built images from `ghcr.io/jrmatherly`
    - Generates mTLS certificates
    - Starts the core services stack
    - Sets up networking and volumes
