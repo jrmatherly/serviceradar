@@ -51,14 +51,16 @@ every app image, and `scripts/check-dev-image-tags.sh` (run by `make check-dev-i
 derives the expected literal from the shell source and fails when compose drifts. The
 rebrand changes those two sources, those three files and the two compose files.
 
-CNPG is the one compose image still on upstream's digest-pinned
-`ghcr.io/carverauto/serviceradar-cnpg`, because the fork has not published its own
-`serviceradar-cnpg` yet. After the first `publish-oci.yml` run, move the pin in
-`docker-compose.yml` (two services), `docker/compose/test-db/compose.yml`,
+The fork has published no images yet (`publish-oci.yml` is manual and has never run), so
+`docker compose up` with the defaults fails to pull until it runs once; until then
+`make compose-load-local` is the only working path. CNPG is the one compose image kept on
+upstream's digest-pinned `ghcr.io/carverauto/serviceradar-cnpg` even after that. After the
+first `publish-oci.yml` run, move the pin in `docker-compose.yml` (two services),
+`docker/compose/test-db/compose.yml`, the `TARGET_IMAGE` default in
 `docker/compose/migrate-cnpg-pg16-to-pg18.sh` and the comments in
 `config/environments/localhost.textproto`, and drop the `serviceradar-cnpg` exemption from
 `scripts/check-dev-image-tags.sh`. To test a fork CNPG change before that, run
-`bazel run //docker/images:cnpg_image_amd64_tar` and set
+`COMPOSE_LOCAL_IMAGES=cnpg make compose-load-local` and set
 `CNPG_IMAGE=ghcr.io/jrmatherly/serviceradar-cnpg:local`.
 
 The ARC runner images and upstream's prebuilt `serviceradar-tools` pull are gone

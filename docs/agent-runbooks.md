@@ -80,7 +80,8 @@ upstream image; override it with `CNPG_IMAGE`. On Apple Silicon add `-f docker-c
   `<prefix>/<image>:local`, then `APP_TAG=local docker compose up -d`.
   `COMPOSE_LOCAL_IMAGES="web_ng core_elx"` limits it to the images you changed. The loaded
   images are amd64 only, so on Apple Silicon every service then runs under emulation, not
-  just the three the arm64 overlay pins.
+  just the ones the arm64 overlay already handles. No fork image is on GHCR until
+  `publish-oci.yml` runs once, so this is the only path that works before that.
 - Verify: `docker compose ps` (one-shot jobs like cert-generator/config-updater exit once finished);
   `make check-dev-image-tags` guards the compose image defaults.
 

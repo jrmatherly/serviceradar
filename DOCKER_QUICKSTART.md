@@ -6,7 +6,8 @@
 docker compose up
 ```
 
-Uses pre-built images from GitHub Container Registry (GHCR). Fast, consistent, and production-ready.
+Uses the fork's pre-built images from GitHub Container Registry (GHCR), `ghcr.io/jrmatherly/serviceradar-*`.
+They exist only after `publish-oci.yml` has been dispatched once; until then use the local build below.
 
 ## Development (Local Build)
 
@@ -16,8 +17,8 @@ APP_TAG=local docker compose up
 ```
 
 Builds the app images from this checkout with Bazel, loads them into Docker as `:local`,
-and runs them. `docker-compose.dev.yml` is an overlay that adds dev-only services such as
-`faker` (`--profile faker`).
+and runs them. `docker-compose.dev.yml` is an overlay that adds the dev-only `faker`
+service (`--profile faker`).
 
 Tip: To make the dev overlay the default (no `-f` needed), set this in `.env`:
 ```
@@ -44,7 +45,7 @@ make compose-load-local && APP_TAG=local docker compose up
 # Using Makefile (uses pre-built images)
 make -f Makefile.docker start
 
-# All services (optionally includes Redpanda)
+# All services plus faker (--profile full)
 make -f Makefile.docker up-full
 ```
 
@@ -76,12 +77,12 @@ docker compose down
 
 ## Environment Variables (Optional)
 
-Copy `.env.example` to `.env` to customize:
+Copy `.env-sample` to `.env` to customize:
 - Database passwords
 - API keys
 - Log levels
 - Service configuration
- - Optional compose defaults (see `COMPOSE_FILE` in `.env.example`)
+ - Optional compose defaults (`COMPOSE_FILE`)
 
 All values have sensible defaults, so the `.env` file is optional.
 
