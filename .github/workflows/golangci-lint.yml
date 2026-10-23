@@ -44,7 +44,10 @@ jobs:
           # to exist locally. The default fetch-depth of 1 gives only the head
           # commit and the comparison silently has nothing to diff against.
           fetch-depth: 0
-        
+
+      - name: Compose image defaults
+        run: scripts/check-dev-image-tags.sh
+
       - name: setup go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:

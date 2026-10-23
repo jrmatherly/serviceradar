@@ -70,11 +70,20 @@ Use this when the diff only touches `elixir/web-ng/**` and you want a faster `de
 
 ## Docker Compose Refresh
 
-- Build and publish release artifacts from the current commit: `make build` then `make push_all`.
-- Capture the tag for compose: `git rev-parse HEAD` and use `APP_TAG=sha-<sha>`.
-- Pull fresh images: `APP_TAG=sha-<sha> docker compose pull`.
-- Restart the stack: `APP_TAG=sha-<sha> docker compose up -d --force-recreate`.
-- Verify: `docker compose ps` (one-shot jobs like cert-generator/config-updater exit once finished).
+`docker-compose.yml` runs the fork's images, `${OCI_REGISTRY:-ghcr.io}/${OCI_PROJECT:-jrmatherly}/serviceradar-<name>:${APP_TAG:-latest}`
+(`scripts/lib/fork-registry.sh` holds the same defaults). CNPG stays digest-pinned to the
+upstream image; override it with `CNPG_IMAGE`. On Apple Silicon add `-f docker-compose.arm64.yml`.
+
+- Published images: `publish-oci.yml` (manual dispatch) pushes `latest`, `sha-<sha>` and an
+  optional release tag. Pull and restart: `APP_TAG=sha-<sha> docker compose pull && APP_TAG=sha-<sha> docker compose up -d --force-recreate`.
+- This checkout: `make compose-load-local` builds the app images with Bazel and loads them as
+  `<prefix>/<image>:local`, then `APP_TAG=local docker compose up -d`.
+  `COMPOSE_LOCAL_IMAGES="web_ng core_elx"` limits it to the images you changed. The loaded
+  images are amd64 only, so on Apple Silicon every service then runs under emulation, not
+  just the ones the arm64 overlay already handles. No fork image is on GHCR until
+  `publish-oci.yml` runs once, so this is the only path that works before that.
+- Verify: `docker compose ps` (one-shot jobs like cert-generator/config-updater exit once finished);
+  `make check-dev-image-tags` guards the compose image defaults.
 
 ## Machine setup
 

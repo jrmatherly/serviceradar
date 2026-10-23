@@ -17,7 +17,7 @@ This directory contains Docker configurations for ServiceRadar components.
    docker compose up -d
    ```
    This automatically:
-   - Pulls pre-built images from `registry.carverauto.dev`
+   - Pulls the fork's pre-built images from `ghcr.io/jrmatherly`
    - Generates mTLS certificates
    - Starts the core services stack
    - Sets up networking and volumes
@@ -26,15 +26,16 @@ This directory contains Docker configurations for ServiceRadar components.
 
 1. **Build and start locally:**
    ```bash
-   docker compose -f docker-compose.dev.yml up
+   make compose-load-local
+   APP_TAG=local docker compose up
    ```
-   This automatically:
-   - Generates mTLS certificates
-   - Builds Docker images from source
-      - Starts Core services
-      - Sets up networking and volumes
+   This builds the app images from this checkout with Bazel, loads them into Docker as
+   `:local`, and then runs the same stack as Option 1 with those images.
+   `docker-compose.dev.yml` is an overlay adding the dev-only `faker` service (`--profile faker`).
+   Option 1 needs the fork's images on GHCR, which exist only after `publish-oci.yml` has run
+   once; until then this is the only working path.
 
-   Tip: To make the dev compose file the default (no `-f` needed), set this in `.env`:
+   Tip: To make the dev overlay the default (no `-f` needed), set this in `.env`:
    ```bash
    COMPOSE_FILE=docker-compose.yml:docker-compose.dev.yml
    ```
@@ -104,7 +105,7 @@ All inter-service communication uses mTLS for authentication and encryption:
 
 ServiceRadar core-elx uses environment-based configuration. There is no committed
 `api.env`; bootstrap credentials are generated into Docker volumes at runtime. See
-`docker-compose.elx.yml` for available options:
+`docker-compose.yml` (service `core-elx`) for available options:
 - Database configuration via `CNPG_*` environment variables
 - Feature flags via `SERVICERADAR_CORE_*` environment variables
 - Cluster configuration via `CLUSTER_*` environment variables

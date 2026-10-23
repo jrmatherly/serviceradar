@@ -429,8 +429,22 @@ build_native_addons: addon_build_gates ## Build first-party native add-on bundle
 	@bazel build -c opt //build/native_addons:all_bundles
 
 .PHONY: check-dev-image-tags
-check-dev-image-tags: ## Verify dev image tag defaults (latest + APP_TAG fallbacks)
+check-dev-image-tags: ## Verify compose app images use the fork prefix, default to APP_TAG=latest and have a local load target
 	@scripts/check-dev-image-tags.sh
+
+# One entry per compose app image; scripts/check-dev-image-tags.sh fails when one is missing.
+COMPOSE_LOCAL_IMAGES ?= core_elx web_ng agent_gateway agent datasvc log_collector trapd flow_collector dgraph_migrate tools bmp_collector faker
+
+# `bazel run` of a _tar target under --config=remote ships a linux tar binary; load the tarball on the host instead.
+.PHONY: compose-load-local
+compose-load-local: ## Build this checkout's app images with Bazel and load them into Docker as <registry>/<project>/<image>:local
+	@$(BAZEL) build $(BAZEL_CI_FLAGS) --output_groups=+tarball --remote_download_outputs=toplevel \
+		$(foreach img,$(COMPOSE_LOCAL_IMAGES),//docker/images:$(img)_image_amd64_tar)
+	@set -eu; bin="$$($(BAZEL) info $(BAZEL_CI_FLAGS) bazel-bin)"; \
+	for img in $(COMPOSE_LOCAL_IMAGES); do \
+		docker load -i "$${bin}/docker/images/$${img}_image_amd64_tar/tarball.tar"; \
+	done
+	@echo "Loaded. Run: APP_TAG=local docker compose up -d  (add -f docker-compose.arm64.yml on Apple Silicon)"
 
 .PHONY: demo-staging-canary
 demo-staging-canary: ## Configure demo-staging ArgoCD app for canary tags (web=latest, others pinned)

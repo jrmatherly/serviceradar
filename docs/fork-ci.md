@@ -45,7 +45,23 @@ tags, base-image annotations) and `scripts/lib/fork-registry.sh` (shell: default
 `scripts/workspace_status.sh`, which stamps them into Bazel). Literal references that
 cannot read either live in `MODULE.bazel` (the `ghcr.io/<owner>/mirror/...` pulls and
 the BuildBuddy toolchain image), `build/rbe/BUILD` (the RBE executor image) and
-`BUILD.md`. The rebrand changes those two sources and those three files.
+`BUILD.md`. Compose cannot read them either: `docker-compose.yml` and
+`docker-compose.dev.yml` default `${OCI_REGISTRY:-ghcr.io}/${OCI_PROJECT:-jrmatherly}` on
+every app image, and `scripts/check-dev-image-tags.sh` (run by `make check-dev-image-tags`)
+derives the expected literal from the shell source and fails when compose drifts. The
+rebrand changes those two sources, those three files and the two compose files.
+
+The fork has published no images yet (`publish-oci.yml` is manual and has never run), so
+`docker compose up` with the defaults fails to pull until it runs once; until then
+`make compose-load-local` is the only working path. CNPG is the one compose image kept on
+upstream's digest-pinned `ghcr.io/carverauto/serviceradar-cnpg` even after that. After the
+first `publish-oci.yml` run, move the pin in `docker-compose.yml` (two services),
+`docker/compose/test-db/compose.yml`, the `TARGET_IMAGE` default in
+`docker/compose/migrate-cnpg-pg16-to-pg18.sh` and the comments in
+`config/environments/localhost.textproto`, and drop the `serviceradar-cnpg` exemption from
+`scripts/check-dev-image-tags.sh`. To test a fork CNPG change before that, run
+`COMPOSE_LOCAL_IMAGES=cnpg make compose-load-local` and set
+`CNPG_IMAGE=ghcr.io/jrmatherly/serviceradar-cnpg:local`.
 
 The ARC runner images and upstream's prebuilt `serviceradar-tools` pull are gone
 from `MODULE.bazel`: the fork has no self-hosted runner pool, and `serviceradar-tools`
