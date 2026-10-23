@@ -20,3 +20,8 @@ services:
   core-elx-migrations: *beam-amd64
   core-elx: *beam-amd64
   web-ng: *beam-amd64
+  # Published multi-arch, so it runs natively; a locally loaded build (APP_TAG=local)
+  # is amd64 and needs the same JIT flag. The flag is harmless on native arm64.
+  agent-gateway:
+    environment:
+      ELIXIR_ERL_OPTIONS: "${ELIXIR_ERL_OPTIONS:-+fnu} +JMsingle true"

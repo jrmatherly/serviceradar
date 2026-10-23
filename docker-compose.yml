@@ -1076,7 +1076,7 @@ services:
     restart: unless-stopped
 
   bmp-collector:
-    image: ${OCI_REGISTRY:-ghcr.io}/${OCI_PROJECT:-jrmatherly}/arancini:${ARANCINI_TAG:-${APP_TAG:-latest}}
+    image: ${OCI_REGISTRY:-ghcr.io}/${OCI_PROJECT:-jrmatherly}/arancini:${APP_TAG:-latest}
     container_name: serviceradar-bmp-collector-mtls
     env_file:
       # JetStream sizing profile (small, medium or large); see docker/compose/profiles.

@@ -429,7 +429,7 @@ build_native_addons: addon_build_gates ## Build first-party native add-on bundle
 	@bazel build -c opt //build/native_addons:all_bundles
 
 .PHONY: check-dev-image-tags
-check-dev-image-tags: ## Verify dev image tag defaults (latest + APP_TAG fallbacks)
+check-dev-image-tags: ## Verify compose app images use the fork prefix, default to APP_TAG=latest and have a local load target
 	@scripts/check-dev-image-tags.sh
 
 # One entry per compose app image; scripts/check-dev-image-tags.sh fails when one is missing.
