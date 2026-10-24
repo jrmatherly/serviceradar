@@ -36,7 +36,7 @@ func TestPublishTopologyLinksSkipsPublishingCandidateOnlyAttachments(t *testing.
 		{
 			Protocol:         "SNMP-L2",
 			LocalDeviceIP:    "192.168.10.1",
-			LocalDeviceID:    "sr:tonka01",
+			LocalDeviceID:    "sr:hub01",
 			NeighborMgmtAddr: "192.168.10.154",
 			Metadata: map[string]string{
 				"candidate_only": testStringTrue,
@@ -148,7 +148,7 @@ func TestBuildSNMPL2LinksFromNeighborsKeepsARPOnlyAsCandidateOnly(t *testing.T) 
 		},
 	}
 
-	links := buildSNMPL2LinksFromNeighbors("sr:farm01", "192.168.1.1", "disc-1", neighbors)
+	links := buildSNMPL2LinksFromNeighbors("sr:edge01", "192.168.1.1", "disc-1", neighbors)
 	require.Len(t, links, 2)
 
 	var fdbLink *TopologyLink
@@ -206,7 +206,7 @@ func TestBuildSNMPL2LinksFromNeighborsSkipsKnownFdbNeighborWithoutIdentity(t *te
 		},
 	}
 
-	links := buildSNMPL2LinksFromNeighbors("sr:farm01", "192.168.1.1", "disc-4", neighbors)
+	links := buildSNMPL2LinksFromNeighbors("sr:edge01", "192.168.1.1", "disc-4", neighbors)
 	require.Len(t, links, 1)
 	assert.Equal(t, "192.168.1.63", links[0].NeighborMgmtAddr)
 	assert.Equal(t, int32(11), links[0].LocalIfIndex)
@@ -332,7 +332,7 @@ func TestBuildSNMPL2LinksFromNeighborsRejectsInvalidIfIndex(t *testing.T) {
 		},
 	}
 
-	links := buildSNMPL2LinksFromNeighbors("sr:farm01", "192.168.1.1", "disc-3", neighbors)
+	links := buildSNMPL2LinksFromNeighbors("sr:edge01", "192.168.1.1", "disc-3", neighbors)
 	assert.Empty(t, links)
 }
 

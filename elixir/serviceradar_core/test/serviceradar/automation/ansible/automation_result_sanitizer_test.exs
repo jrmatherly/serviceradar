@@ -5,7 +5,7 @@ defmodule ServiceRadar.Automation.Ansible.AutomationResultSanitizerTest do
 
   @command_id "019f4a9c-cf95-77e5-9dd5-cb84c710fb8e"
   @agent_id "edge-agent-1"
-  @partition_id "farm01"
+  @partition_id "edge01"
   @dispatch_id "019f4a9c-de99-7f85-bc2e-3f193f6cda2c"
   @snapshot_digest String.duplicate("a", 64)
   @scm_revision String.duplicate("b", 40)

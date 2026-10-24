@@ -1664,12 +1664,12 @@ defmodule ServiceRadarWebNGWeb.Settings.DeviceEnrichmentRulesLive do
 
   defp default_simulation_payload do
     ~s|{
-  "hostname": "farm01",
+  "hostname": "gw01.example.com",
   "source": "mapper",
   "metadata": {
     "sys_object_id": ".1.3.6.1.4.1.8072.3.2.10",
-    "sys_descr": "Ubiquiti UniFi UDM-Pro 4.4.6 Linux 4.19.152 al324",
-    "sys_name": "farm01",
+    "sys_descr": "Example Router OS 1.2.3 Linux 5.10.0 x86_64",
+    "sys_name": "gw01",
     "ip_forwarding": "1"
   }
 }|

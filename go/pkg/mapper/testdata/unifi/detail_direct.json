@@ -6,7 +6,7 @@
       "chassis_id": "78:45:58:6d:1e:4b",
       "port_id": "eth4",
       "port_description": "SFP+ 4",
-      "system_name": "tonka01",
+      "system_name": "hub01",
       "management_address": "192.168.10.1"
     }
   ],

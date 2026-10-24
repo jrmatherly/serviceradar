@@ -383,7 +383,7 @@ defmodule ServiceRadar.Automation.Ansible.VariableSchemaTest do
 
       assert {:error, :binding_input_schema_invalid} =
                VariableSchema.from_binding(%{
-                 input_schema: %{"region" => %{"type" => "text", "default" => "farm01"}},
+                 input_schema: %{"region" => %{"type" => "text", "default" => "edge01"}},
                  input_classifications: %{"region" => "internal"}
                })
 

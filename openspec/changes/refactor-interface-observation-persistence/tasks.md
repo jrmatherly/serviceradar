@@ -2,7 +2,7 @@
 
 ## 1. Size it before changing it
 
-- [ ] 1.1 Re-measure on the largest available deployment, not only farm01 (4 devices).
+- [ ] 1.1 Re-measure on the largest available deployment, not only edge01 (4 devices).
   The query that produced the baseline: rows vs `DISTINCT (device_id, if_index, if_name,
   if_phys_address, if_oper_status, if_admin_status, if_speed, sorted(ip_addresses))`.
   Baseline to beat: **36,816 rows / 374 states = 98x**, 767 rows/device/day, 57 MB for
@@ -13,7 +13,7 @@
   **The key must be `(device_id, interface_uid)`, not `(device_id, if_index)`.** `if_index` is
   `allow_nil? true` (`interface.ex:182-184`) and `sync/interfaces.ex` never sets it, so sync rows
   carry NULL and a unique index would not dedupe them. `interface_uid` is `allow_nil? false` and
-  already `primary_key? true` (`interface.ex:175-178`). On farm01 both keys look identical -- 340
+  already `primary_key? true` (`interface.ex:175-178`). On edge01 both keys look identical -- 340
   distinct pairs each, zero NULLs -- but only because every interface there comes from the mapper.
 
   **Four things must change BEFORE the identity does, in this order:**
@@ -150,7 +150,7 @@ the history store exists. The causal-analysis consumer needs it; nothing today b
 ## 6. Verify against the real failure
 
 - [ ] 6.1 Re-run 1.1 after the change. Expect rows to approach the semantic-state count
-  (374 on the farm01 sample), not merely to grow more slowly.
+  (374 on the edge01 sample), not merely to grow more slowly.
 - [ ] 6.2 Confirm interface reads still return correct current state for a device with
   multiple interfaces -- gate on the artefact, and confirm the run postdates the rollout.
 - [ ] 6.3 Confirm the row count stops growing while nothing changes. Sample the table,

@@ -168,7 +168,7 @@ defmodule ServiceRadarWebNGWeb.SecurityDiagnosticsShowTest do
         "severity" => "Medium",
         "message" => syslog_message(),
         "log_name" => "logs.syslog.processed",
-        "log_provider" => "farm01",
+        "log_provider" => "edge01",
         "metadata" => %{
           "serviceradar" => %{
             "source_log_id" => "2d88cb92-37d7-4e28-904f-d69fa5301b40"
@@ -204,13 +204,13 @@ defmodule ServiceRadarWebNGWeb.SecurityDiagnosticsShowTest do
         "metadata" => %{
           "event_id" => "syslog-event-1",
           "log_name" => "logs.syslog.processed",
-          "log_provider" => "farm01"
+          "log_provider" => "edge01"
         }
       }
     end
 
     defp syslog_message do
-      "CEF:0|Ubiquiti|UniFi Network|10.4.57|578|Network Updated|4|UNIFIcategory=Software Updates UNIFIhost=farm01 UNIFIapplication=UniFi Network UNIFIapplicationVersion=10.4.57 UNIFIapplicationPriorVersion=10.3.58 UNIFIutcTime=2026-05-26T22:34:18.940Z msg=UniFi Network has updated to 10.4.57"
+      "CEF:0|Ubiquiti|UniFi Network|10.4.57|578|Network Updated|4|UNIFIcategory=Software Updates UNIFIhost=edge01 UNIFIapplication=UniFi Network UNIFIapplicationVersion=10.4.57 UNIFIapplicationPriorVersion=10.3.58 UNIFIutcTime=2026-05-26T22:34:18.940Z msg=UniFi Network has updated to 10.4.57"
     end
 
     defp falco_event do

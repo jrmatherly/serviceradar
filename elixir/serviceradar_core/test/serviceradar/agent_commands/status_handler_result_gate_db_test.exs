@@ -19,7 +19,7 @@ defmodule ServiceRadar.AgentCommands.StatusHandlerResultGateDbTest do
       AgentCommand.create_command(
         %{
           command_type: "test.exact_result",
-          agent_id: "agent-farm01",
+          agent_id: "agent-edge01",
           partition_id: "default",
           payload: %{"request" => "bounded"},
           context: %{"scope" => "test"},
@@ -65,8 +65,8 @@ defmodule ServiceRadar.AgentCommands.StatusHandlerResultGateDbTest do
     assert_all_consumers(exact)
 
     mismatches = [
-      %{exact | agent_id: "agent-tonka01"},
-      %{exact | partition_id: "tonka01"},
+      %{exact | agent_id: "agent-hub01"},
+      %{exact | partition_id: "hub01"},
       Map.delete(exact, :partition_id),
       %{exact | command_type: "test.wrong_type"},
       %{exact | command_id: Ash.UUID.generate()},
@@ -94,7 +94,7 @@ defmodule ServiceRadar.AgentCommands.StatusHandlerResultGateDbTest do
       AgentCommand.create_command(
         %{
           command_type: "awx.fetch_job",
-          agent_id: "agent-farm01",
+          agent_id: "agent-edge01",
           partition_id: "default",
           payload: %{"request" => "bounded"},
           context: %{"scope" => "test"},
@@ -143,7 +143,7 @@ defmodule ServiceRadar.AgentCommands.StatusHandlerResultGateDbTest do
       AgentCommand.create_command(
         %{
           command_type: "awx.fetch_job",
-          agent_id: "agent-farm01",
+          agent_id: "agent-edge01",
           partition_id: "default",
           payload: %{"request" => "bounded"},
           context: %{"scope" => "test"},
@@ -187,7 +187,7 @@ defmodule ServiceRadar.AgentCommands.StatusHandlerResultGateDbTest do
     assert running.progress_payload == %{}
     refute inspect(running) =~ secret
 
-    for wrong_partition <- ["tonka01", nil] do
+    for wrong_partition <- ["hub01", nil] do
       rejected =
         if wrong_partition,
           do: %{protected | partition_id: wrong_partition},

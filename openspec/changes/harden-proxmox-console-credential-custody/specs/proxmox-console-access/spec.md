@@ -150,17 +150,17 @@ The system SHALL audit console authorization, rule selection, exact owner resolu
 - **THEN** it SHALL contain a bounded phase, safe reason code, and correlation ID
 - **AND** it SHALL not echo attacker-supplied protected fields or provider secrets
 
-### Requirement: Farm01 and tonka01 prove isolated console routing before demo enablement
-The demo namespace SHALL keep Proxmox console access disabled for incompatible or unmigrated targets until automated and live evidence proves collision-safe inventory, host-only credential custody, exact-owner routing, authorization, and redaction for both farm01 and tonka01.
+### Requirement: Farm01 and hub01 prove isolated console routing before demo enablement
+The demo namespace SHALL keep Proxmox console access disabled for incompatible or unmigrated targets until automated and live evidence proves collision-safe inventory, host-only credential custody, exact-owner routing, authorization, and redaction for both edge01 and hub01.
 
 #### Scenario: Both clusters use overlapping identifiers
-- **GIVEN** farm01 and tonka01 have distinct integration/controller IDs but matching native cluster/node names and VMIDs
+- **GIVEN** edge01 and hub01 have distinct integration/controller IDs but matching native cluster/node names and VMIDs
 - **WHEN** both inventories sync in demo
 - **THEN** their v3 provider instances, hosts, guests, device links, and owner relationships SHALL remain distinct
 - **AND** repeated sync SHALL produce no overwrite or cross-cluster alias
 
 #### Scenario: Guest console proof runs in each environment
-- **GIVEN** one eligible guest from farm01 and one from tonka01
+- **GIVEN** one eligible guest from edge01 and one from hub01
 - **WHEN** an authorized user opens each console from device details
 - **THEN** captured trusted-host evidence SHALL show each session reached its exact owning PVE/controller and node
 - **AND** neither session SHALL target the guest IP on port 8006 or the other integration

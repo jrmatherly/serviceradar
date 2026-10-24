@@ -86,7 +86,7 @@ defmodule ServiceRadar.Observability.PluginResultIngestorProxmoxScopeTest do
     scope = %{
       integration_id: "11111111-1111-4111-8111-111111111111",
       controller_id: "22222222-2222-4222-8222-222222222222",
-      partition_id: "farm01"
+      partition_id: "edge01"
     }
 
     Application.put_env(:serviceradar_core, :proxmox_scope_test_result, {:ok, scope})
@@ -127,7 +127,7 @@ defmodule ServiceRadar.Observability.PluginResultIngestorProxmoxScopeTest do
     scope = %{
       integration_id: "11111111-1111-4111-8111-111111111111",
       controller_id: "22222222-2222-4222-8222-222222222222",
-      partition_id: "farm01"
+      partition_id: "edge01"
     }
 
     Application.put_env(:serviceradar_core, :proxmox_scope_test_result, {:ok, scope})
@@ -183,7 +183,7 @@ defmodule ServiceRadar.Observability.PluginResultIngestorProxmoxScopeTest do
           "schema" => "serviceradar.proxmox_enrichment.v1",
           "targets" => [
             %{
-              "cluster" => [%{"type" => "cluster", "id" => "farm01", "name" => "farm01"}],
+              "cluster" => [%{"type" => "cluster", "id" => "edge01", "name" => "edge01"}],
               "nodes" => [%{"node" => "pve01", "status" => "online"}],
               "guests" => [
                 %{

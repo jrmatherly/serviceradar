@@ -8,7 +8,7 @@ defmodule ServiceRadar.Edge.AgentCommandBusPreallocationTest do
 
   test "explicit AWX command IDs require a typed durable-attempt context" do
     assert {:error, :preallocated_callback_attempt_context_required} =
-             AgentCommandBus.dispatch("agent-farm01", "awx.launch_job", %{},
+             AgentCommandBus.dispatch("agent-edge01", "awx.launch_job", %{},
                command_id: @command_id
              )
   end
@@ -22,7 +22,7 @@ defmodule ServiceRadar.Edge.AgentCommandBusPreallocationTest do
 
     assert {:error, :sensitive_transmit_payload_denied} =
              AgentCommandBus.dispatch(
-               "agent-farm01",
+               "agent-edge01",
                "awx.fetch_job",
                %{"api_token" => "not-stored"},
                Keyword.put(opts, :context, secure_context("awx.fetch_job", "fetch_job"))
@@ -30,7 +30,7 @@ defmodule ServiceRadar.Edge.AgentCommandBusPreallocationTest do
 
     assert {:error, :preallocated_secure_execution_attempt_context_required} =
              AgentCommandBus.dispatch(
-               "agent-farm01",
+               "agent-edge01",
                "awx.fetch_job",
                %{},
                Keyword.put(opts, :context, callback_context("awx.fetch_job"))
@@ -38,7 +38,7 @@ defmodule ServiceRadar.Edge.AgentCommandBusPreallocationTest do
 
     assert {:error, :preallocated_callback_attempt_context_required} =
              AgentCommandBus.dispatch(
-               "agent-farm01",
+               "agent-edge01",
                "awx.fetch_job",
                %{},
                command_id: @command_id,
@@ -56,7 +56,7 @@ defmodule ServiceRadar.Edge.AgentCommandBusPreallocationTest do
 
     assert {:error, :preallocated_secure_execution_attempt_context_required} =
              AgentCommandBus.dispatch(
-               "agent-farm01",
+               "agent-edge01",
                "awx.fetch_job",
                %{},
                command_id: @command_id,
@@ -74,14 +74,14 @@ defmodule ServiceRadar.Edge.AgentCommandBusPreallocationTest do
           "awx.delete_callback_credential"
         ] do
       assert {:error, :sensitive_transmit_payload_denied} =
-               AgentCommandBus.dispatch("agent-farm01", verb, %{"api_token" => "not-stored"})
+               AgentCommandBus.dispatch("agent-edge01", verb, %{"api_token" => "not-stored"})
     end
   end
 
   test "a typed attempt with exact schema, verb, source, and UUID passes the preallocation gate" do
     assert {:error, :sensitive_transmit_payload_denied} =
              AgentCommandBus.dispatch(
-               "agent-farm01",
+               "agent-edge01",
                "awx.launch_job",
                %{"api_token" => "not-stored"},
                command_id: @command_id,
@@ -94,14 +94,14 @@ defmodule ServiceRadar.Edge.AgentCommandBusPreallocationTest do
   test "callback credential commands require a preallocated UUID" do
     assert {:error, :preallocated_command_id_required} =
              AgentCommandBus.dispatch(
-               "agent-farm01",
+               "agent-edge01",
                "awx.create_callback_credential",
                %{"launch_envelope_ref" => @reference}
              )
 
     assert {:error, :invalid_command_id} =
              AgentCommandBus.dispatch(
-               "agent-farm01",
+               "agent-edge01",
                "awx.create_callback_credential",
                %{"launch_envelope_ref" => @reference},
                command_id: "not-a-uuid"
@@ -111,7 +111,7 @@ defmodule ServiceRadar.Edge.AgentCommandBusPreallocationTest do
   test "preallocated callback commands persist only the opaque envelope reference" do
     assert {:error, :invalid_launch_envelope_payload} =
              AgentCommandBus.dispatch(
-               "agent-farm01",
+               "agent-edge01",
                "awx.create_callback_credential",
                %{
                  "launch_envelope_ref" => @reference,
@@ -122,7 +122,7 @@ defmodule ServiceRadar.Edge.AgentCommandBusPreallocationTest do
 
     assert {:error, :callback_credential_payload_override_forbidden} =
              AgentCommandBus.dispatch(
-               "agent-farm01",
+               "agent-edge01",
                "awx.create_callback_credential",
                %{"launch_envelope_ref" => @reference},
                command_id: @command_id,
@@ -143,13 +143,13 @@ defmodule ServiceRadar.Edge.AgentCommandBusPreallocationTest do
     }
 
     assert {:error, :preallocated_notification_attempt_context_required} =
-             AgentCommandBus.dispatch("agent-farm01", "plugin.run_action", payload,
+             AgentCommandBus.dispatch("agent-edge01", "plugin.run_action", payload,
                command_id: @command_id
              )
 
     assert {:error, :sensitive_transmit_payload_denied} =
              AgentCommandBus.dispatch(
-               "agent-farm01",
+               "agent-edge01",
                "plugin.run_action",
                Map.put(payload, "api_token", "not-stored"),
                command_id: @command_id,
@@ -159,7 +159,7 @@ defmodule ServiceRadar.Edge.AgentCommandBusPreallocationTest do
              )
 
     assert {:error, :preallocated_notification_attempt_context_required} =
-             AgentCommandBus.dispatch("agent-farm01", "plugin.run_action", payload,
+             AgentCommandBus.dispatch("agent-edge01", "plugin.run_action", payload,
                command_id: @command_id,
                notification_delivery_attempt: true,
                source: :automation,

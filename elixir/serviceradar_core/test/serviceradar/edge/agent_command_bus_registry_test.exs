@@ -37,12 +37,12 @@ defmodule ServiceRadar.Edge.AgentCommandBusRegistryTest do
     second = "selected-b-#{System.unique_integer([:positive])}"
     outsider = "outside-selection-#{System.unique_integer([:positive])}"
 
-    start_session(first, "farm01", :gateway@farm, :first, ["sweep"])
-    start_session(second, "tonka01", :gateway@tonka, :second, ["sweep"])
+    start_session(first, "edge01", :gateway@edge, :first, ["sweep"])
+    start_session(second, "hub01", :gateway@hub, :second, ["sweep"])
     start_session(outsider, "devices", :gateway@devices, :outsider, ["sweep"])
 
-    assert eventually(fn -> canonical_session_visible?(first, "farm01") end)
-    assert eventually(fn -> canonical_session_visible?(second, "tonka01") end)
+    assert eventually(fn -> canonical_session_visible?(first, "edge01") end)
+    assert eventually(fn -> canonical_session_visible?(second, "hub01") end)
 
     group = sweep_group([second, first], partition: "devices", agent_id: nil)
     first_command_id = "command-#{first}"
@@ -61,15 +61,15 @@ defmodule ServiceRadar.Edge.AgentCommandBusRegistryTest do
     assert_receive {:dispatch, ^first, "sweep.run_group", %{sweep_group_id: "group-1"},
                     first_opts}
 
-    assert first_opts[:required_partition] == "farm01"
-    assert first_opts[:required_gateway_node] == :gateway@farm
+    assert first_opts[:required_partition] == "edge01"
+    assert first_opts[:required_gateway_node] == :gateway@edge
     assert first_opts[:required_capability] == "sweep"
 
     assert_receive {:dispatch, ^second, "sweep.run_group", %{sweep_group_id: "group-1"},
                     second_opts}
 
-    assert second_opts[:required_partition] == "tonka01"
-    assert second_opts[:required_gateway_node] == :gateway@tonka
+    assert second_opts[:required_partition] == "hub01"
+    assert second_opts[:required_gateway_node] == :gateway@hub
     assert second_opts[:required_capability] == "sweep"
 
     refute_received {:dispatch, ^outsider, _, _, _}
@@ -236,13 +236,13 @@ defmodule ServiceRadar.Edge.AgentCommandBusRegistryTest do
   test "selected sweep dispatch fails closed for two canonical partitions before capability filtering" do
     agent_id = "ambiguous-selected-#{System.unique_integer([:positive])}"
 
-    start_session(agent_id, "farm01", :gateway@farm, :ambiguous_farm, ["sweep"])
-    start_session(agent_id, "tonka01", :gateway@tonka, :ambiguous_tonka, ["icmp"])
+    start_session(agent_id, "edge01", :gateway@edge, :ambiguous_farm, ["sweep"])
+    start_session(agent_id, "hub01", :gateway@hub, :ambiguous_tonka, ["icmp"])
 
-    assert eventually(fn -> canonical_session_visible?(agent_id, "farm01") end)
-    assert eventually(fn -> canonical_session_visible?(agent_id, "tonka01") end)
+    assert eventually(fn -> canonical_session_visible?(agent_id, "edge01") end)
+    assert eventually(fn -> canonical_session_visible?(agent_id, "hub01") end)
 
-    group = sweep_group([agent_id], partition: "farm01", agent_id: nil)
+    group = sweep_group([agent_id], partition: "edge01", agent_id: nil)
 
     assert {:error, {:agent_partition_ambiguous, ^agent_id}} =
              run_sweep_group(group, dispatch_fun: recording_dispatch(self()))
@@ -254,11 +254,11 @@ defmodule ServiceRadar.Edge.AgentCommandBusRegistryTest do
     canonical = "canonical-selected-#{System.unique_integer([:positive])}"
     legacy_only = "legacy-selected-#{System.unique_integer([:positive])}"
 
-    start_session(canonical, "farm01", :gateway@farm, :canonical, ["sweep"])
-    start_legacy_session(canonical, "tonka01", :gateway@legacy, :legacy_shadow, ["sweep"])
+    start_session(canonical, "edge01", :gateway@edge, :canonical, ["sweep"])
+    start_legacy_session(canonical, "hub01", :gateway@legacy, :legacy_shadow, ["sweep"])
     start_legacy_session(legacy_only, "devices", :gateway@legacy, :legacy_only, ["sweep"])
 
-    assert eventually(fn -> canonical_session_visible?(canonical, "farm01") end)
+    assert eventually(fn -> canonical_session_visible?(canonical, "edge01") end)
 
     group = sweep_group([canonical, legacy_only], partition: "devices", agent_id: nil)
 
@@ -270,7 +270,7 @@ defmodule ServiceRadar.Edge.AgentCommandBusRegistryTest do
              run_sweep_group(group, dispatch_fun: recording_dispatch(self()))
 
     assert_receive {:dispatch, ^canonical, _, _, opts}
-    assert opts[:required_partition] == "farm01"
+    assert opts[:required_partition] == "edge01"
     refute_received {:dispatch, ^legacy_only, _, _, _}
   end
 
@@ -519,23 +519,23 @@ defmodule ServiceRadar.Edge.AgentCommandBusRegistryTest do
     agent_id = "shared-agent-#{System.unique_integer([:positive])}"
     gateway_node = :gateway@shared
 
-    farm_pid = start_session(agent_id, "farm01", gateway_node, :farm)
-    tonka_pid = start_session(agent_id, "tonka01", gateway_node, :tonka)
+    farm_pid = start_session(agent_id, "edge01", gateway_node, :edge)
+    tonka_pid = start_session(agent_id, "hub01", gateway_node, :hub)
 
     assert eventually(fn ->
              match?(
-               {:ok, %{control_session_pid: ^farm_pid, partition_id: "farm01"}},
+               {:ok, %{control_session_pid: ^farm_pid, partition_id: "edge01"}},
                AgentCommandBus.resolve_control_session_evidence(
-                 "farm01",
+                 "edge01",
                  agent_id,
                  gateway_node
                )
              )
            end)
 
-    assert {:ok, %{control_session_pid: ^tonka_pid, partition_id: "tonka01"}} =
+    assert {:ok, %{control_session_pid: ^tonka_pid, partition_id: "hub01"}} =
              AgentCommandBus.resolve_control_session_evidence(
-               "tonka01",
+               "hub01",
                agent_id,
                gateway_node
              )

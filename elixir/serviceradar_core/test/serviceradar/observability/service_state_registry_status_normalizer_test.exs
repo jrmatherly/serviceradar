@@ -9,7 +9,7 @@ defmodule ServiceRadar.Observability.ServiceStateRegistry.StatusNormalizerTest d
     assignment = %PluginAssignment{
       id: "11ba9c1c-4934-4863-a1bc-677b20adba0f",
       agent_uid: "shared-pve-name",
-      partition_id: "farm01",
+      partition_id: "edge01",
       enabled: true
     }
 
@@ -23,14 +23,14 @@ defmodule ServiceRadar.Observability.ServiceStateRegistry.StatusNormalizerTest d
     }
 
     agent = %{
-      gateway_id: "farm01-gateway",
-      metadata: %{"partition_id" => "tonka01"}
+      gateway_id: "edge01-gateway",
+      metadata: %{"partition_id" => "hub01"}
     }
 
     attrs = StatusNormalizer.build_attrs_from_assignment(assignment, agent, package)
 
     assert attrs.agent_id == "shared-pve-name"
-    assert attrs.gateway_id == "farm01-gateway"
-    assert attrs.partition == "farm01"
+    assert attrs.gateway_id == "edge01-gateway"
+    assert attrs.partition == "edge01"
   end
 end

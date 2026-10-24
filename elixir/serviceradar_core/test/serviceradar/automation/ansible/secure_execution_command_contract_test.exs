@@ -68,7 +68,7 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionCommandContractTest do
   defp fixture do
     controller = %{
       id: @controller_id,
-      name: "farm01",
+      name: "edge01",
       base_url: "https://AWX.example.test:8443/",
       agent_id: "edge-agent-1",
       credential_secret_id: @sync_secret,

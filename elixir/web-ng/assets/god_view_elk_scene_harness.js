@@ -3,10 +3,10 @@ import {installGodViewAcceptanceGeometryObserver} from "./god_view_acceptance_ge
 import {
   collapsedFarm01Graph,
   expandedFarm01Graph,
-} from "./js/lib/god_view/fixtures/farm01_topology_regression"
+} from "./js/lib/god_view/fixtures/edge01_topology_regression"
 
-const FIRST_CLUSTER = "cluster:endpoints:farm01:gateway-01"
-const SECOND_CLUSTER = "cluster:endpoints:farm01:gateway-02"
+const FIRST_CLUSTER = "cluster:endpoints:edge01:gateway-01"
+const SECOND_CLUSTER = "cluster:endpoints:edge01:gateway-02"
 
 function expandClusters(ordinals) {
   const graph = collapsedFarm01Graph()
@@ -21,15 +21,15 @@ function expandClusters(ordinals) {
 
   for (const ordinal of [...expanded].sort((a, b) => a - b)) {
     const suffix = String(ordinal).padStart(2, "0")
-    const anchorId = `farm01:gateway-${suffix}`
+    const anchorId = `edge01:gateway-${suffix}`
     const clusterId = `cluster:endpoints:${anchorId}`
     // Attach to the summary, mirroring the server -- see the fixture module for why.
-    const summaryIndex = nodes.findIndex((node) => node.id === `farm01:endpoint-summary-${suffix}`)
+    const summaryIndex = nodes.findIndex((node) => node.id === `edge01:endpoint-summary-${suffix}`)
     const offset = nodes.length
     for (let memberOrdinal = 1; memberOrdinal <= 24; memberOrdinal += 1) {
       const memberSuffix = String(memberOrdinal).padStart(2, "0")
       nodes.push({
-        id: `farm01:endpoint-member-${suffix}-${memberSuffix}`,
+        id: `edge01:endpoint-member-${suffix}-${memberSuffix}`,
         label: `Farm01 gateway ${ordinal} endpoint ${memberOrdinal}`,
         state: 1,
         operUp: 1,
@@ -41,7 +41,7 @@ function expandClusters(ordinals) {
         },
       })
       edges.push({
-        id: `farm01:attachment:member-${suffix}-${memberSuffix}`,
+        id: `edge01:attachment:member-${suffix}-${memberSuffix}`,
         source: summaryIndex,
         target: offset + memberOrdinal - 1,
         topologyClass: "endpoints",

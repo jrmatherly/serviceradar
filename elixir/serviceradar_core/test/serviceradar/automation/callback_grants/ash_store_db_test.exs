@@ -522,7 +522,7 @@ defmodule ServiceRadar.Automation.CallbackGrants.AshStoreDbTest do
       callback_credential_type_id: 6,
       callback_credential_organization_id: 2,
       callback_credential_injector_digest: String.duplicate("c", 64),
-      host_limit: "farm01-pve01",
+      host_limit: "edge01-pve01",
       target_count: 1,
       target_digest: String.duplicate("d", 64),
       snapshot_digest: String.duplicate("e", 64),
@@ -533,7 +533,7 @@ defmodule ServiceRadar.Automation.CallbackGrants.AshStoreDbTest do
           inventory_id: 34,
           awx_host_id: 7,
           canonical_device_uid: "sr:device-7",
-          host_name: "farm01-pve01",
+          host_name: "edge01-pve01",
           ansible_host: "192.168.2.22"
         }
       ],
@@ -548,7 +548,7 @@ defmodule ServiceRadar.Automation.CallbackGrants.AshStoreDbTest do
       state: "present",
       targets: [
         %{
-          inventory_hostname: "farm01-pve01",
+          inventory_hostname: "edge01-pve01",
           inventory_address: "192.168.2.22",
           target_identity: %{
             controller_id: ids.controller,
@@ -626,7 +626,7 @@ defmodule ServiceRadar.Automation.CallbackGrants.AshStoreDbTest do
       job_binding: nil,
       ephemeral_credential_id: nil,
       dispatch_agent_id: "agent-gateway-demo",
-      dispatch_partition_id: "farm01",
+      dispatch_partition_id: "edge01",
       launch_envelope_ref: "vault-envelope:callback-grant-1",
       verifier_digest: <<7::256>>,
       verifier_key_id: "callback-v1",
@@ -686,7 +686,7 @@ defmodule ServiceRadar.Automation.CallbackGrants.AshStoreDbTest do
          scm_revision, content_sha256, execution_environment_id, machine_credential_id,
          host_limit, dispatch_id, snapshot_digest)
       VALUES (($1::text)::uuid, ($2::text)::uuid, ($3::text)::uuid, 34, 42, 3,
-              $4, $5, 4, 5, 'farm01-pve01', ($6::text)::uuid, $7)
+              $4, $5, 4, 5, 'edge01-pve01', ($6::text)::uuid, $7)
       """,
       [
         ids.execution,

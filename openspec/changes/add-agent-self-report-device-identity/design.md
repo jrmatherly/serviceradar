@@ -30,7 +30,7 @@ Enforced at the producer, not by convention downstream:
 
 ## Why `agent_id` and not MAC
 
-MAC would be the intuitive anchor and is not available. On farm01 **neither** the old nor the
+MAC would be the intuitive anchor and is not available. On edge01 **neither** the old nor the
 new `alma-test01` device has a MAC at all -- both were minted by `mapper_topology_sighting`,
 which reports an IP and a hostname. Anchoring on a MAC the agent does not report is a
 requirement the data cannot satisfy today.
@@ -54,7 +54,7 @@ new address -- never produces a duplicate in the first place.
 ## Ordering against observer sources
 
 Both a mapper sighting and a self-report can describe the same host, and mapper may get there
-first (it did on farm01: device A predates the `agent_id` identifier by two days). The
+first (it did on edge01: device A predates the `agent_id` identifier by two days). The
 self-report must therefore resolve to an EXISTING device by IP before creating one, register
 `agent_id` on whatever device it resolved to, and only create when nothing resolves. Creating
 unconditionally would mint a second device on every agent whose host a mapper had already seen

@@ -75,7 +75,7 @@ defmodule ServiceRadar.Automation.Ansible.HardenedRunLauncherTest do
   defp controller, do: Fixtures.controller()
 
   defp edge_principal("edge-agent-1") do
-    {:ok, %{agent_id: "edge-agent-1", partition_id: "farm01"}}
+    {:ok, %{agent_id: "edge-agent-1", partition_id: "edge01"}}
   end
 
   defp launch(launch_plan \\ nil, opts \\ []) do
@@ -146,7 +146,7 @@ defmodule ServiceRadar.Automation.Ansible.HardenedRunLauncherTest do
     assert {:error, :awx_preflight_partition_drift} =
              launch(plan(),
                edge_principal_resolver: fn "edge-agent-1" ->
-                 {:ok, %{agent_id: "edge-agent-1", partition_id: "tonka01"}}
+                 {:ok, %{agent_id: "edge-agent-1", partition_id: "hub01"}}
                end
              )
 

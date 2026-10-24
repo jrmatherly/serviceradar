@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest"
 
-import {collapsedFarm01Graph, expandedFarm01Graph, reverseGraphArrays} from "./fixtures/farm01_topology_regression"
+import {collapsedFarm01Graph, expandedFarm01Graph, reverseGraphArrays} from "./fixtures/edge01_topology_regression"
 import {prepareTopologyOverviewInput} from "./topology_overview_projection"
 
 function denseLowTrustFanoutGraph(endpointCount = 160) {
@@ -124,7 +124,7 @@ describe("topology_overview_projection", () => {
     )
   })
 
-  it("is invariant under shuffled farm01 input", () => {
+  it("is invariant under shuffled edge01 input", () => {
     const forward = prepareTopologyOverviewInput(collapsedFarm01Graph())
     const shuffled = prepareTopologyOverviewInput(reverseGraphArrays(collapsedFarm01Graph()))
 
@@ -135,7 +135,7 @@ describe("topology_overview_projection", () => {
     expect(shuffled.roots).toEqual(forward.roots)
   })
 
-  it("projects farm01 into a spanning infrastructure forest with census leaves", () => {
+  it("projects edge01 into a spanning infrastructure forest with census leaves", () => {
     const overview = prepareTopologyOverviewInput(collapsedFarm01Graph())
 
     expect(overview.nodes).toHaveLength(12)
@@ -154,7 +154,7 @@ describe("topology_overview_projection", () => {
       semanticNodes: 12,
     })
     expect(overview.synthetic).toEqual({nodeIds: [], relationIds: []})
-    expect(overview.roots).toEqual(["farm01:gateway-01"])
+    expect(overview.roots).toEqual(["edge01:gateway-01"])
   })
 
   it("selects two trusted cycle edges and preserves the rejected pair as a cross-link", () => {
@@ -386,10 +386,10 @@ describe("topology_overview_projection", () => {
 
   it("admits an expanded endpoint member without promoting it into transport", () => {
     const graph = expandedFarm01Graph()
-    const memberIndex = graph.nodes.findIndex((node) => node.id === "farm01:endpoint-member-01")
-    const anchorIndex = graph.nodes.findIndex((node) => node.id === "farm01:gateway-01")
+    const memberIndex = graph.nodes.findIndex((node) => node.id === "edge01:endpoint-member-01")
+    const anchorIndex = graph.nodes.findIndex((node) => node.id === "edge01:gateway-01")
     graph.edges.push({
-      id: "farm01:member-observed-link",
+      id: "edge01:member-observed-link",
       source: memberIndex,
       target: anchorIndex,
       topologyClass: "observed",
@@ -401,7 +401,7 @@ describe("topology_overview_projection", () => {
     // The invariant here is that incidental transport-looking evidence never promotes a
     // member into the backbone -- not that members are absent. An expanded cluster now
     // elaborates the atlas, so its members are present, as members.
-    const member = overview.nodes.find((node) => node.id === "farm01:endpoint-member-01")
+    const member = overview.nodes.find((node) => node.id === "edge01:endpoint-member-01")
 
     expect(member, "an expanded member belongs in the atlas").toBeTruthy()
     expect(member.role, "observed evidence must not promote a member into transport").toEqual("member")
@@ -439,9 +439,9 @@ describe("expanded clusters inside the radial atlas", () => {
   // elaborate instead: the backbone keeps its radial positions and the opened cluster gains a
   // ring of members in its own wedge.
   function expandedGraph({summaryIdMatchesClusterId}) {
-    const anchorId = "farm01:gateway-01"
+    const anchorId = "edge01:gateway-01"
     const clusterId = `cluster:endpoints:${anchorId}`
-    const summaryId = summaryIdMatchesClusterId ? clusterId : "farm01:endpoint-summary-01"
+    const summaryId = summaryIdMatchesClusterId ? clusterId : "edge01:endpoint-summary-01"
     const nodes = [
       {id: anchorId, label: "gateway", details: {cluster_kind: "endpoint-anchor", cluster_anchor_id: anchorId}},
       {id: summaryId, label: "6 endpoints", clusterCount: 6,
@@ -476,7 +476,7 @@ describe("expanded clusters inside the radial atlas", () => {
       for (let index = 0; index < 6; index += 1) {
         const relation = relationByTarget.get(`member-${index}`)
         expect(relation, `member-${index} must be connected`).toBeTruthy()
-        expect(relation.sourceId).toBe("farm01:gateway-01")
+        expect(relation.sourceId).toBe("edge01:gateway-01")
         // A relation with no backing graph edge lays out but never renders -- the member
         // draws as an unconnected dot. Carrying the attachment edge's identity is what makes
         // it a drawn route.

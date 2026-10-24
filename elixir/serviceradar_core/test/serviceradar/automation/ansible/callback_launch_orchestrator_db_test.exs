@@ -229,14 +229,14 @@ defmodule ServiceRadar.Automation.Ansible.CallbackLaunchOrchestratorDbTest do
       "inventory_id" => 34,
       "awx_host_id" => 7,
       "canonical_device_uid" => device_uid,
-      "host_name" => "farm01-pve01",
+      "host_name" => "edge01-pve01",
       "ansible_host" => "192.168.2.22",
       "membership_generation" => 3,
       "source_fingerprint" => source_fingerprint
     }
 
     response_target = %{
-      "inventory_hostname" => "farm01-pve01",
+      "inventory_hostname" => "edge01-pve01",
       "inventory_address" => "192.168.2.22",
       "target_identity" =>
         Map.drop(scope_target, [
@@ -283,7 +283,7 @@ defmodule ServiceRadar.Automation.Ansible.CallbackLaunchOrchestratorDbTest do
       "callback_credential_type_id" => 6,
       "callback_credential_organization_id" => 2,
       "callback_credential_injector_digest" => String.duplicate("c", 64),
-      "host_limit" => "farm01-pve01",
+      "host_limit" => "edge01-pve01",
       "target_count" => 1,
       "target_digest" => target_digest,
       "snapshot_digest" => snapshot_digest,
@@ -353,7 +353,7 @@ defmodule ServiceRadar.Automation.Ansible.CallbackLaunchOrchestratorDbTest do
           "dynamic_callback_slot" => "ssh_ca_callback"
         },
         check_mode: false,
-        host_limit: "farm01-pve01",
+        host_limit: "edge01-pve01",
         dispatch_id: ids.dispatch,
         snapshot_digest: snapshot_digest,
         callback_reference: ids.grant,
@@ -372,7 +372,7 @@ defmodule ServiceRadar.Automation.Ansible.CallbackLaunchOrchestratorDbTest do
           awx_host_id: 7,
           membership_generation: 3,
           source_fingerprint: source_fingerprint,
-          host_name: "farm01-pve01",
+          host_name: "edge01-pve01",
           ansible_host: "192.168.2.22",
           snapshot_digest: String.duplicate("3", 64)
         }
@@ -399,7 +399,7 @@ defmodule ServiceRadar.Automation.Ansible.CallbackLaunchOrchestratorDbTest do
         store: Keyword.get(opts, :store, ServiceRadar.Automation.LaunchEnvelopes.AshStore)
       ],
       dispatch_agent_id: "agent-gateway-demo",
-      dispatch_partition_id: "farm01",
+      dispatch_partition_id: "edge01",
       grant_attrs: %{
         id: ids.grant,
         tenant_id: "platform",
@@ -432,7 +432,7 @@ defmodule ServiceRadar.Automation.Ansible.CallbackLaunchOrchestratorDbTest do
         awx_scope_snapshot: scope,
         response_snapshot: response,
         dispatch_agent_id: "agent-gateway-demo",
-        dispatch_partition_id: "farm01"
+        dispatch_partition_id: "edge01"
       }
     }
 
@@ -472,7 +472,7 @@ defmodule ServiceRadar.Automation.Ansible.CallbackLaunchOrchestratorDbTest do
          source_generation, host_name, ansible_host, enabled, current,
          last_seen_at, link_disposition, source_fingerprint)
       VALUES (($1::text)::uuid, ($2::text)::uuid, 34, 7, $3, 3,
-              'farm01-pve01', '192.168.2.22', true, true,
+              'edge01-pve01', '192.168.2.22', true, true,
               (now() AT TIME ZONE 'utc'), 'approved', $4)
       """,
       [
@@ -576,7 +576,7 @@ defmodule ServiceRadar.Automation.Ansible.CallbackLaunchOrchestratorDbTest do
                  command_id: fixture.ids.command,
                  command_type: "awx.create_callback_credential",
                  agent_id: "agent-gateway-demo",
-                 partition_id: "farm01",
+                 partition_id: "edge01",
                  payload: %{"launch_envelope_ref" => fixture.callback.allocation.reference},
                  context: %{"test" => "callback_launch_orchestrator_db"},
                  ttl_seconds: 300,
@@ -592,7 +592,7 @@ defmodule ServiceRadar.Automation.Ansible.CallbackLaunchOrchestratorDbTest do
       fixture.callback.allocation.reference,
       %{
         agent_id: "agent-gateway-demo",
-        partition_id: "farm01",
+        partition_id: "edge01",
         command_id: fixture.ids.command
       },
       Keyword.merge(

@@ -229,7 +229,7 @@ as HTTP transport; do not add a Bearer header if you are using OAuth login.
 
 1. The client opens `/oauth/authorize` with PKCE S256.
 2. Redirect to `/users/log-in` if you are not signed in.
-3. Sign in (Enterprise SSO on demo, local password on Compose / farm01).
+3. Sign in (Enterprise SSO on demo, local password on Compose / edge01).
 4. ServiceRadar consent page → Approve.
 5. Browser returns to `http://127.0.0.1:<port>/...`. The client stores a
    Guardian JWT with scopes `mcp` and `read`.

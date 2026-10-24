@@ -49,7 +49,7 @@ defmodule ServiceRadar.Automation.Ansible.ControllerProvenanceTest do
              )
 
     assert_receive {:edge_dispatch, "edge-agent-1", "awx.fetch_job", payload, opts}
-    assert opts[:required_partition] == "farm01"
+    assert opts[:required_partition] == "edge01"
     assert payload["args"] == %{"job_id" => 42}
     assert payload["credential_broker"]["consumer"]["purpose"] == "awx.fetch_job"
     assert payload["credential_broker"]["resolution_location"] == "agent"
@@ -89,7 +89,7 @@ defmodule ServiceRadar.Automation.Ansible.ControllerProvenanceTest do
 
     for mutation <- [
           &Map.put(&1, :agent_id, "other-agent"),
-          &Map.put(&1, :partition_id, "tonka01"),
+          &Map.put(&1, :partition_id, "hub01"),
           &Map.put(&1, :command_type, "awx.cancel_job"),
           &Map.put(&1, :status, :succeeded),
           &update_in(&1.payload["args"], fn _ -> %{"job_id" => 99} end)
@@ -281,7 +281,7 @@ defmodule ServiceRadar.Automation.Ansible.ControllerProvenanceTest do
   defp base_opts(snapshot) do
     [
       expected_controller_snapshot: snapshot,
-      expected_partition_id: "farm01",
+      expected_partition_id: "edge01",
       awx_client_opts: [command_bus: FakeCommandBus, grant_issuer: &fake_grant/1],
       command_reader: &command_reader/1
     ]
@@ -381,7 +381,7 @@ defmodule ServiceRadar.Automation.Ansible.ControllerProvenanceTest do
   defp controller do
     %Controller{
       id: "018f3f56-1111-7222-8333-123456789abc",
-      name: "farm01-awx",
+      name: "edge01-awx",
       base_url: "https://awx.example.test:8443",
       agent_id: "edge-agent-1",
       enabled: true,

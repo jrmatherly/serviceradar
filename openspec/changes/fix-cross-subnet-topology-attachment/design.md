@@ -1,8 +1,8 @@
 ## Context
 
 The demo topology graph shows a healthy backbone on `192.168.1.0/24` and a set of
-"islands": Proxmox hypervisors and endpoints on the routed `farm01`
-(`192.168.2.0/24`) and `tonka01` (`192.168.10.0/24`) segments with no switch↔host
+"islands": Proxmox hypervisors and endpoints on the routed `edge01`
+(`192.168.2.0/24`) and `hub01` (`192.168.10.0/24`) segments with no switch↔host
 attachment edges. The hypervisor↔guest edges that appear inside each island are
 **fabricated at read time** by the web-ng runtime graph from the virtualization
 inventory (`virtualization_guests`/`virtualization_hosts`); the hypervisors and
@@ -16,16 +16,16 @@ identity-tier follow-ups are listed as related work in `proposal.md`.
 
 ### Per-site blocker analysis (verified against live SNMP)
 
-- **tonka01 site (aruba `192.168.10.154`, HP 2920):** `dot1d` FDB walks fine (12
+- **hub01 site (aruba `192.168.10.154`, HP 2920):** `dot1d` FDB walks fine (12
   entries; `dot1q` adds only VLAN-duplicate rows), so [B] is not the blocker here.
-  Five endpoints on ports 13–17 have MACs that `tonka01`'s ARP resolves to
+  Five endpoints on ports 13–17 have MACs that `hub01`'s ARP resolves to
   `192.168.10.31/.33/.45/.56/.96` — all on the **same /24** as the aruba's own
   management IP, so [A] passes too. These edges are blocked purely by the
   recursive-pass veto **[D]** (the aruba is reached recursively, and its endpoint
   IPs are in the ARP-derived scan queue). Fixing [D] alone should surface these
   five edges. The pve **data** NICs (`.136/.235/.182`) attach directly to
-  `tonka01` (no bridge FDB) and are not SNMP-recoverable — out of scope.
-- **farm01 site (UniFi USW-Pro-24 `192.168.1.131`):** the pve hosts sit on VLAN 2,
+  `hub01` (no bridge FDB) and are not SNMP-recoverable — out of scope.
+- **edge01 site (UniFi USW-Pro-24 `192.168.1.131`):** the pve hosts sit on VLAN 2,
   and the switch exposes its FDB only via `dot1q` **[B]**, on a different /24 than
   the switch's management IP **[A]**; the hosts are also learned as **wired**
   controller clients **[E]**. Recovering farm-site attachment needs [B]+[A], or
@@ -96,7 +96,7 @@ Rollback = revert; no persisted data shape changes.
 
 ## Open Questions
 
-- Does the tonka01 job walk both `tonka01` (ARP owner) and the aruba (FDB owner)
+- Does the hub01 job walk both `hub01` (ARP owner) and the aruba (FDB owner)
   within one job run, so the shared MAC→IP map can join them? (Live data implies
   yes; confirm the recursive expansion includes both before relying on [C]+[D]
   alone for the tonka edges.)

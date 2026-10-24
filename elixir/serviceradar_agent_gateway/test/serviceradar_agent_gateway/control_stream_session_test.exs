@@ -100,36 +100,36 @@ defmodule ServiceRadarAgentGateway.ControlStreamSessionTest do
              ControlStreamSession.register(
                farm_pid,
                agent_id,
-               "farm01",
+               "edge01",
                [],
-               identity_context(agent_id, "farm01")
+               identity_context(agent_id, "edge01")
              )
 
     assert :ok =
              ControlStreamSession.register(
                tonka_pid,
                agent_id,
-               "tonka01",
+               "hub01",
                [],
-               identity_context(agent_id, "tonka01")
+               identity_context(agent_id, "hub01")
              )
 
-    assert [{^farm_pid, %{partition_id: "farm01"}}] =
-             ProcessRegistry.lookup_agent_control("farm01", agent_id)
+    assert [{^farm_pid, %{partition_id: "edge01"}}] =
+             ProcessRegistry.lookup_agent_control("edge01", agent_id)
 
-    assert [{^tonka_pid, %{partition_id: "tonka01"}}] =
-             ProcessRegistry.lookup_agent_control("tonka01", agent_id)
+    assert [{^tonka_pid, %{partition_id: "hub01"}}] =
+             ProcessRegistry.lookup_agent_control("hub01", agent_id)
 
     assert {:error, {:control_session_already_registered, ^farm_pid}} =
              ControlStreamSession.register(
                duplicate_pid,
                agent_id,
-               "farm01",
+               "edge01",
                [],
-               identity_context(agent_id, "farm01")
+               identity_context(agent_id, "edge01")
              )
 
-    refute Enum.any?(ProcessRegistry.lookup_agent_control("farm01", agent_id), fn
+    refute Enum.any?(ProcessRegistry.lookup_agent_control("edge01", agent_id), fn
              {^duplicate_pid, _metadata} -> true
              _entry -> false
            end)

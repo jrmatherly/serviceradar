@@ -32,7 +32,7 @@ defmodule ServiceRadar.Automation.Ansible.ExecutionLifecycleTest do
           ]
         },
         check_mode: false,
-        host_limit: "farm01-pve01,farm01-node01",
+        host_limit: "edge01-pve01,edge01-node01",
         dispatch_id: "018f3f56-1111-7222-8333-123456789abe",
         snapshot_digest: String.duplicate("b", 64),
         awx_job_id: nil,
@@ -51,7 +51,7 @@ defmodule ServiceRadar.Automation.Ansible.ExecutionLifecycleTest do
         "job_id" => 77,
         "job_template" => 42,
         "inventory" => 34,
-        "limit" => "farm01-pve01,farm01-node01",
+        "limit" => "edge01-pve01,edge01-node01",
         "project" => 3,
         "scm_revision" => String.duplicate("a", 40),
         "execution_environment" => 4,
@@ -79,7 +79,7 @@ defmodule ServiceRadar.Automation.Ansible.ExecutionLifecycleTest do
         inventory_id: 34,
         awx_host_id: 7,
         canonical_device_uid: "sr:device-7",
-        host_name: "farm01-pve01"
+        host_name: "edge01-pve01"
       },
       %{
         id: "target-8",
@@ -89,7 +89,7 @@ defmodule ServiceRadar.Automation.Ansible.ExecutionLifecycleTest do
         inventory_id: 34,
         awx_host_id: 8,
         canonical_device_uid: "sr:device-8",
-        host_name: "farm01-node01"
+        host_name: "edge01-node01"
       }
     ]
   end
@@ -416,8 +416,8 @@ defmodule ServiceRadar.Automation.Ansible.ExecutionLifecycleTest do
 
   test "classifies only a strict expected subset as retryable host evidence" do
     accepted = execution(%{awx_job_id: 77, state: :launching})
-    host7 = %{"job_id" => 77, "host_id" => 7, "host_name" => "farm01-pve01"}
-    host8 = %{"job_id" => 77, "host_id" => 8, "host_name" => "farm01-node01"}
+    host7 = %{"job_id" => 77, "host_id" => 7, "host_name" => "edge01-pve01"}
+    host8 = %{"job_id" => 77, "host_id" => 8, "host_name" => "edge01-node01"}
 
     assert {:retry, :host_scope_incomplete} =
              ExecutionLifecycle.classify_host_scope(
@@ -452,7 +452,7 @@ defmodule ServiceRadar.Automation.Ansible.ExecutionLifecycleTest do
                targets(),
                @controller_id,
                77,
-               [host7, %{host7 | "host_name" => "farm01-node01"}]
+               [host7, %{host7 | "host_name" => "edge01-node01"}]
              )
   end
 
@@ -460,8 +460,8 @@ defmodule ServiceRadar.Automation.Ansible.ExecutionLifecycleTest do
     accepted = execution(%{awx_job_id: 77, state: :launching})
 
     summaries = [
-      %{"job_id" => 77, "host_id" => 8, "host_name" => "farm01-node01"},
-      %{"job_id" => 77, "host_id" => 7, "host_name" => "farm01-pve01"}
+      %{"job_id" => 77, "host_id" => 8, "host_name" => "edge01-node01"},
+      %{"job_id" => 77, "host_id" => 7, "host_name" => "edge01-pve01"}
     ]
 
     assert {:ok, result} =
@@ -485,19 +485,19 @@ defmodule ServiceRadar.Automation.Ansible.ExecutionLifecycleTest do
     accepted = execution(%{awx_job_id: 77, state: :launching})
 
     bad_summaries = [
-      [%{"job_id" => 77, "host_id" => 7, "host_name" => "farm01-pve01"}],
+      [%{"job_id" => 77, "host_id" => 7, "host_name" => "edge01-pve01"}],
       [
-        %{"job_id" => 77, "host_id" => 7, "host_name" => "farm01-pve01"},
-        %{"job_id" => 77, "host_id" => 8, "host_name" => "farm01-node01"},
+        %{"job_id" => 77, "host_id" => 7, "host_name" => "edge01-pve01"},
+        %{"job_id" => 77, "host_id" => 8, "host_name" => "edge01-node01"},
         %{"job_id" => 77, "host_id" => 9, "host_name" => "other"}
       ],
       [
-        %{"job_id" => 77, "host_id" => 7, "host_name" => "farm01-pve01"},
-        %{"job_id" => 77, "host_id" => 7, "host_name" => "farm01-node01"}
+        %{"job_id" => 77, "host_id" => 7, "host_name" => "edge01-pve01"},
+        %{"job_id" => 77, "host_id" => 7, "host_name" => "edge01-node01"}
       ],
       [
-        %{"job_id" => 78, "host_id" => 7, "host_name" => "farm01-pve01"},
-        %{"job_id" => 77, "host_id" => 8, "host_name" => "farm01-node01"}
+        %{"job_id" => 78, "host_id" => 7, "host_name" => "edge01-pve01"},
+        %{"job_id" => 77, "host_id" => 8, "host_name" => "edge01-node01"}
       ]
     ]
 
@@ -534,8 +534,8 @@ defmodule ServiceRadar.Automation.Ansible.ExecutionLifecycleTest do
     accepted = execution(%{awx_job_id: 77, state: :launching})
 
     summaries = [
-      %{"job_id" => 77, "host_id" => 7, "host_name" => "farm01-pve01"},
-      %{"job_id" => 77, "host_id" => 8, "host_name" => "farm01-node01"}
+      %{"job_id" => 77, "host_id" => 7, "host_name" => "edge01-pve01"},
+      %{"job_id" => 77, "host_id" => 8, "host_name" => "edge01-node01"}
     ]
 
     assert {:error, :database_unavailable} =

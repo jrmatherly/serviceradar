@@ -596,7 +596,7 @@ defmodule ServiceRadar.Automation.Ansible.AwxTemplateBindingTest do
       "inventory" => %{
         "id" =>
           attrs |> Map.fetch!(:allowed_inventory_ids) |> List.first() |> Integer.to_string(),
-        "name" => "farm01-linux",
+        "name" => "edge01-linux",
         "modified" => "2026-07-12T20:00:00Z",
         "kind" => ""
       },

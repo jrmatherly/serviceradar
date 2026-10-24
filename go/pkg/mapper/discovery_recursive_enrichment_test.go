@@ -60,7 +60,7 @@ func TestFinalizePublishesInterfacesAddedAfterIdentityReconcile(t *testing.T) {
 		Results: &DiscoveryResults{
 			Interfaces: []*DiscoveredInterface{
 				{
-					DeviceID: "sr:tonka01",
+					DeviceID: "sr:hub01",
 					DeviceIP: "192.168.10.1",
 					IfIndex:  1,
 					IfName:   "ge-0/0/1",

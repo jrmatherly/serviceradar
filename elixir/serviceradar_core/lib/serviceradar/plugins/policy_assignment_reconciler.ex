@@ -252,8 +252,8 @@ defmodule ServiceRadar.Plugins.PolicyAssignmentReconciler do
       |> Enum.filter(&is_binary(&1.source_key))
       # The assignment store applies this filter at query time. Keep this
       # in-memory filter as a fail-closed backstop for injected stores: a
-      # recovery that authenticated `farm01` must not update or retract a row
-      # for the same agent UID in `tonka01`.
+      # recovery that authenticated `site-a` must not update or retract a row
+      # for the same agent UID in `site-b`.
       |> scope_existing_partition(partition_scope)
       |> Map.new(&{{&1.partition_id, &1.source_key}, &1})
 

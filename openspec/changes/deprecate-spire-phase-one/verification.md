@@ -21,7 +21,7 @@
 - Archify workflow deterministic delivery: 9/9 checks, no errors or warnings. Source SHA-256: 5962ae7887217b25a2fd67e512a18067c98e1fd5e5ce0fb35524a50439cb4a3e . HTML SHA-256: d5da858ac9ba2bdc89152d1fb0ef91b11d6cff2656ab438a76dd099f64560dde .
 - Automated browser checks passed desktop containment at 1440x900, 1600x1000, 1920x1080 and 2048x1320, including light/dark evidence. Canonical receipt and screenshots are retained in docs/architecture.
 - Image review inspected the 1440x900 dark and 2048x1320 light screenshots: labels and edges are readable and contained; the largest viewport retains extra lower whitespace. This is a separate visual observation, not a browser-test claim.
-- Workflow viewer: https://agentboard.farm01.carverauto.dev/documents/122 . Approved portable OpenSpec review: https://agentboard.farm01.carverauto.dev/documents/123 . The user ended the local review session; it was not reopened.
+- Workflow viewer: https://agentboard.edge01.carverauto.dev/documents/122 . Approved portable OpenSpec review: https://agentboard.edge01.carverauto.dev/documents/123 . The user ended the local review session; it was not reopened.
 
 ## Shipping constraints
 

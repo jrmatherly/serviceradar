@@ -10,9 +10,9 @@ defmodule ServiceRadarWebNGWeb.NetflowLive.Visualize.FlowContext.LocalAnchorTest
   @carver %{
     cidr: "10.0.2.0/24",
     partition: "default",
-    latitude: 44.7636,
-    longitude: -93.6258,
-    location_label: "Carver, MN",
+    latitude: 41.9742,
+    longitude: -87.9073,
+    location_label: "Chicago, IL",
     label: "k3s node interfaces",
     updated_at: ~U[2026-07-01 00:00:00Z]
   }
@@ -29,7 +29,7 @@ defmodule ServiceRadarWebNGWeb.NetflowLive.Visualize.FlowContext.LocalAnchorTest
 
   describe "resolve/3" do
     test "resolves the enabled anchor for an IP inside a local CIDR" do
-      assert %{latitude: 44.7636, longitude: -93.6258, label: "Carver, MN"} =
+      assert %{latitude: 41.9742, longitude: -87.9073, label: "Chicago, IL"} =
                LocalAnchor.resolve([@carver, @internal_16], "10.0.2.12", "default")
     end
 
@@ -56,12 +56,12 @@ defmodule ServiceRadarWebNGWeb.NetflowLive.Visualize.FlowContext.LocalAnchorTest
 
     test "matches regardless of anchor partition when the flow partition is unknown" do
       scoped = %{@carver | partition: "somepartition"}
-      assert %{label: "Carver, MN"} = LocalAnchor.resolve([scoped], "10.0.2.12", nil)
+      assert %{label: "Chicago, IL"} = LocalAnchor.resolve([scoped], "10.0.2.12", nil)
     end
 
     test "a nil/blank anchor partition is global and matches any flow partition" do
       global = %{@carver | partition: nil}
-      assert %{label: "Carver, MN"} = LocalAnchor.resolve([global], "10.0.2.12", "prod")
+      assert %{label: "Chicago, IL"} = LocalAnchor.resolve([global], "10.0.2.12", "prod")
     end
 
     test "ignores anchors without coordinates and falls back to a coarser anchor that has them" do

@@ -310,30 +310,30 @@ defmodule ServiceRadar.Edge.AgentCommandBusTest do
         start_control_session(
           agent_id,
           self(),
-          %{partition_id: "farm01", gateway_node: "gateway@shared"},
+          %{partition_id: "edge01", gateway_node: "gateway@shared"},
           registry_key: {:agent_control, agent_id, :shared_gateway},
-          marker: :farm
+          marker: :edge
         )
 
       {tonka_pid, _metadata} =
         start_control_session(
           agent_id,
           self(),
-          %{partition_id: "tonka01", gateway_node: "gateway@shared"},
+          %{partition_id: "hub01", gateway_node: "gateway@shared"},
           registry_key: {:agent_control, agent_id, :shared_gateway},
-          marker: :tonka
+          marker: :hub
         )
 
-      assert {:ok, %{control_session_pid: ^farm_pid, partition_id: "farm01"}} =
+      assert {:ok, %{control_session_pid: ^farm_pid, partition_id: "edge01"}} =
                AgentCommandBus.resolve_control_session_evidence(
-                 "farm01",
+                 "edge01",
                  agent_id,
                  "gateway@shared"
                )
 
-      assert {:ok, %{control_session_pid: ^tonka_pid, partition_id: "tonka01"}} =
+      assert {:ok, %{control_session_pid: ^tonka_pid, partition_id: "hub01"}} =
                AgentCommandBus.resolve_control_session_evidence(
-                 "tonka01",
+                 "hub01",
                  agent_id,
                  "gateway@shared"
                )
@@ -345,13 +345,13 @@ defmodule ServiceRadar.Edge.AgentCommandBusTest do
                AgentCommandBus.dispatch(
                  agent_id,
                  "test.partition_bound",
-                 %{"partition_id" => "farm01"},
-                 required_partition: "tonka01",
+                 %{"partition_id" => "edge01"},
+                 required_partition: "hub01",
                  required_gateway_node: "gateway@shared"
                )
 
-      assert_receive {:send_command, :tonka, %Monitoring.CommandRequest{}, _context}, 1_000
-      refute_received {:send_command, :farm, _, _}
+      assert_receive {:send_command, :hub, %Monitoring.CommandRequest{}, _context}, 1_000
+      refute_received {:send_command, :edge, _, _}
     end
 
     test "an evidence-bound console dispatch never repins to a replacement session", %{
@@ -886,7 +886,7 @@ defmodule ServiceRadar.Edge.AgentCommandBusTest do
         start_control_session(
           agent_id,
           self(),
-          %{partition_id: "farm01", capabilities: ["mtr"]},
+          %{partition_id: "edge01", capabilities: ["mtr"]},
           ack_before_reply?: true
         )
 
@@ -896,7 +896,7 @@ defmodule ServiceRadar.Edge.AgentCommandBusTest do
                )
 
       command = wait_for_status(command_id, :acknowledged, actor)
-      assert command.partition_id == "farm01"
+      assert command.partition_id == "edge01"
       assert command.message == "ack"
     end
 

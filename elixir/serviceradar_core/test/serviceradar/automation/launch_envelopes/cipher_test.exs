@@ -124,7 +124,7 @@ defmodule ServiceRadar.Automation.LaunchEnvelopes.CipherTest do
 
     refute Context.grant_matches?(
              context,
-             Map.put(grant, "dispatch_partition_id", "tonka01")
+             Map.put(grant, "dispatch_partition_id", "hub01")
            )
   end
 
@@ -147,8 +147,8 @@ defmodule ServiceRadar.Automation.LaunchEnvelopes.CipherTest do
       controller_id: "01980a6d-4a62-7b3f-a249-5f825874ca44",
       inventory_id: 17,
       job_template_id: 23,
-      dispatch_agent_id: "agent-farm01",
-      dispatch_partition_id: "farm01",
+      dispatch_agent_id: "agent-edge01",
+      dispatch_partition_id: "edge01",
       callback_allowed_origin: "https://demo.example.com",
       manifest_sha256: String.duplicate("a", 64),
       scm_revision: String.duplicate("b", 40),
@@ -172,8 +172,8 @@ defmodule ServiceRadar.Automation.LaunchEnvelopes.CipherTest do
       controller_id: Ecto.UUID.generate(),
       inventory_id: context.inventory_id + 1,
       job_template_id: context.job_template_id + 1,
-      dispatch_agent_id: "agent-tonka01",
-      dispatch_partition_id: "tonka01",
+      dispatch_agent_id: "agent-hub01",
+      dispatch_partition_id: "hub01",
       callback_url: String.replace(context.callback_url, "demo", "other"),
       callback_allowed_origin: "https://other.example.com",
       manifest_sha256: String.duplicate("e", 64),

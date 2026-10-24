@@ -327,7 +327,7 @@ defmodule ServiceRadar.Automation.Ansible.AwxLaunchContractTest do
           {:awx_preflight_template_project_drift,
            put_in(reviewed, ["template", "playbook"], "playbooks/updated.yml")},
           {:awx_preflight_inventory_drift,
-           put_in(reviewed, ["inventory", "name"], "farm02-linux")},
+           put_in(reviewed, ["inventory", "name"], "edge02-linux")},
           {:awx_preflight_credential_set_drift,
            put_in(reviewed, ["credentials", Access.at(0), "name"], "machine-ssh-rotated")},
           {:awx_preflight_execution_environment_drift,
@@ -386,7 +386,7 @@ defmodule ServiceRadar.Automation.Ansible.AwxLaunchContractTest do
       },
       "inventory" => %{
         "id" => "8",
-        "name" => "farm01-linux",
+        "name" => "edge01-linux",
         "modified" => "2026-07-14T20:00:00Z",
         "kind" => ""
       },

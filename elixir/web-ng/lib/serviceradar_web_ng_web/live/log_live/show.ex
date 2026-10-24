@@ -1160,7 +1160,7 @@ defmodule ServiceRadarWebNGWeb.LogLive.Show do
 
   defp extract_wevent_headline(_), do: nil
 
-  # "tonka01 dnsmasq-dhcp[4129]: Updating leases :: AGE=…"
+  # "gw01 dnsmasq-dhcp[4129]: Updating leases :: AGE=…"
   # Keep process[pid] in the hero — it is the real context (not just hostname).
   defp extract_syslog_process_headline(body) when is_binary(body) do
     head =
@@ -1181,7 +1181,7 @@ defmodule ServiceRadarWebNGWeb.LogLive.Show do
 
   defp extract_syslog_process_headline(_), do: nil
 
-  # tonka01 [WAN_CUSTOM2-A-10008] DESCR="Allow SSH to forgejo" IN=… DPT=22
+  # gw01 [WAN_CUSTOM2-A-10008] DESCR="Allow SSH to git" IN=… DPT=22
   # Prefer human DESCR + rule id over bare "[WAN_CUSTOM2-A-10008]".
   defp extract_firewall_rule_headline(body) when is_binary(body) do
     rule =
@@ -1385,7 +1385,7 @@ defmodule ServiceRadarWebNGWeb.LogLive.Show do
     cleaned =
       body
       |> peel_host_prefix()
-      # optional short hostname token before process (tonka01 dnsmasq-dhcp[…])
+      # optional short hostname token before process (gw01 dnsmasq-dhcp[…])
       # kept when process headline wins; here we only strip facility noise for fallbacks
       # mcad[1977]: / process[12345]: (not wevent — wevent handled separately)
       |> String.replace(~r/\b(?!wevent)[A-Za-z_][\w.-]*\[\d+\]:\s*/i, "")
@@ -1402,7 +1402,7 @@ defmodule ServiceRadarWebNGWeb.LogLive.Show do
 
   defp peel_log_prefix(body), do: body
 
-  # Text before the first KEY= token (e.g. "tonka01 [POSTROUTING-SNAT-1]").
+  # Text before the first KEY= token (e.g. "gw01 [POSTROUTING-SNAT-1]").
   defp message_prefix(body) when is_binary(body) do
     case Regex.run(~r/^(.*?)(?=\b[A-Za-z_][A-Za-z0-9_]{0,24}=)/s, body) do
       [_, prefix] ->

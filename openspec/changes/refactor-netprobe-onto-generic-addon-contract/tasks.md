@@ -483,10 +483,10 @@ the legacy producers.
   only in a DB-backed local run. The setup now branches on `Process.whereis/1` (start when absent,
   `Buffer.reset/1` when the app owns it); a test-local name fixes neither world, because
   `DiscoveryIngestor` calls `Buffer.offer/1` with the DEFAULT name.
-- [x] 7.3 e2e on `alma-test01` -> farm01. Staged netprobe 0.2.51
+- [x] 7.3 e2e on `alma-test01` -> edge01. Staged netprobe 0.2.51
   (`//build/native_addons:stage_netprobe_addon`) and an agent from this branch
   (`//build/packaging/agent:stage_agent_rpm`) onto the lab host; rolled core + agent-gateway on
-  farm01 (helm rev 119, digests `176f296c` / `33358f30`).
+  edge01 (helm rev 119, digests `176f296c` / `33358f30`).
   PROVEN: netprobe serves `AddonService` on `addon.sock` at mode 0600 (the
   `restrict_socket_permissions` read-back guard); the agent pump attaches and RECONNECTS after a
   netprobe restart; core routes `TELEMETRY_PAYLOAD_KIND_DISCOVERY_V1` to `DiscoveryIngestor`; and
@@ -499,11 +499,11 @@ the legacy producers.
   `process_snapshot_interval > 0`), but nothing lands, and the cause is worth keeping:
   **the agent's `host_ip` is stale.** `/etc/serviceradar/agent.json` says `192.168.2.243` while
   the host is `192.168.1.171`; `push_loop_config.go:763` stamps that value verbatim as netprobe's
-  `collector_ip`, and a process snapshot names its subject with it. On farm01 `192.168.2.243`
+  `collector_ip`, and a process snapshot names its subject with it. On edge01 `192.168.2.243`
   matches 0 devices and `192.168.1.171` matches 1 -- so the payload is correctly DROPPED by the
   enrichment-only rule instead of minting an IP-squatting device. The policy is working; the
   input is wrong. Any DPI subject choice on that host is mislabelled the same way.
-  ENRICHMENT-ONLY VERIFIED IN PRODUCTION, not just in tests: across farm01's entire device
+  ENRICHMENT-ONLY VERIFIED IN PRODUCTION, not just in tests: across edge01's entire device
   population including soft-deleted rows, 23 devices have ever carried `mdns.*` metadata and
   **0** of them lack `device_census.*` evidence (83 devices carry census evidence). Every device
   mDNS has ever touched was established by the census first, so mDNS has never minted one. The

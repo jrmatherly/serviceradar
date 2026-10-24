@@ -180,7 +180,7 @@ defmodule ServiceRadar.Automation.CallbackGrants.RuntimeConfigTest do
           "policy_version" => "ssh-policy-v1",
           "scope" => %{
             "tenant_id" => "platform",
-            "controller_id" => "controller-farm01",
+            "controller_id" => "controller-edge01",
             "inventory_id" => 34,
             "job_template_id" => 42,
             "binding_id" => "binding-7",
@@ -202,7 +202,7 @@ defmodule ServiceRadar.Automation.CallbackGrants.RuntimeConfigTest do
             %{
               "state" => "ready",
               "target_identity" => %{
-                "controller_id" => "controller-farm01",
+                "controller_id" => "controller-edge01",
                 "inventory_id" => 34,
                 "awx_host_id" => 100,
                 "canonical_device_uid" => "device:linux-01"

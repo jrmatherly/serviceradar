@@ -2,7 +2,7 @@
 
 ## Why
 
-`add-proxmox-host-outage-alerting` (this session, farm01 control-plane VM
+`add-proxmox-host-outage-alerting` (this session, edge01 control-plane VM
 outage follow-up) needed a way to provision alert rules by script/automation
 rather than by hand in the UI, and found that no such API exists:
 `ServiceRadar.Observability` — the domain that owns `StatefulAlertRule` — is

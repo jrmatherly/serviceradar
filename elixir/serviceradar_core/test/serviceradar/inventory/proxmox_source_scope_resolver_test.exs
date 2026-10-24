@@ -7,8 +7,8 @@ defmodule ServiceRadar.Inventory.ProxmoxSourceScopeResolverTest do
   @rule_id "22222222-2222-4222-8222-222222222222"
   @integration_id "33333333-3333-4333-8333-333333333333"
   @controller_id "44444444-4444-4444-8444-444444444444"
-  @agent_id "edge-farm01"
-  @partition_id "farm01"
+  @agent_id "agent-edge01"
+  @partition_id "edge01"
 
   test "resolves immutable scope through the authenticated policy assignment" do
     assert {:ok, scope} = resolve()
@@ -140,8 +140,8 @@ defmodule ServiceRadar.Inventory.ProxmoxSourceScopeResolverTest do
     cases = [
       {%{enabled: false}, :plugin_assignment_disabled},
       {%{source: :manual}, :plugin_assignment_not_policy_managed},
-      {%{agent_uid: "edge-tonka01"}, :plugin_assignment_agent_mismatch},
-      {%{partition_id: "tonka01"}, :plugin_assignment_partition_mismatch},
+      {%{agent_uid: "edge-hub01"}, :plugin_assignment_agent_mismatch},
+      {%{partition_id: "hub01"}, :plugin_assignment_partition_mismatch},
       {%{plugin_id: "proxmox-console"}, :plugin_assignment_plugin_mismatch}
     ]
 
@@ -159,7 +159,7 @@ defmodule ServiceRadar.Inventory.ProxmoxSourceScopeResolverTest do
              )
 
     assert {:error, :plugin_assignment_partition_mismatch} =
-             resolve(status: Map.put(status_fixture(), "partition", "tonka01"))
+             resolve(status: Map.put(status_fixture(), "partition", "hub01"))
   end
 
   test "rejects a wrong or unapproved package and drifted assignment policy params" do
@@ -209,7 +209,7 @@ defmodule ServiceRadar.Inventory.ProxmoxSourceScopeResolverTest do
 
   test "rejects invalid source UUIDs instead of minting provenance" do
     assert {:error, :invalid_uuid} =
-             resolve(rule: Map.put(rule_fixture(), :integration_id, "farm01"))
+             resolve(rule: Map.put(rule_fixture(), :integration_id, "edge01"))
 
     assert {:error, :invalid_uuid} =
              resolve(rule: Map.put(rule_fixture(), :controller_id, "pve01"))

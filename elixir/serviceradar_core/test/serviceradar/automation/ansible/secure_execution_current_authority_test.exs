@@ -317,7 +317,7 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionCurrentAuthorityTest do
       inventory_id: 34,
       awx_host_id: 7,
       canonical_device_uid: "sr:device-7",
-      host_name: "farm01-node01",
+      host_name: "edge01-node01",
       ansible_host: "192.168.2.22",
       membership_generation: 7,
       source_fingerprint: @source_fingerprint
@@ -328,7 +328,7 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionCurrentAuthorityTest do
       inventory_id: 34,
       awx_host_id: 7,
       device_uid: "sr:device-7",
-      awx_host_name: "farm01-node01",
+      awx_host_name: "edge01-node01",
       ansible_host: "192.168.2.22"
     }
 
@@ -372,7 +372,7 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionCurrentAuthorityTest do
         "credential_ids" => [5]
       },
       check_mode: false,
-      host_limit: "farm01-node01",
+      host_limit: "edge01-node01",
       snapshot_digest: snapshot_digest,
       metadata: %{"target_digest" => target_digest}
     }
@@ -386,7 +386,7 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionCurrentAuthorityTest do
       inventory_id: 34,
       awx_host_id: 7,
       canonical_device_uid: "sr:device-7",
-      host_name: "farm01-node01",
+      host_name: "edge01-node01",
       ansible_host: "192.168.2.22",
       source_generation: 7,
       source_fingerprint: @source_fingerprint

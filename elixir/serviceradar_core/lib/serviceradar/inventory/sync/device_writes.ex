@@ -464,14 +464,14 @@ defmodule ServiceRadar.Inventory.Sync.DeviceWrites do
   #
   # A single unencodable byte anywhere in one device's metadata fails the ENTIRE
   # batch, not just that row -- insert_all is one statement, and the encode
-  # happens while building it. That amplification is the actual damage: farm01
+  # happens while building it. That amplification is the actual damage: one site
   # lost every sync batch (87 devices at a time) to one bad value, for hours.
   #
   # The known source was a raw 16-byte uuid: Postgrex returns `uuid` columns as
   # raw binaries, which satisfy is_binary/1 and therefore sail through code that
   # reasonably assumes a binary is text. That specific producer is fixed in
   # mac_vendor.ex, but it is one of many places a uuid can be read and stashed in
-  # metadata, and this has now taken farm01 down twice. Fixing producers one at a
+  # metadata, and this has taken a site down twice. Fixing producers one at a
   # time treats instances; refusing to hand unencodable bytes to the writer
   # closes the class.
   #

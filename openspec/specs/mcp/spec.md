@@ -55,8 +55,8 @@ The MCP server SHALL provide a `trace_device_identity` tool that accepts a devic
 - **AND** the operator SHALL NOT need to know the storage schema to obtain this
 
 #### Scenario: Trace by hostname resolves the seed first
-- **GIVEN** a tombstoned device whose hostname is `farm01`
-- **WHEN** an operator calls `trace_device_identity` with `hostname` `farm01`
+- **GIVEN** a tombstoned device whose hostname is `edge01`
+- **WHEN** an operator calls `trace_device_identity` with `hostname` `edge01`
 - **THEN** the tool SHALL resolve the hostname to a device uid through a bound device query that includes tombstoned devices
 - **AND** the tool SHALL return the trace for that uid
 

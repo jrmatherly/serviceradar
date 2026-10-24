@@ -1,6 +1,6 @@
 ## Context
 
-The delivered AWX bridge is a useful transport, not yet an authorization boundary. Current run creation resolves a mutable device map, permits hostname fallback when building `limit`, ignores target create failures, omits `inventory_id` from launch, stores raw requested variables, and later resolves jobs or host results by globally weak identifiers. Farm01 and tonka01 demonstrate the collision risk: the same display hostname may legitimately identify different AWX inventories and devices.
+The delivered AWX bridge is a useful transport, not yet an authorization boundary. Current run creation resolves a mutable device map, permits hostname fallback when building `limit`, ignores target create failures, omits `inventory_id` from launch, stores raw requested variables, and later resolves jobs or host results by globally weak identifiers. Farm01 and hub01 demonstrate the collision risk: the same display hostname may legitimately identify different AWX inventories and devices.
 
 This change hardens all AWX-backed launches, not only SSH-CA enrollment. The control plane owns authorization and immutable planning; the edge agent/WASM bridge transports an already constrained command; AWX owns execution and machine credentials.
 

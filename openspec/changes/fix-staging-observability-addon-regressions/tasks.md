@@ -14,7 +14,7 @@ Each `## N.` is one small, independently reviewable stacked PR. Build/test with 
 - [x] 2.1 `show_template.ex`: `software_tab_visible?/2` now gates on `DeviceStateData.agent?(device_row)` (ocsf_agents flag, same as the bolt badge) + real inventory/error fallbacks; dropped the always-true `is_map` and the wrong `agent_id`-based `device_has_agent?` clauses. Render guard `:268` already reuses `@software_tab_visible`.
 - [x] 2.2 `endpoint_inventory_components.ex`: `text-warning-content` → `text-warning` in `software_state_class(:warning)` (`:881`) and the inline row-mismatch banner (`:72`)
 - [ ] 2.3 `device_live_test.exs`: non-agent router omits the Software tab — **FOLLOW-UP** (DB-gated `SERVICERADAR_REQUIRE_DB_TESTS=1`; the `agent?` predicate is already covered by the existing "marks only registered agent devices with bolt" case)
-- [ ] 2.4 verify: web-ng compiles ✅ + `mix format` ✅; live screenshots of farm01 (no Software tab) + an agent host — **PENDING DEPLOY**
+- [ ] 2.4 verify: web-ng compiles ✅ + `mix format` ✅; live screenshots of edge01 (no Software tab) + an agent host — **PENDING DEPLOY**
 
 ## 3. PR3 — anomaly sysmon subject + durable recreation (`fix(anomaly): terminal metrics.sysmon.> wildcard + recreate stale durable`)
 - [ ] 3.1 confirm `config.ex` default stream + `values-demo.yaml` enabledSubjects use `metrics.sysmon.>` (done by `jj poslmosr` — own/verify)
@@ -57,11 +57,11 @@ Each `## N.` is one small, independently reviewable stacked PR. Build/test with 
 
 ## 9. PR9 — SNMP interface chart UX (`fix(web-ng): explain down/no-data interfaces instead of silent 0.0 B/s`)
 - [ ] 9.1 `interface_data.ex`/`interface_components.ex`: distinguish oper-down (`discovered_interfaces.if_oper_status=2`), empty SRQL result (uncollected), and real idle 0 B/s
-- [ ] 9.2 test + live: favorite farm01 `if31` → ~2–3 MB/s renders; `if4` shows "interface down"
+- [ ] 9.2 test + live: favorite edge01 `if31` → ~2–3 MB/s renders; `if4` shows "interface down"
 
 ## 10. PR10 — agent-host link integrity (`fix(identity): repair stale unavailable agent links so routers lose the Agent badge`)
 - [ ] 10.1 `agent_link_repair_worker.ex`: widen repair to re-verify `unavailable`/`stale` agents (or one-shot remediation) and repoint/tombstone `device_uid` mislinks
-- [ ] 10.2 test + live: `ocsf_agents` JOIN for tonka01 returns 0 rows after remediation (badge gone); coordinate with DIRE owners
+- [ ] 10.2 test + live: `ocsf_agents` JOIN for hub01 returns 0 rows after remediation (badge gone); coordinate with DIRE owners
 
 ## Live progress (2026-06-15, autonomous run)
 - PR1 capacity — **IMPLEMENTED+PUSHED** PR #3835 (30 tests pass)
@@ -73,7 +73,7 @@ Each `## N.` is one small, independently reviewable stacked PR. Build/test with 
 - PR7 endpoint ingest hardening — **DELEGATED** (background agent, branch fix-endpoint-inventory-ingest)
 - PR8 add-on fleet reporting — TODO (data exists in addon_packages/assignments/statuses)
 - PR9 SNMP interface UX — TODO (low priority; charts are technically correct)
-- PR10 stale agent-link repair — **DEFERRED to DIRE**: the repair worker only follows tombstoned-device merges; a live-but-wrong link (tonka01) needs behavioral host-matching (DIRE domain, avoid hostname band-aids). PR2 already hides tonka01's Software tab; badge persists until the DIRE data fix.
+- PR10 stale agent-link repair — **DEFERRED to DIRE**: the repair worker only follows tombstoned-device merges; a live-but-wrong link (hub01) needs behavioral host-matching (DIRE domain, avoid hostname band-aids). PR2 already hides hub01's Software tab; badge persists until the DIRE data fix.
 - DEPLOY: core-elx + web-ng image build **IN PROGRESS** (background) from fix-endpoint-inventory-enablement tip → covers capacity/anomaly/endpoint/UI. Node-agent fixes (churn/sysmon/listeners) are release-gated (apt-upgrade), not deployable via image roll tonight.
 - Stack (jj, off update/plugin): fix-sysmon-process-metrics-visibility(peer) ← fix-capacity-forecast-math ← fix-device-detail-ui ← fix-jetstream-durable-recreate ← fix-agent-config-reapply-storm ← fix-addon-systemd-self-heal ← fix-endpoint-inventory-enablement
 

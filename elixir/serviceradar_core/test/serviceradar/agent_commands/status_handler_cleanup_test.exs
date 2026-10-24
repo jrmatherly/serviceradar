@@ -135,8 +135,8 @@ defmodule ServiceRadar.AgentCommands.StatusHandlerCleanupTest do
     data = %{
       command_id: "018f3f56-1111-7222-8333-123456789abc",
       command_type: "awx.fetch_job",
-      agent_id: "agent-farm01",
-      partition_id: "farm01",
+      agent_id: "agent-edge01",
+      partition_id: "edge01",
       success: false,
       message: secret,
       failure_reason: {:http_error, secret},
@@ -243,13 +243,13 @@ defmodule ServiceRadar.AgentCommands.StatusHandlerCleanupTest do
   defp initial_result do
     valid_result()
     |> Map.put(:command_id, "initial-command")
-    |> Map.put(:partition_id, "farm01")
+    |> Map.put(:partition_id, "edge01")
   end
 
   defp nested_result do
     valid_result()
     |> Map.put(:command_id, "nested-command")
-    |> Map.put(:partition_id, "farm01")
+    |> Map.put(:partition_id, "edge01")
   end
 
   defp eventually(fun, attempts \\ 100)
@@ -268,7 +268,7 @@ defmodule ServiceRadar.AgentCommands.StatusHandlerCleanupTest do
     %{
       command_id: "018f3f56-1111-7222-8333-123456789abc",
       command_type: "test.fetch_job",
-      agent_id: "agent-farm01",
+      agent_id: "agent-edge01",
       success: true,
       payload: %{"verb" => "awx.fetch_job", "job_id" => 42}
     }

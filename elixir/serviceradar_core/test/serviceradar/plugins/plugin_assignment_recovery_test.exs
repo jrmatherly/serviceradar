@@ -91,7 +91,7 @@ defmodule ServiceRadar.Plugins.PluginAssignmentRecoveryTest do
        %{actor: actor, unique_id: unique_id} do
     plugin_id = "legacy-recovery-#{unique_id}"
     agent_uid = "legacy-recovery-agent-#{unique_id}"
-    partition_id = "farm01"
+    partition_id = "edge01"
     test_pid = self()
 
     config_dispatcher = fn dispatch_partition_id, dispatch_agent_uid ->
@@ -585,7 +585,7 @@ defmodule ServiceRadar.Plugins.PluginAssignmentRecoveryTest do
   } do
     plugin_id = "policy-legacy-recovery-#{unique_id}"
     agent_uid = "policy-legacy-agent-#{unique_id}"
-    partition_id = "tonka01"
+    partition_id = "hub01"
 
     register_control_session!(agent_uid, partition_id)
 
@@ -697,7 +697,7 @@ defmodule ServiceRadar.Plugins.PluginAssignmentRecoveryTest do
        } do
     plugin_id = "policy-request-recovery-#{unique_id}"
     agent_uid = "policy-request-recovery-agent-#{unique_id}"
-    partition_id = "farm01"
+    partition_id = "edge01"
 
     register_control_session!(agent_uid, partition_id)
 
@@ -771,7 +771,7 @@ defmodule ServiceRadar.Plugins.PluginAssignmentRecoveryTest do
        %{actor: actor, unique_id: unique_id} do
     plugin_id = "unsupported-policy-owner-#{unique_id}"
     agent_uid = "unsupported-policy-owner-agent-#{unique_id}"
-    partition_id = "farm01"
+    partition_id = "edge01"
     unsupported_owner = "ansible:awx-inventory-sync"
 
     register_control_session!(agent_uid, partition_id)
@@ -1158,7 +1158,7 @@ defmodule ServiceRadar.Plugins.PluginAssignmentRecoveryTest do
 
   defp quarantined_manual_assignment!(actor, unique_id, opts \\ []) do
     agent_uid = Keyword.get(opts, :agent_uid, "manual-recovery-agent-#{unique_id}")
-    partition_id = Keyword.get(opts, :partition_id, "farm01")
+    partition_id = Keyword.get(opts, :partition_id, "edge01")
     plugin_id = Keyword.get(opts, :plugin_id, "manual-recovery-plugin-#{unique_id}")
     config_schema = Keyword.get(opts, :config_schema, %{})
     params = Keyword.get(opts, :params, %{})

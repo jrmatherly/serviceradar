@@ -14,8 +14,8 @@ defmodule ServiceRadar.Automation.Ansible.LiveAwxLaunchPreflightTest do
   @membership_id "018f0000-0000-7000-8000-000000000201"
   @command_id "018f0000-0000-7000-8000-000000000301"
   @evidence_id "018f0000-0000-7000-8000-000000000401"
-  @agent_id "agent-farm01-01"
-  @partition_id "farm01"
+  @agent_id "agent-edge01-01"
+  @partition_id "edge01"
 
   test "attests the exact reviewed binding, current membership tuple, and durable command result" do
     context = context()
@@ -347,8 +347,8 @@ defmodule ServiceRadar.Automation.Ansible.LiveAwxLaunchPreflightTest do
       controller_security_snapshot: %{
         "schema" => "serviceradar.awx_controller_security_snapshot.v1",
         "controller_id" => @controller_id,
-        "name" => "farm01-awx",
-        "base_url" => "https://awx.farm01.example.test",
+        "name" => "edge01-awx",
+        "base_url" => "https://awx.edge01.example.test",
         "agent_id" => @agent_id,
         "enabled" => true,
         "insecure_skip_verify" => false,
@@ -445,7 +445,7 @@ defmodule ServiceRadar.Automation.Ansible.LiveAwxLaunchPreflightTest do
       },
       "inventory" => %{
         "id" => "8",
-        "name" => "farm01-linux",
+        "name" => "edge01-linux",
         "modified" => "2026-07-14T20:00:00Z",
         "kind" => ""
       },

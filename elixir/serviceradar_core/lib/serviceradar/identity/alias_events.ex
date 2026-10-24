@@ -459,7 +459,7 @@ defmodule ServiceRadar.Identity.AliasEvents do
     # Every address-typed alias goes through the shared policy, including
     # current_ip and collector_ip from `base`. This path is fed by the netprobe
     # NDP census and produces every IPv6 alias in the fleet; before this gate
-    # existed it also produced 33 fe80:: link-local aliases on farm01.
+    # existed it also produced 33 fe80:: link-local aliases on one site.
     # Link-local and subnet broadcast addresses are shared across hosts on a
     # link/subnet, so aliasing on them invites exactly the device collapse
     # aliases are supposed to prevent.

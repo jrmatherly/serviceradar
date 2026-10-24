@@ -515,7 +515,7 @@ defmodule ServiceRadar.Automation.Ansible.SecureChildLauncherTest do
   end
 
   defp edge_principal("edge-agent-1"),
-    do: {:ok, %{agent_id: "edge-agent-1", partition_id: "farm01"}}
+    do: {:ok, %{agent_id: "edge-agent-1", partition_id: "edge01"}}
 
   defp preflight_attestation(binding) do
     {:ok, request} = Fixtures.preflight_request(binding)

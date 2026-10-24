@@ -151,7 +151,7 @@ defmodule ServiceRadarWebNGWeb.Settings.NetworksLiveTest do
       SweepGroupExecution
       |> Ash.Changeset.for_create(:start, %{
         sweep_group_id: group.id,
-        agent_id: "farm01"
+        agent_id: "edge01"
       })
       |> Ash.create(scope: scope)
 

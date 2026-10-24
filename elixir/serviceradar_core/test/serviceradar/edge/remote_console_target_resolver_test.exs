@@ -11,7 +11,7 @@ defmodule ServiceRadar.Edge.RemoteConsoleTargetResolverTest do
   @tonka_controller_id "018f3f56-3333-7666-8777-123456789abc"
 
   test "resolves one authoritative v3 PVE host and exact controller origin" do
-    host = host_row("host-farm", "sr:host-1", @farm_controller_id, "farm01", "pve01")
+    host = host_row("host-edge", "sr:host-1", @farm_controller_id, "edge01", "pve01")
 
     lookup = fn
       VirtualizationHost, "sr:host-1", _ash_opts -> {:ok, [host]}
@@ -30,13 +30,13 @@ defmodule ServiceRadar.Edge.RemoteConsoleTargetResolverTest do
     assert target.provider_ref == host.provider_ref
     assert target.integration_id == @integration_id
     assert target.controller_id == @farm_controller_id
-    assert target.cluster == "farm01"
+    assert target.cluster == "edge01"
     assert target.controller.device_uid == "sr:host-1"
     assert target.controller.base_url == "https://192.0.2.10:8006"
   end
 
   test "guest follows the exact current v3 owner and never uses the guest address" do
-    host = host_row("host-farm", "sr:pve-farm-01", @farm_controller_id, "farm01", "pve01")
+    host = host_row("host-edge", "sr:pve-edge-01", @farm_controller_id, "edge01", "pve01")
     guest = guest_row("guest-101", "sr:guest-101", host, "lxc", 101)
 
     lookup = fn
@@ -49,25 +49,25 @@ defmodule ServiceRadar.Edge.RemoteConsoleTargetResolverTest do
                guest_device("sr:guest-101", "198.51.100.101", guest),
                %{},
                virtualization_lookup: lookup,
-               host_lookup: fn "host-farm", _ -> {:ok, host} end,
-               device_lookup: fn "sr:pve-farm-01", _ ->
-                 {:ok, controller_device("sr:pve-farm-01", "192.0.2.10", host)}
+               host_lookup: fn "host-edge", _ -> {:ok, host} end,
+               device_lookup: fn "sr:pve-edge-01", _ ->
+                 {:ok, controller_device("sr:pve-edge-01", "192.0.2.10", host)}
                end
              )
 
     assert target.target_kind == :lxc_guest
     assert target.vmid == 101
-    assert target.owner_host_id == "host-farm"
+    assert target.owner_host_id == "host-edge"
     assert target.controller.ip == "192.0.2.10"
     assert target.controller.base_url == "https://192.0.2.10:8006"
     refute target.controller.ip == "198.51.100.101"
   end
 
   test "v3 controller scope disambiguates duplicate cluster, node, and VMID tuples" do
-    farm_host = host_row("host-farm", "pve-farm", @farm_controller_id, "shared", "pve01")
-    tonka_host = host_row("host-tonka", "pve-tonka", @tonka_controller_id, "shared", "pve01")
-    farm_guest = guest_row("guest-farm", "guest-farm", farm_host, "qemu", 155)
-    tonka_guest = guest_row("guest-tonka", "guest-tonka", tonka_host, "qemu", 155)
+    farm_host = host_row("host-edge", "pve-edge", @farm_controller_id, "shared", "pve01")
+    tonka_host = host_row("host-hub", "pve-hub", @tonka_controller_id, "shared", "pve01")
+    farm_guest = guest_row("guest-edge", "guest-edge", farm_host, "qemu", 155)
+    tonka_guest = guest_row("guest-hub", "guest-hub", tonka_host, "qemu", 155)
     guests = [farm_guest, tonka_guest]
 
     lookup = fn
@@ -76,13 +76,13 @@ defmodule ServiceRadar.Edge.RemoteConsoleTargetResolverTest do
     end
 
     host_lookup = fn
-      "host-farm", _ -> {:ok, farm_host}
-      "host-tonka", _ -> {:ok, tonka_host}
+      "host-edge", _ -> {:ok, farm_host}
+      "host-hub", _ -> {:ok, tonka_host}
     end
 
     device_lookup = fn
-      "pve-farm", _ -> {:ok, controller_device("pve-farm", "192.0.2.10", farm_host)}
-      "pve-tonka", _ -> {:ok, controller_device("pve-tonka", "198.51.100.10", tonka_host)}
+      "pve-edge", _ -> {:ok, controller_device("pve-edge", "192.0.2.10", farm_host)}
+      "pve-hub", _ -> {:ok, controller_device("pve-hub", "198.51.100.10", tonka_host)}
     end
 
     opts = [
@@ -91,29 +91,29 @@ defmodule ServiceRadar.Edge.RemoteConsoleTargetResolverTest do
       device_lookup: device_lookup
     ]
 
-    assert {:ok, farm} =
+    assert {:ok, edge} =
              RemoteConsoleTargetResolver.resolve_proxmox(
-               guest_device("guest-farm", nil, farm_guest),
+               guest_device("guest-edge", nil, farm_guest),
                %{},
                opts
              )
 
-    assert {:ok, tonka} =
+    assert {:ok, hub} =
              RemoteConsoleTargetResolver.resolve_proxmox(
-               guest_device("guest-tonka", nil, tonka_guest),
+               guest_device("guest-hub", nil, tonka_guest),
                %{},
                opts
              )
 
-    assert farm.controller_id == @farm_controller_id
-    assert farm.controller.base_url == "https://192.0.2.10:8006"
-    assert tonka.controller_id == @tonka_controller_id
-    assert tonka.controller.base_url == "https://198.51.100.10:8006"
+    assert edge.controller_id == @farm_controller_id
+    assert edge.controller.base_url == "https://192.0.2.10:8006"
+    assert hub.controller_id == @tonka_controller_id
+    assert hub.controller.base_url == "https://198.51.100.10:8006"
   end
 
   test "rejects multiple authoritative rows without exact v3 device scope" do
-    farm_host = host_row("host-farm", "pve-farm", @farm_controller_id, "shared", "pve01")
-    tonka_host = host_row("host-tonka", "pve-tonka", @tonka_controller_id, "shared", "pve01")
+    farm_host = host_row("host-edge", "pve-edge", @farm_controller_id, "shared", "pve01")
+    tonka_host = host_row("host-hub", "pve-hub", @tonka_controller_id, "shared", "pve01")
 
     lookup = fn
       VirtualizationHost, _uid, _ash_opts ->
@@ -122,8 +122,8 @@ defmodule ServiceRadar.Edge.RemoteConsoleTargetResolverTest do
       VirtualizationGuest, _uid, _ash_opts ->
         {:ok,
          [
-           guest_row("guest-farm", "ambiguous", farm_host, "qemu", 155),
-           guest_row("guest-tonka", "ambiguous", tonka_host, "qemu", 155)
+           guest_row("guest-edge", "ambiguous", farm_host, "qemu", 155),
+           guest_row("guest-hub", "ambiguous", tonka_host, "qemu", 155)
          ]}
     end
 
@@ -252,7 +252,7 @@ defmodule ServiceRadar.Edge.RemoteConsoleTargetResolverTest do
              provider_ref: "proxmox:node:pve01",
              device_uid: "legacy-pve",
              name: "pve01",
-             metadata: %{"integration_id" => "proxmox:v2:farm01:node:pve01"}
+             metadata: %{"integration_id" => "proxmox:v2:edge01:node:pve01"}
            }
          ]}
 
@@ -280,7 +280,7 @@ defmodule ServiceRadar.Edge.RemoteConsoleTargetResolverTest do
   end
 
   test "invalid or mismatched explicit controller origins fail closed" do
-    host = host_row("host-farm", "pve-farm", @farm_controller_id, "farm01", "pve01")
+    host = host_row("host-edge", "pve-edge", @farm_controller_id, "edge01", "pve01")
     lookup = fn VirtualizationHost, _uid, _opts -> {:ok, [host]} end
 
     for explicit <- [
@@ -290,7 +290,7 @@ defmodule ServiceRadar.Edge.RemoteConsoleTargetResolverTest do
           "https://192.0.2.10:not-a-port"
         ] do
       device =
-        "pve-farm"
+        "pve-edge"
         |> controller_device("192.0.2.10", host)
         |> put_in([:metadata, "proxmox_base_url"], explicit)
 
@@ -306,11 +306,11 @@ defmodule ServiceRadar.Edge.RemoteConsoleTargetResolverTest do
   end
 
   test "rejects an explicit cleartext Proxmox controller origin" do
-    host = host_row("host-farm", "pve-farm", @farm_controller_id, "farm01", "pve01")
+    host = host_row("host-edge", "pve-edge", @farm_controller_id, "edge01", "pve01")
     lookup = fn VirtualizationHost, _uid, _opts -> {:ok, [host]} end
 
     device =
-      "pve-farm"
+      "pve-edge"
       |> controller_device("192.0.2.10", host)
       |> put_in([:metadata, "proxmox_base_url"], "http://192.0.2.10:8006")
 
@@ -323,11 +323,11 @@ defmodule ServiceRadar.Edge.RemoteConsoleTargetResolverTest do
   end
 
   test "rejects hostname origins until trusted SNI and address pinning are available" do
-    host = host_row("host-farm", "pve-farm", @farm_controller_id, "farm01", "pve01")
+    host = host_row("host-edge", "pve-edge", @farm_controller_id, "edge01", "pve01")
     lookup = fn VirtualizationHost, _uid, _opts -> {:ok, [host]} end
 
     device =
-      "pve-farm"
+      "pve-edge"
       |> controller_device("192.0.2.10", host)
       |> put_in([:metadata, "proxmox_base_url"], "https://pve01:8006")
 
@@ -340,21 +340,21 @@ defmodule ServiceRadar.Edge.RemoteConsoleTargetResolverTest do
   end
 
   test "rejects a hostname-only controller even when inventory marks it authoritative" do
-    host = host_row("host-farm", "pve-farm", @farm_controller_id, "farm01", "pve01")
+    host = host_row("host-edge", "pve-edge", @farm_controller_id, "edge01", "pve01")
     lookup = fn VirtualizationHost, _uid, _opts -> {:ok, [host]} end
 
     assert {:error, :console_controller_endpoint_missing} =
              RemoteConsoleTargetResolver.resolve_proxmox(
-               controller_device("pve-farm", nil, host),
+               controller_device("pve-edge", nil, host),
                %{},
                virtualization_lookup: lookup
              )
   end
 
   test "guest and owner must share the complete authoritative v3 source scope" do
-    farm_host = host_row("host-farm", "pve-farm", @farm_controller_id, "farm01", "pve01")
-    tonka_host = host_row("host-tonka", "pve-tonka", @tonka_controller_id, "tonka01", "pve01")
-    guest = guest_row("guest-farm", "guest-farm", farm_host, "qemu", 155)
+    farm_host = host_row("host-edge", "pve-edge", @farm_controller_id, "edge01", "pve01")
+    tonka_host = host_row("host-hub", "pve-hub", @tonka_controller_id, "hub01", "pve01")
+    guest = guest_row("guest-edge", "guest-edge", farm_host, "qemu", 155)
 
     lookup = fn
       VirtualizationHost, _uid, _opts -> {:ok, []}
@@ -363,20 +363,20 @@ defmodule ServiceRadar.Edge.RemoteConsoleTargetResolverTest do
 
     assert {:error, :console_controller_not_found} =
              RemoteConsoleTargetResolver.resolve_proxmox(
-               guest_device("guest-farm", nil, guest),
+               guest_device("guest-edge", nil, guest),
                %{},
                virtualization_lookup: lookup,
-               host_lookup: fn "host-farm", _ -> {:ok, tonka_host} end
+               host_lookup: fn "host-edge", _ -> {:ok, tonka_host} end
              )
   end
 
   test "caller cannot override an authoritative host into a guest target" do
-    host = host_row("host-farm", "pve-farm", @farm_controller_id, "farm01", "pve01")
+    host = host_row("host-edge", "pve-edge", @farm_controller_id, "edge01", "pve01")
     lookup = fn VirtualizationHost, _uid, _opts -> {:ok, [host]} end
 
     assert {:error, :unsupported_console_target} =
              RemoteConsoleTargetResolver.resolve_proxmox(
-               controller_device("pve-farm", "192.0.2.10", host),
+               controller_device("pve-edge", "192.0.2.10", host),
                %{"target_kind" => "qemu_guest"},
                virtualization_lookup: lookup
              )

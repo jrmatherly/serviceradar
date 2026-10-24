@@ -865,7 +865,7 @@ defmodule ServiceRadarWebNGWeb.Settings.NetflowLive.Index do
                             field={@form[:location_label]}
                             type="text"
                             label="Location label"
-                            placeholder="farm01 - Carver, MN"
+                            placeholder="site01 - Springfield, IL"
                           />
                           <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <.input
@@ -875,7 +875,7 @@ defmodule ServiceRadarWebNGWeb.Settings.NetflowLive.Index do
                               step="0.000001"
                               min="-90"
                               max="90"
-                              placeholder="44.7633"
+                              placeholder="41.9742"
                             />
                             <.input
                               field={@form[:longitude]}
@@ -884,7 +884,7 @@ defmodule ServiceRadarWebNGWeb.Settings.NetflowLive.Index do
                               step="0.000001"
                               min="-180"
                               max="180"
-                              placeholder="-93.6258"
+                              placeholder="-87.9073"
                             />
                           </div>
                           <%= if mapbox_picker_enabled?(@mapbox) do %>

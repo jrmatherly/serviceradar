@@ -6,7 +6,7 @@ defmodule ServiceRadar.Edge.AgentCommandCleanupWorker do
   - Deletes terminal-state command history older than the retention window
     (default: 2 days) in a single set-based, batched DELETE.
 
-  ## Why the rewrite (live demo evidence, cnpg-23 primary, 2026-06-17)
+  ## Why the rewrite (live demo evidence, CNPG primary, 2026-06-17)
 
   `platform.agent_commands` had grown to 97k rows / 125 MB with 99.7% of rows
   older than a day, and the retention scan

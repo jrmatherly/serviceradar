@@ -11,7 +11,7 @@ defmodule ServiceRadar.Automation.Ansible.TargetingTest do
         inventory_id: 34,
         awx_host_id: 7,
         device_uid: "sr:device-7",
-        awx_host_name: "farm01-pve01",
+        awx_host_name: "edge01-pve01",
         ansible_host: "192.168.2.22"
       },
       overrides
@@ -51,8 +51,8 @@ defmodule ServiceRadar.Automation.Ansible.TargetingTest do
     end
 
     test "rejects a literal host token that also names an inventory group" do
-      assert {:error, {:awx_group_name_collision, "farm01-pve01"}} =
-               Targeting.build_child([membership()], "controller-1", ["farm01-pve01"])
+      assert {:error, {:awx_group_name_collision, "edge01-pve01"}} =
+               Targeting.build_child([membership()], "controller-1", ["edge01-pve01"])
     end
 
     test "rejects missing tuple fields instead of falling back" do
@@ -143,14 +143,14 @@ defmodule ServiceRadar.Automation.Ansible.TargetingTest do
 
       job = %{
         inventory_id: 34,
-        host_limit: "farm01-pve01",
+        host_limit: "edge01-pve01",
         dispatch_markers: %{
           "serviceradar_dispatch_id" => "dispatch-1",
           "serviceradar_snapshot_digest" => plan.target_digest
         }
       }
 
-      summaries = [%{"host_id" => 7, "host_name" => "farm01-pve01"}]
+      summaries = [%{"host_id" => 7, "host_name" => "edge01-pve01"}]
       assert :ok = Targeting.verify_job_scope(plan, job, summaries, "dispatch-1")
     end
 
@@ -159,14 +159,14 @@ defmodule ServiceRadar.Automation.Ansible.TargetingTest do
 
       job = %{
         inventory_id: 34,
-        host_limit: "farm01-pve01",
+        host_limit: "edge01-pve01",
         dispatch_markers: %{
           "serviceradar_dispatch_id" => "wrong",
           "serviceradar_snapshot_digest" => plan.target_digest
         }
       }
 
-      summaries = [%{"host_id" => 7, "host_name" => "farm01-pve01"}]
+      summaries = [%{"host_id" => 7, "host_name" => "edge01-pve01"}]
 
       assert {:error, :accepted_dispatch_id_mismatch} =
                Targeting.verify_job_scope(plan, job, summaries, "dispatch-1")
@@ -177,7 +177,7 @@ defmodule ServiceRadar.Automation.Ansible.TargetingTest do
                Targeting.verify_job_scope(
                  plan,
                  corrected,
-                 [%{"host_id" => 8, "host_name" => "farm01-pve01"}],
+                 [%{"host_id" => 8, "host_name" => "edge01-pve01"}],
                  "dispatch-1"
                )
     end
@@ -187,11 +187,11 @@ defmodule ServiceRadar.Automation.Ansible.TargetingTest do
 
       job = %{
         inventory_id: 34,
-        host_limit: "farm01-pve01",
+        host_limit: "edge01-pve01",
         dispatch_markers: %{}
       }
 
-      summaries = [%{"host_id" => 7, "host_name" => "farm01-pve01"}]
+      summaries = [%{"host_id" => 7, "host_name" => "edge01-pve01"}]
       assert :ok = Targeting.verify_job_scope(plan, job, summaries, "dispatch-1")
     end
   end

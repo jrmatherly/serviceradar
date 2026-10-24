@@ -4,7 +4,7 @@
 The system SHALL identify every Proxmox provider instance and virtualization object with a versioned `proxmox:v3` identity containing immutable ServiceRadar integration ID, immutable controller ID, normalized native cluster ID, object kind, and native object ID. Display names, hostnames, URLs, IPs, node names, and VMIDs SHALL NOT be globally authoritative outside that source and cluster scope.
 
 #### Scenario: Two integrations discover identical native identifiers
-- **GIVEN** farm01 and tonka01 are separate Proxmox integration/controller scopes
+- **GIVEN** edge01 and hub01 are separate Proxmox integration/controller scopes
 - **AND** both report the same cluster display name, node name, and QEMU VMID
 - **WHEN** inventory reconciliation writes their provider instances, nodes, and guests
 - **THEN** each object SHALL have a distinct v3 identity because its integration/controller scope differs
@@ -47,7 +47,7 @@ The migration SHALL map each legacy v1/v2 Proxmox reference to a v3 identity onl
 - **AND** all new writes and relationships SHALL use the v3 identity
 
 #### Scenario: Legacy reference is ambiguous across clusters
-- **GIVEN** the same legacy cluster/name/VMID reference could identify objects in farm01 and tonka01
+- **GIVEN** the same legacy cluster/name/VMID reference could identify objects in edge01 and hub01
 - **WHEN** migration or lookup evaluates the reference
 - **THEN** the alias SHALL be quarantined as ambiguous
 - **AND** no object merge, credential resolution, current-owner selection, or console session SHALL occur from that alias

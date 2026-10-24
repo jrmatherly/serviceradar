@@ -162,14 +162,14 @@ defmodule ServiceRadar.Automation.Ansible.CallbackLaunchOrchestratorTest do
     assert callback.grant_attrs.policy_snapshot["phase"] == nil
     assert callback.grant_attrs.response_snapshot["phase"] == "preflight"
     assert callback.callback_origin == "https://demo.example.com"
-    assert callback.dispatch_agent_id == "agent-farm01"
-    assert callback.dispatch_partition_id == "farm01"
-    assert callback.grant_attrs.dispatch_partition_id == "farm01"
+    assert callback.dispatch_agent_id == "agent-edge01"
+    assert callback.dispatch_partition_id == "edge01"
+    assert callback.grant_attrs.dispatch_partition_id == "edge01"
 
     assert_receive {:mark_dispatching, _persisted}
 
     assert_receive {:dispatch_callback_credential, controller, attempt}
-    assert controller.agent_id == "agent-farm01"
+    assert controller.agent_id == "agent-edge01"
     assert attempt.command_id == callback.command_id
 
     assert result.callback == %{
@@ -207,7 +207,7 @@ defmodule ServiceRadar.Automation.Ansible.CallbackLaunchOrchestratorTest do
 
   test "fails closed when control-session evidence does not match the controller agent" do
     resolver = fn _agent_id ->
-      {:ok, %{agent_id: "agent-tonka01", partition_id: "tonka01"}}
+      {:ok, %{agent_id: "agent-hub01", partition_id: "hub01"}}
     end
 
     assert {:error, :authenticated_edge_principal_mismatch} =
@@ -311,7 +311,7 @@ defmodule ServiceRadar.Automation.Ansible.CallbackLaunchOrchestratorTest do
         [
           actions: FakeActions,
           edge_principal_resolver: fn agent_id ->
-            {:ok, %{agent_id: agent_id, partition_id: "farm01"}}
+            {:ok, %{agent_id: agent_id, partition_id: "edge01"}}
           end,
           response_policy_provider: PolicyProvider,
           lifecycle_opts: [],
@@ -388,7 +388,7 @@ defmodule ServiceRadar.Automation.Ansible.CallbackLaunchOrchestratorTest do
             execution_environment_id: 4,
             machine_credential_id: 5,
             credential_snapshot: %{"credential_ids" => [5]},
-            host_limit: "farm01-pve01",
+            host_limit: "edge01-pve01",
             snapshot_digest: String.duplicate("e", 64),
             metadata: %{"awx_created_by_id" => 11}
           },
@@ -403,7 +403,7 @@ defmodule ServiceRadar.Automation.Ansible.CallbackLaunchOrchestratorTest do
           canonical_device_uid: "sr:device-7",
           membership_generation: 3,
           source_fingerprint: "sha256:" <> String.duplicate("c", 64),
-          host_name: "farm01-pve01",
+          host_name: "edge01-pve01",
           ansible_host: "192.168.2.22"
         }
       ],
@@ -449,8 +449,8 @@ defmodule ServiceRadar.Automation.Ansible.CallbackLaunchOrchestratorTest do
       evidence_id: @preflight_evidence_id,
       command_id: @preflight_command_id,
       controller_id: @controller_id,
-      dispatch_agent_id: "agent-farm01",
-      dispatch_partition_id: "farm01",
+      dispatch_agent_id: "agent-edge01",
+      dispatch_partition_id: "edge01",
       binding_id: @binding_id,
       binding_version: 3,
       approval_id: @approval_id,
@@ -494,9 +494,9 @@ defmodule ServiceRadar.Automation.Ansible.CallbackLaunchOrchestratorTest do
   defp controller do
     %{
       id: @controller_id,
-      name: "farm01-awx",
+      name: "edge01-awx",
       base_url: "https://awx.example.test:8443",
-      agent_id: "agent-farm01",
+      agent_id: "agent-edge01",
       enabled: true,
       sync_credential_secret_id: "018f3f56-1111-7222-8333-123456789a07",
       execution_credential_secret_id: "018f3f56-1111-7222-8333-123456789a08",
@@ -508,7 +508,7 @@ defmodule ServiceRadar.Automation.Ansible.CallbackLaunchOrchestratorTest do
   defp provider_targets do
     [
       %{
-        "inventory_hostname" => "farm01-pve01",
+        "inventory_hostname" => "edge01-pve01",
         "inventory_address" => "192.168.2.22",
         "target_identity" => %{
           "controller_id" => @controller_id,

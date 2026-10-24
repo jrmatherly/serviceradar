@@ -78,7 +78,7 @@ defmodule ServiceRadar.Edge.ProxmoxConsoleBrokerTest do
         rows: 43
       )
 
-    assert_receive {:resolve_control_session_evidence, "farm01", "agent-1", "gateway@one"}
+    assert_receive {:resolve_control_session_evidence, "edge01", "agent-1", "gateway@one"}
     assert_receive {:subscribe, "session-1"}
 
     assert_receive {:send_console_frame, "agent-1", %{frame_type: "open"} = open, opts}
@@ -245,7 +245,7 @@ defmodule ServiceRadar.Edge.ProxmoxConsoleBrokerTest do
       credential_rule_id: "rule-1",
       metadata: %{
         "plugin_assignment_id" => "assignment-1",
-        "assignment_partition_id" => "farm01",
+        "assignment_partition_id" => "edge01",
         "plugin_assignment_version" => 7,
         "plugin_assignment_policy_fingerprint" => fingerprint,
         "credential_rule" => %{
@@ -255,7 +255,7 @@ defmodule ServiceRadar.Edge.ProxmoxConsoleBrokerTest do
         "target" => %{
           "device_uid" => "device-1",
           "ip" => "192.0.2.10",
-          "provider_ref" => "proxmox:v3:source:controller:farm:node:pve01"
+          "provider_ref" => "proxmox:v3:source:controller:edge:node:pve01"
         }
       }
     }

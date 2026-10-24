@@ -227,7 +227,7 @@ defmodule ServiceRadar.Inventory.HypervisorEnrichmentIngestorTest do
     trusted_scope = %{
       integration_id: "11111111-1111-4111-8111-111111111111",
       controller_id: "22222222-2222-4222-8222-222222222222",
-      partition_id: "farm01"
+      partition_id: "edge01"
     }
 
     {:ok, identity} =

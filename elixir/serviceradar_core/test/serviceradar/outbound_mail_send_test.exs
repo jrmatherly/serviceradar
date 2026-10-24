@@ -98,7 +98,7 @@ defmodule ServiceRadar.OutboundMailSendTest do
       settings(
         adapter: "smtp",
         hostname: "mail.serviceradar.cloud",
-        username: "farm01@serviceradar.cloud",
+        username: "edge01@serviceradar.cloud",
         from_email: "noreply@serviceradar.cloud"
       )
 
@@ -108,13 +108,13 @@ defmodule ServiceRadar.OutboundMailSendTest do
                  {:error,
                   {:send,
                    {:permanent_failure, ~c"198.51.100.21",
-                    ~c"553 5.7.1 <noreply@serviceradar.cloud>: Sender address rejected: not owned by user farm01@serviceradar.cloud\r\n"}}}
+                    ~c"553 5.7.1 <noreply@serviceradar.cloud>: Sender address rejected: not owned by user edge01@serviceradar.cloud\r\n"}}}
                end
              )
 
     assert message =~ "553 5.7.1"
-    assert message =~ "not owned by user farm01@serviceradar.cloud"
-    assert message =~ "Set From email to farm01@serviceradar.cloud"
+    assert message =~ "not owned by user edge01@serviceradar.cloud"
+    assert message =~ "Set From email to edge01@serviceradar.cloud"
   end
 
   defp settings(overrides) do

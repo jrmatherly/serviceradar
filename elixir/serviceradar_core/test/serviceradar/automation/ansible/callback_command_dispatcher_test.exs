@@ -19,7 +19,7 @@ defmodule ServiceRadar.Automation.Ansible.CallbackCommandDispatcherTest do
   @execution_secret "018f3f56-2222-7222-8333-123456789abe"
 
   test "a fast terminal result may take the processing lease before dispatch returns" do
-    controller = controller(Ash.UUID.generate(), "agent-farm01")
+    controller = controller(Ash.UUID.generate(), "agent-edge01")
     {:ok, controller_snapshot} = ControllerSecuritySnapshot.capture(controller)
 
     execution = %{
@@ -34,8 +34,8 @@ defmodule ServiceRadar.Automation.Ansible.CallbackCommandDispatcherTest do
       operation_id: Ash.UUID.generate(),
       execution_id: execution.id,
       controller_id: controller.id,
-      dispatch_agent_id: "agent-farm01",
-      dispatch_partition_id: "farm01"
+      dispatch_agent_id: "agent-edge01",
+      dispatch_partition_id: "edge01"
     }
 
     {:ok, request} = CallbackCommandContract.fetch_job_request(42)
@@ -126,7 +126,7 @@ defmodule ServiceRadar.Automation.Ansible.CallbackCommandDispatcherTest do
 
   test "dispatch rejects a grant from the same agent in another partition before claiming" do
     {attempt, resources, _request} = fetch_job_attempt()
-    resources = put_in(resources, [:grant, :dispatch_partition_id], "tonka01")
+    resources = put_in(resources, [:grant, :dispatch_partition_id], "hub01")
 
     assert {:error, :callback_command_resource_principal_mismatch} =
              CallbackCommandDispatcher.dispatch(attempt,
@@ -305,14 +305,14 @@ defmodule ServiceRadar.Automation.Ansible.CallbackCommandDispatcherTest do
 
     assert_receive {:awx_launch, claimed, controller, request}
     assert claimed.dispatch_agent_id == "edge-agent-1"
-    assert claimed.dispatch_partition_id == "farm01"
+    assert claimed.dispatch_partition_id == "edge01"
     assert controller.id == @controller_id
     assert request.template_id == 42
   end
 
   test "callback launch rejects an attested partition that differs from its durable attempt" do
     {attempt, resources} = launch_attempt()
-    {resources, evidence} = attested_resources(resources, dispatch_partition_id: "tonka01")
+    {resources, evidence} = attested_resources(resources, dispatch_partition_id: "hub01")
 
     assert {:error, :awx_preflight_partition_drift} =
              CallbackCommandDispatcher.dispatch(attempt,
@@ -528,7 +528,7 @@ defmodule ServiceRadar.Automation.Ansible.CallbackCommandDispatcherTest do
       execution_id: execution.id,
       controller_id: @controller_id,
       dispatch_agent_id: "edge-agent-1",
-      dispatch_partition_id: "farm01"
+      dispatch_partition_id: "edge01"
     }
 
     controller = controller(@controller_id, "edge-agent-1")
@@ -598,7 +598,7 @@ defmodule ServiceRadar.Automation.Ansible.CallbackCommandDispatcherTest do
       execution_id: execution.id,
       controller_id: @controller_id,
       dispatch_agent_id: "edge-agent-1",
-      dispatch_partition_id: "farm01"
+      dispatch_partition_id: "edge01"
     }
 
     {:ok, request} = CallbackCommandContract.launch_request(operation, execution, 91)
@@ -665,7 +665,7 @@ defmodule ServiceRadar.Automation.Ansible.CallbackCommandDispatcherTest do
           execution_id: execution.id,
           controller_id: @controller_id,
           dispatch_agent_id: controller.agent_id,
-          dispatch_partition_id: "farm01"
+          dispatch_partition_id: "edge01"
         },
         execution,
         request,
@@ -687,7 +687,7 @@ defmodule ServiceRadar.Automation.Ansible.CallbackCommandDispatcherTest do
         launch_envelope_ref: envelope_ref,
         awx_scope_snapshot: scope,
         dispatch_agent_id: controller.agent_id,
-        dispatch_partition_id: "farm01"
+        dispatch_partition_id: "edge01"
       },
       targets: [%{id: Ash.UUID.generate()}]
     }
@@ -815,7 +815,7 @@ defmodule ServiceRadar.Automation.Ansible.CallbackCommandDispatcherTest do
           command_id: @preflight_command_id,
           controller_id: resources.controller.id,
           dispatch_agent_id: resources.controller.agent_id,
-          dispatch_partition_id: "farm01",
+          dispatch_partition_id: "edge01",
           binding_id: @preflight_binding_id,
           binding_version: 3,
           approval_id: @preflight_approval_id,
@@ -866,7 +866,7 @@ defmodule ServiceRadar.Automation.Ansible.CallbackCommandDispatcherTest do
   defp controller(id, agent_id) do
     %{
       id: id,
-      name: "farm01-awx",
+      name: "edge01-awx",
       base_url: "https://awx.example.test:8443",
       agent_id: agent_id,
       enabled: true,
@@ -880,7 +880,7 @@ defmodule ServiceRadar.Automation.Ansible.CallbackCommandDispatcherTest do
 
   defp security_metadata(controller_snapshot) do
     %{
-      "dispatch_partition_id" => "farm01",
+      "dispatch_partition_id" => "edge01",
       "controller_security_snapshot" => controller_snapshot
     }
   end

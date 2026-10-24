@@ -48,9 +48,9 @@ defmodule ServiceRadarWebNG.Mcp.SrqlBindTest do
     end
 
     test "accepts a hostname but not one carrying operators" do
-      assert {:ok, ~s("farm01.example.com")} = SrqlBind.literal("farm01.example.com", :hostname)
-      assert {:error, _} = SrqlBind.literal("farm01 stats:count()", :hostname)
-      assert {:error, _} = SrqlBind.literal(~s(farm01" OR uid:%), :hostname)
+      assert {:ok, ~s("edge01.example.com")} = SrqlBind.literal("edge01.example.com", :hostname)
+      assert {:error, _} = SrqlBind.literal("edge01 stats:count()", :hostname)
+      assert {:error, _} = SrqlBind.literal(~s(edge01" OR uid:%), :hostname)
     end
 
     test "rejects non-scalars and unknown kinds" do
@@ -70,8 +70,8 @@ defmodule ServiceRadarWebNG.Mcp.SrqlBindTest do
       assert SrqlBind.classify("sr:0189f8c0-1d2e-7a3b-9c4d-5e6f70819a2b") == :device_uid
       assert SrqlBind.classify("192.168.2.1") == :ip
       assert SrqlBind.classify("fe80::1") == :ip
-      assert SrqlBind.classify("farm01") == :hostname
-      assert SrqlBind.classify("farm01.example.com") == :hostname
+      assert SrqlBind.classify("edge01") == :hostname
+      assert SrqlBind.classify("edge01.example.com") == :hostname
     end
 
     test "an injection payload is not classified as anything usable" do

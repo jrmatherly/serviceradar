@@ -29,7 +29,7 @@ defmodule ServiceRadar.Automation.CallbackGrants.AshStoreTest do
     assert attrs.idempotency_key_verifier == grant.idempotency_verifier_digest
     assert attrs.idempotency_pepper_version == grant.idempotency_verifier_key_id
     assert attrs.dispatch_agent_id == "agent-gateway-demo"
-    assert attrs.dispatch_partition_id == "farm01"
+    assert attrs.dispatch_partition_id == "edge01"
     assert attrs.launch_envelope_ref == "vault-envelope:callback-grant-1"
     assert attrs.policy_snapshot == grant.policy_snapshot
     assert attrs.target_snapshot["scope_digest"] == grant.scope_digest
@@ -211,14 +211,14 @@ defmodule ServiceRadar.Automation.CallbackGrants.AshStoreTest do
       callback_credential_type_id: 6,
       callback_credential_organization_id: 2,
       callback_credential_injector_digest: String.duplicate("c", 64),
-      host_limit: "farm01-pve01",
+      host_limit: "edge01-pve01",
       target_count: 1,
       target_digest: String.duplicate("d", 64),
       snapshot_digest: String.duplicate("e", 64),
       targets: [
         Map.merge(target_identity, %{
           membership_id: membership_id(),
-          host_name: "farm01-pve01",
+          host_name: "edge01-pve01",
           ansible_host: "192.168.2.22"
         })
       ],
@@ -233,7 +233,7 @@ defmodule ServiceRadar.Automation.CallbackGrants.AshStoreTest do
       state: "present",
       targets: [
         %{
-          inventory_hostname: "farm01-pve01",
+          inventory_hostname: "edge01-pve01",
           inventory_address: "192.168.2.22",
           target_identity: target_identity,
           ca_keys: ca_keys,
@@ -299,7 +299,7 @@ defmodule ServiceRadar.Automation.CallbackGrants.AshStoreTest do
       job_binding: nil,
       ephemeral_credential_id: nil,
       dispatch_agent_id: "agent-gateway-demo",
-      dispatch_partition_id: "farm01",
+      dispatch_partition_id: "edge01",
       launch_envelope_ref: "vault-envelope:callback-grant-1",
       verifier_digest: <<7::256>>,
       verifier_key_id: "callback-v1",

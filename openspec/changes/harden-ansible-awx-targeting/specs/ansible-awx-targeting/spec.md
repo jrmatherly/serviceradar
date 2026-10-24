@@ -3,7 +3,7 @@
 ### Requirement: AWX execution identity uses immutable inventory memberships
 ServiceRadar SHALL identify an AWX inventory membership by `(controller_id, inventory_id, awx_host_id)` and link it explicitly to one canonical device UID for execution. It SHALL preserve multiple memberships and duplicate display hostnames, retain source generation/currentness/linkage evidence, and MUST NOT select or merge an execution target by hostname, IP address, facts, labels, or last-writer-wins device metadata.
 
-#### Scenario: Farm01 and tonka01 share a hostname
+#### Scenario: Farm01 and hub01 share a hostname
 - **WHEN** both inventories contain `pve01` with different inventory/host IDs and addresses
 - **THEN** ServiceRadar preserves two distinct memberships and requires the operator/policy to select the exact compatible membership
 
@@ -23,7 +23,7 @@ ServiceRadar SHALL identify an AWX inventory membership by `(controller_id, inve
 ServiceRadar SHALL create one immutable parent operation and partition it into child executions by controller, inventory, job template, immutable project/SCM commit/content hash, execution environment, approved machine credential reference, reviewed static custom credential or dynamic custom-credential type/slot, and check/run mode. It SHALL re-fetch current template/host state, reject moving refs and project `update_on_launch`, require an explicit compatible inventory and literal-only non-empty limit, persist all child targets in one transaction before dispatch, and prove equality among requested, planned, persisted, and command target tuples/counts. AWX acceptance SHALL echo the exact inventory and literal limit; post-start job-host summaries SHALL reconcile to the snapshotted host IDs before ServiceRadar marks scope verified. The system MUST NOT claim synchronous AWX acceptance returns an expanded host-ID set.
 
 #### Scenario: Selection spans two inventories
-- **WHEN** an authorized request selects targets in farm01 and tonka01
+- **WHEN** an authorized request selects targets in edge01 and hub01
 - **THEN** ServiceRadar creates separate inventory-bound child executions under one parent and retains every source tuple
 
 #### Scenario: Empty limit would use template defaults

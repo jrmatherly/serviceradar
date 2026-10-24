@@ -113,7 +113,7 @@ Rejected because hook ordering would create an implicit data handoff between par
 2. Extract the composable controller without changing the archived generic contract, with existing Events behavior protected by tests.
 3. Add the NetFlow interval/validation helper and failing LiveView/component tests.
 4. Integrate Lines/Grid, then the D3 temporal/activity charts with focused JavaScript tests.
-5. Run browser, Bazel, and repository gates before producing one immutable build for farm01 and CarverAuto demo.
+5. Run browser, Bazel, and repository gates before producing one immutable build for edge01 and CarverAuto demo.
 
 Rollback removes the NetFlow opt-in/controller composition and restores the previous one-bucket and series-click surfaces. It requires no data or schema rollback.
 

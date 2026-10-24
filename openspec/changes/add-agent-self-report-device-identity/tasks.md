@@ -2,7 +2,7 @@
 
 ## 1. Establish the evidence as a regression test
 
-- [ ] 1.1 DB-backed test reproducing the farm01 shape BEFORE changing behaviour: a device created
+- [ ] 1.1 DB-backed test reproducing the edge01 shape BEFORE changing behaviour: a device created
   by an observer source at address A, an agent self-report arriving for the same host at address
   B, and the assertion that two devices exist. It must FAIL after the change, which is what makes
   it the proof.

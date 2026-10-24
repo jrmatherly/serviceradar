@@ -10,7 +10,7 @@ God-View currently has several geometry authorities:
 4. deck.gl draws direct source-to-target geometry independently of ELK route output.
 5. camera fitting measures node centers and world-space radii, while labels and halos use fixed screen pixels.
 
-This makes local invariants pass while the rendered composition fails. In the paired farm01 snapshots, expanding one 24-member endpoint cluster changes decoded graph nodes from 30 to 54 and attachment-class semantic edges from 24 to 48, while canonical semantic routes remain 32. The expanded summary remains a non-rendered gateway, so decoded graph counts are not rendered-glyph counts. The zero semantic-route delta is desirable, but the visual result becomes substantially worse because member geometry and labels are packed without one global layout or screen-space collision pass.
+This makes local invariants pass while the rendered composition fails. In the paired edge01 snapshots, expanding one 24-member endpoint cluster changes decoded graph nodes from 30 to 54 and attachment-class semantic edges from 24 to 48, while canonical semantic routes remain 32. The expanded summary remains a non-rendered gateway, so decoded graph counts are not rendered-glyph counts. The zero semantic-route delta is desirable, but the visual result becomes substantially worse because member geometry and labels are packed without one global layout or screen-space collision pass.
 
 ELK 0.11.1 is already installed and configured in the client. The missing work is not selecting another algorithm; it is treating ELK's complete graph result as the scene contract.
 
@@ -104,7 +104,7 @@ The rest of God-View consumes `TopologyScene`; it does not recompute positions o
 ### Decision 4: Expanded clusters preserve one visible transport trunk
 Expansion changes decoded semantic membership, not the number of canonical semantic routes into the cluster. The scene graph uses one visible anchor-to-cluster gateway relation. Member relationships needed for ELK packing are layout-only unless a future diagnostic mode explicitly makes one visible. Any rail or trunk needed to draw high-degree fanout is auxiliary physical geometry associated with existing semantic routes, never another semantic relation.
 
-This preserves the observed farm01 contract: expansion adds 24 endpoint-member nodes and 24 attachment-class semantic edges while the `scene.routes` delta remains zero.
+This preserves the observed edge01 contract: expansion adds 24 endpoint-member nodes and 24 attachment-class semantic edges while the `scene.routes` delta remains zero.
 
 ### Decision 5: deck.gl renders decoded polylines
 Transport mantle and crust layers consume `scene.physicalRoutes` point arrays through `PathLayer`: one path per canonical semantic branch plus one rail and one trunk per manifold. `scene.routes` stays the semantic identity and count surface; manifold paths retain the stable semantic route identifiers they serve. A second direct `ArcLayer` or line from the same endpoints must not render over a semantic branch or replace a manifold. Standard `PathLayer` cannot reproduce the current source-to-target gradient, so this change uses one deterministic dominant/status color per route. Gradient path styling is separate future work.
@@ -161,7 +161,7 @@ The first implementation uses these named defaults so tests share one oracle:
 Changing these defaults requires updating the named constants and their fixture assertions together.
 
 ### Decision 9: geometry assertions are the primary visual regression contract
-Tests use sanitized paired decoded-input fixtures derived from the observed farm01 collapsed and expanded states. The fixture retains stable topology identity, labels, cluster metadata, relation classes, and graph counts, but no credentials, live telemetry, or precomputed layout coordinates.
+Tests use sanitized paired decoded-input fixtures derived from the observed edge01 collapsed and expanded states. The fixture retains stable topology identity, labels, cluster metadata, relation classes, and graph counts, but no credentials, live telemetry, or precomputed layout coordinates.
 
 Required browserless assertions include:
 
@@ -212,7 +212,7 @@ Playwright uses the real Deck/WebGL surface and production font metrics. It asse
 5. Render decoded semantic branches and manifold rail/trunk paths through deck.gl path layers.
 6. Add screen-space label decluttering and bounded visual camera fitting.
 7. Add Bazel-owned unit and browser geometry acceptance.
-8. Roll the fixed build to demo and compare collapsed plus expanded farm01 states before merging.
+8. Roll the fixed build to demo and compare collapsed plus expanded edge01 states before merging.
 
 Rollback reverts the client implementation as one code change. Runtime switching between old and new geometry authorities is intentionally unsupported.
 

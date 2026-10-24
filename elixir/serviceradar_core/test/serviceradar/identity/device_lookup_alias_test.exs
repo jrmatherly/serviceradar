@@ -40,7 +40,7 @@ defmodule ServiceRadar.Identity.DeviceLookupAliasTest do
              |> Ash.Changeset.for_create(:create, %{
                uid: uid,
                ip: canonical_ip,
-               hostname: "tonka01"
+               hostname: "hub01"
              })
              |> Ash.create(actor: actor)
 

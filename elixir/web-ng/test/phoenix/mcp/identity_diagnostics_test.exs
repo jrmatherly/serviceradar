@@ -23,7 +23,7 @@ defmodule ServiceRadarWebNG.Mcp.IdentityDiagnosticsTest do
             [
               %{
                 "uid" => "sr:0189f8c0-1d2e-7a3b-9c4d-5e6f70819a2b",
-                "hostname" => "farm01",
+                "hostname" => "edge01",
                 "deleted_at" => "2026-08-23T00:00:00Z",
                 "deleted_by" => "operator",
                 "deleted_reason" => "phantom apipa address"
@@ -190,14 +190,14 @@ defmodule ServiceRadarWebNG.Mcp.IdentityDiagnosticsTest do
     test "a hostname seed is resolved through a bound device query first" do
       use_srql(StubSRQL)
 
-      assert {:ok, payload} = IdentityDiagnostics.trace(scope(), "farm01")
+      assert {:ok, payload} = IdentityDiagnostics.trace(scope(), "edge01")
       assert payload["seed_resolution"] == "resolved by hostname"
       assert payload["device_uid"] == @uid
 
       queries = captured_queries()
 
       assert Enum.any?(queries, fn query ->
-               String.starts_with?(query, "in:devices hostname:") and query =~ ~s("farm01")
+               String.starts_with?(query, "in:devices hostname:") and query =~ ~s("edge01")
              end)
 
       # The tombstoned search runs first: a device just tombstoned is exactly

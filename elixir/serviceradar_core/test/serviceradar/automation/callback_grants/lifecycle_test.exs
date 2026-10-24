@@ -514,7 +514,7 @@ defmodule ServiceRadar.Automation.CallbackGrants.LifecycleTest do
     assert {:error, :job_binding_conflict} =
              Lifecycle.activate(@grant_id, changed_job, context.opts)
 
-    broadened = Map.put(binding, :host_limit, "farm01-pve01,other")
+    broadened = Map.put(binding, :host_limit, "edge01-pve01,other")
     assert {:error, :awx_scope_mismatch} = Lifecycle.activate(@grant_id, broadened, context.opts)
   end
 
@@ -1332,12 +1332,12 @@ defmodule ServiceRadar.Automation.CallbackGrants.LifecycleTest do
     awx_target =
       Map.merge(target_identity, %{
         membership_id: "018f3f56-1111-7222-8333-123456789ac2",
-        host_name: "farm01-pve01",
+        host_name: "edge01-pve01",
         ansible_host: "192.168.2.22"
       })
 
     response_target = %{
-      inventory_hostname: "farm01-pve01",
+      inventory_hostname: "edge01-pve01",
       inventory_address: "192.168.2.22",
       target_identity: target_identity,
       ca_keys: [
@@ -1412,7 +1412,7 @@ defmodule ServiceRadar.Automation.CallbackGrants.LifecycleTest do
         callback_credential_type_id: 6,
         callback_credential_organization_id: 2,
         callback_credential_injector_digest: String.duplicate("c", 64),
-        host_limit: "farm01-pve01",
+        host_limit: "edge01-pve01",
         target_count: 1,
         target_digest: String.duplicate("d", 64),
         snapshot_digest: String.duplicate("e", 64),
@@ -1429,7 +1429,7 @@ defmodule ServiceRadar.Automation.CallbackGrants.LifecycleTest do
         targets: [response_target]
       },
       dispatch_agent_id: "agent-gateway-demo",
-      dispatch_partition_id: "farm01",
+      dispatch_partition_id: "edge01",
       launch_envelope_ref: "vault-envelope:callback-grant-1"
     }
   end

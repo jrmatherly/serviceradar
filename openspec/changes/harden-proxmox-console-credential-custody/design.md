@@ -9,7 +9,7 @@ The Proxmox integration crosses four trust boundaries:
 
 The security invariant is stronger than "the plugin does not log a token." A Wasm module must neither observe reusable credential material nor control enough of the final network request to redirect host-injected credentials. The agent host must be able to prove that the credential, operation, destination, and current user authorization all belong to one exact assignment or console session.
 
-The inventory model adds another boundary. A native Proxmox VMID is unique only inside a cluster, and a cluster display name is not globally unique. ServiceRadar currently operates two integrations, farm01 and tonka01, whose PVE nodes can have the same hostnames and whose guests can have the same VMIDs. Console routing therefore cannot use a cluster name, node name, VMID, device IP, or legacy provider reference by itself.
+The inventory model adds another boundary. A native Proxmox VMID is unique only inside a cluster, and a cluster display name is not globally unique. ServiceRadar currently operates two integrations, edge01 and hub01, whose PVE nodes can have the same hostnames and whose guests can have the same VMIDs. Console routing therefore cannot use a cluster name, node name, VMID, device IP, or legacy provider reference by itself.
 
 ### Threats in scope
 
@@ -31,7 +31,7 @@ Terminal content confidentiality from an already-authorized endpoint and comprom
 - Keep all reusable Proxmox and SSH secret material outside Wasm-visible state.
 - Make the host connector authoritative for every credential-bearing network field.
 - Bind authorization and resolution to one exact actor, use, target, assignment, and session.
-- make farm01 and tonka01 identities and ownership relationships collision-safe.
+- make edge01 and hub01 identities and ownership relationships collision-safe.
 - Route a guest console only through its exact owning Proxmox controller and node.
 - Fail closed during migration and mixed-version operation.
 - Produce testable, redacted evidence before enabling demo console access.
@@ -249,7 +249,7 @@ protected headers, provider ticket, or authority to choose the network target.
 3. Backfill v3 identities per integration/controller, quarantine ambiguity, and compare counts and relationships without deleting legacy rows.
 4. Deploy trusted connectors and first-party plugin versions together; keep authenticated Proxmox operations disabled for incompatible agents.
 5. Migrate credential rules to explicit `console_access` actor-use policies and grant `devices.console.credentials.use` only to intended roles.
-6. Run negative and migration suites, then prove farm01 and tonka01 coexist with overlapping native identifiers.
+6. Run negative and migration suites, then prove edge01 and hub01 coexist with overlapping native identifiers.
 7. Enable the demo feature only after audit/redaction and exact-owner console proofs pass. Legacy aliases remain for bounded read compatibility and can be removed in a later change after usage reaches zero.
 
 Rollback disables authenticated Proxmox assignments and console creation. It does not restore inline-secret delivery or v1/v2 authoritative writes.

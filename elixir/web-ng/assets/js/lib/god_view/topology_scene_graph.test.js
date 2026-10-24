@@ -5,11 +5,11 @@ import {
   collapsedFarm01Graph,
   expandedFarm01Graph,
   reverseGraphArrays,
-} from "./fixtures/farm01_topology_regression"
+} from "./fixtures/edge01_topology_regression"
 import {canonicalRenderedRelationId, prepareTopologySceneInput} from "./topology_scene_graph"
 
 describe("topology_scene_graph", () => {
-  it("preserves the farm01 expansion semantic delta without adding rendered routes", () => {
+  it("preserves the edge01 expansion semantic delta without adding rendered routes", () => {
     const collapsed = prepareTopologySceneInput(collapsedFarm01Graph())
     const expanded = prepareTopologySceneInput(expandedFarm01Graph())
 
@@ -172,9 +172,9 @@ describe("topology_scene_graph", () => {
     const group = scene.groups.find((candidate) => candidate.expanded)
 
     expect(group).toMatchObject({
-      id: "cluster:endpoints:farm01:gateway-01",
-      anchorId: "farm01:gateway-01",
-      gatewayId: "farm01:endpoint-summary-01",
+      id: "cluster:endpoints:edge01:gateway-01",
+      anchorId: "edge01:gateway-01",
+      gatewayId: "edge01:endpoint-summary-01",
       expanded: true,
     })
     expect(group.memberIds).toHaveLength(24)

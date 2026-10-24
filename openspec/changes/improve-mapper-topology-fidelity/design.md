@@ -4,11 +4,11 @@ The current mapper pipeline reliably emits LLDP observations from a small subset
 2. Neighbor payload normalization is insufficient (`neighbor_mgmt_addr` absent, weak identifier fallback).
 3. Projection contracts are ambiguous about device-level vs interface-level edges.
 
-In farm01, `192.168.2.1` is a valid interface on the same router identity. Discovery must unify multi-interface identities (`192.168.1.1`/`192.168.2.1`) instead of treating seed-interface choice as topology scope.
+In edge01, `192.168.2.1` is a valid interface on the same router identity. Discovery must unify multi-interface identities (`192.168.1.1`/`192.168.2.1`) instead of treating seed-interface choice as topology scope.
 
 ## Goals / Non-Goals
 - Goals:
-  - Produce consistent device-level topology for known farm01/tonka01 segments from configured seed routers.
+  - Produce consistent device-level topology for known edge01/hub01 segments from configured seed routers.
   - Preserve interface-level evidence while enforcing deterministic device adjacency projection.
   - Promote discovered downstream endpoints/switches into inventory even when they lack direct SNMP availability.
   - Add a synthetic topology harness that can replay deterministic mapper evidence and validate expected graph output.
@@ -23,7 +23,7 @@ In farm01, `192.168.2.1` is a valid interface on the same router identity. Disco
 - Decision: Define a canonical neighbor identity object in mapper output (`neighbor_identity`) with ordered resolution keys.
   - Resolution priority: management IP > explicit device ID > chassis ID + port ID > MAC/ARP evidence.
 - Decision: Normalize seed interfaces to canonical device identity so multi-interface routers are treated as one node.
-  - Rationale: farm01 can be seeded via `192.168.1.1` or `192.168.2.1` and should yield the same topology root.
+  - Rationale: edge01 can be seeded via `192.168.1.1` or `192.168.2.1` and should yield the same topology root.
 - Decision: Keep `CONNECTS_TO` as device-to-device only; store interface/link evidence separately and derive device edges from it.
   - Rationale: current ambiguity allows interface-only adjacency that underrepresents device graph quality.
 - Decision: Add unresolved-neighbor persistence and periodic reconciliation.
@@ -44,7 +44,7 @@ In farm01, `192.168.2.1` is a valid interface on the same router identity. Disco
 ## Migration Plan
 1. Add mapper payload fields and ingestor support while preserving backward compatibility.
 2. Enable dual projection (existing + new semantics) behind a feature flag for one release.
-3. Add synthetic topology replay test coverage and verify farm01/tonka01 fixture assertions in CI.
+3. Add synthetic topology replay test coverage and verify edge01/hub01 fixture assertions in CI.
 4. Validate quality metrics in demo.
 5. Switch default projection semantics and remove compatibility path after verification.
 

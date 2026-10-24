@@ -811,7 +811,7 @@ defmodule ServiceRadarWebNGWeb.Admin.PluginPackageLiveTest do
       gateway_fixture(%{id: "plugin-preview-gw", component_id: "plugin-preview-component"})
 
     agent = agent_fixture(gateway, %{uid: "agent-preview-plugin", name: "Agent Preview Plugin"})
-    partition_id = "farm01"
+    partition_id = "edge01"
     register_control_session!(agent.uid, partition_id)
 
     on_exit(fn ->
@@ -885,7 +885,7 @@ defmodule ServiceRadarWebNGWeb.Admin.PluginPackageLiveTest do
         name: "Agent Legacy Manual Plugin"
       })
 
-    partition_id = "farm01"
+    partition_id = "edge01"
     register_control_session!(agent.uid, partition_id)
 
     on_exit(fn ->
@@ -921,7 +921,7 @@ defmodule ServiceRadarWebNGWeb.Admin.PluginPackageLiveTest do
         name: "Agent Legacy Schema Plugin"
       })
 
-    partition_id = "farm01"
+    partition_id = "edge01"
     register_control_session!(agent.uid, partition_id)
 
     on_exit(fn ->
@@ -969,7 +969,7 @@ defmodule ServiceRadarWebNGWeb.Admin.PluginPackageLiveTest do
         name: "Agent Legacy Upsert Plugin"
       })
 
-    partition_id = "farm01"
+    partition_id = "edge01"
     register_control_session!(agent.uid, partition_id)
 
     on_exit(fn ->
@@ -1025,7 +1025,7 @@ defmodule ServiceRadarWebNGWeb.Admin.PluginPackageLiveTest do
         name: "Agent Legacy Offline Plugin"
       })
 
-    partition_id = "farm01"
+    partition_id = "edge01"
     register_control_session!(agent.uid, partition_id)
 
     package = create_approved_package_version!(actor, "live-legacy-offline-plugin", "1.0.0")
@@ -1058,7 +1058,7 @@ defmodule ServiceRadarWebNGWeb.Admin.PluginPackageLiveTest do
         name: "Agent Legacy Policy Plugin"
       })
 
-    partition_id = "tonka01"
+    partition_id = "hub01"
     register_control_session!(agent.uid, partition_id)
 
     on_exit(fn ->
@@ -1101,7 +1101,7 @@ defmodule ServiceRadarWebNGWeb.Admin.PluginPackageLiveTest do
         name: "Agent Legacy Unsupported Policy Plugin"
       })
 
-    partition_id = "farm01"
+    partition_id = "edge01"
     register_control_session!(agent.uid, partition_id)
 
     on_exit(fn ->
@@ -1148,7 +1148,7 @@ defmodule ServiceRadarWebNGWeb.Admin.PluginPackageLiveTest do
         name: "Agent Legacy Credential Plugin"
       })
 
-    partition_id = "farm01"
+    partition_id = "edge01"
     register_control_session!(agent.uid, partition_id)
 
     on_exit(fn ->

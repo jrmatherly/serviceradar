@@ -133,7 +133,7 @@ defmodule ServiceRadar.Automation.Ansible.LiveAwxLaunchPreflightPersistenceDbTes
     end
 
     defp edge_principal("edge-agent-1"),
-      do: {:ok, %{agent_id: "edge-agent-1", partition_id: "farm01"}}
+      do: {:ok, %{agent_id: "edge-agent-1", partition_id: "edge01"}}
 
     defp fixture! do
       case Process.get({__MODULE__, :fixture}) do
@@ -249,7 +249,7 @@ defmodule ServiceRadar.Automation.Ansible.LiveAwxLaunchPreflightPersistenceDbTes
   end
 
   defp edge_principal("edge-agent-1"),
-    do: {:ok, %{agent_id: "edge-agent-1", partition_id: "farm01"}}
+    do: {:ok, %{agent_id: "edge-agent-1", partition_id: "edge01"}}
 
   defp fixture do
     now = DateTime.truncate(DateTime.utc_now(), :microsecond)
