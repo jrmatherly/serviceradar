@@ -52,7 +52,7 @@ if command -v sfw >/dev/null 2>&1; then
   cargo_cmd=(sfw cargo)
 else
   echo "warning: sfw not found; running cargo directly. CI wraps these calls in Socket" >&2
-  echo "         Firewall. Install it with scripts/ci/install-sfw.sh to match exactly." >&2
+  echo "         Firewall. Install it with mise install (mise.toml pins the same release as scripts/ci/install-sfw.sh)." >&2
 fi
 
 # third_party/rust_patches/* are workspace members, so --workspace reaches them, but they are
