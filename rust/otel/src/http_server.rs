@@ -212,15 +212,20 @@ pub async fn start_http_server(
 }
 
 fn build_tls_acceptor(identity: &TlsIdentityPem) -> Result<tokio_rustls::TlsAcceptor, BoxError> {
-    let certs = rustls_pemfile::certs(&mut identity.cert_pem.as_slice())
+    use rustls::pki_types::{CertificateDer, PrivateKeyDer};
+    use rustls_pki_types::pem::{self, PemObject};
+    let certs = CertificateDer::pem_slice_iter(&identity.cert_pem)
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| format!("failed to parse TLS certificate for OTLP/HTTP listener: {e}"))?;
     if certs.is_empty() {
         return Err("no certificates found in TLS cert file for OTLP/HTTP listener".into());
     }
-    let key = rustls_pemfile::private_key(&mut identity.key_pem.as_slice())
-        .map_err(|e| format!("failed to parse TLS key for OTLP/HTTP listener: {e}"))?
-        .ok_or("no private key found in TLS key file for OTLP/HTTP listener")?;
+    let key = match PrivateKeyDer::from_pem_slice(&identity.key_pem) {
+        Err(pem::Error::NoItemsFound) => {
+            return Err("no private key found in TLS key file for OTLP/HTTP listener".into());
+        }
+        key => key.map_err(|e| format!("failed to parse TLS key for OTLP/HTTP listener: {e}"))?,
+    };
 
     let mut config = rustls::ServerConfig::builder()
         .with_no_client_auth()

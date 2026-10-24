@@ -8,7 +8,6 @@
 //! have no rustls equivalent and only ever weakened the configuration.
 
 use std::fs::File;
-use std::io::BufReader;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -16,6 +15,7 @@ use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, Server
 use rustls::crypto::{CryptoProvider, ring, verify_tls12_signature, verify_tls13_signature};
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, ServerName, UnixTime};
 use rustls::{DigitallySignedStruct, RootCertStore, SignatureScheme};
+use rustls_pki_types::pem::{self, PemObject};
 
 /// A fresh `ring`-backed crypto provider. Cheap to build; call once per config.
 pub(crate) fn provider() -> Arc<CryptoProvider> {
@@ -24,24 +24,22 @@ pub(crate) fn provider() -> Arc<CryptoProvider> {
 
 /// Load a PEM certificate chain.
 pub(crate) fn load_certs(path: &Path) -> Vec<CertificateDer<'static>> {
-    let mut reader =
-        BufReader::new(File::open(path).unwrap_or_else(|e| {
-            panic!("Unable to open the TLS certificate {}: {e}", path.display())
-        }));
-    rustls_pemfile::certs(&mut reader)
+    let file = File::open(path)
+        .unwrap_or_else(|e| panic!("Unable to open the TLS certificate {}: {e}", path.display()));
+    CertificateDer::pem_reader_iter(file)
         .collect::<Result<Vec<_>, _>>()
         .unwrap_or_else(|e| panic!("Unable to read the TLS certificate {}: {e}", path.display()))
 }
 
 /// Load the first PEM private key (PKCS#8, PKCS#1 or SEC1).
 pub(crate) fn load_private_key(path: &Path) -> PrivateKeyDer<'static> {
-    let mut reader = BufReader::new(
-        File::open(path)
-            .unwrap_or_else(|e| panic!("Unable to open the TLS key {}: {e}", path.display())),
-    );
-    rustls_pemfile::private_key(&mut reader)
-        .unwrap_or_else(|e| panic!("Unable to read the TLS key {}: {e}", path.display()))
-        .unwrap_or_else(|| panic!("No private key found in {}", path.display()))
+    let file = File::open(path)
+        .unwrap_or_else(|e| panic!("Unable to open the TLS key {}: {e}", path.display()));
+    match PrivateKeyDer::from_pem_reader(file) {
+        Ok(key) => key,
+        Err(pem::Error::NoItemsFound) => panic!("No private key found in {}", path.display()),
+        Err(e) => panic!("Unable to read the TLS key {}: {e}", path.display()),
+    }
 }
 
 /// Build a root store from a PEM CA bundle.

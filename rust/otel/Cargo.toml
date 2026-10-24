@@ -25,7 +25,7 @@ log = { workspace = true }
 prometheus = { workspace = true, features = ["process"] }
 prost = { workspace = true }
 rustls = { workspace = true }
-rustls-pemfile = { workspace = true }
+rustls-pki-types = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serviceradar-metric-proto = { path = "../metric-proto" }
 tempfile = { workspace = true }

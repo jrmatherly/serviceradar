@@ -57,7 +57,7 @@ extern crate redis;
 #[cfg(feature = "tls")]
 extern crate rustls;
 #[cfg(feature = "tls")]
-extern crate rustls_pemfile;
+extern crate rustls_pki_types;
 #[cfg(feature = "gelf")]
 extern crate serde_json;
 extern crate time;

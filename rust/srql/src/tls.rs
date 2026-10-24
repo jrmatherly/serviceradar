@@ -15,10 +15,9 @@
 //! posture becomes a plaintext connection.
 
 use anyhow::{Context, Result, anyhow};
-use rustls::pki_types::PrivateKeyDer;
+use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use rustls::{ClientConfig, RootCertStore};
-use rustls_pemfile::certs;
-use std::io::{BufReader, Cursor};
+use rustls_pki_types::pem::{self, PemObject};
 use std::sync::Once;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_postgres::tls::MakeTlsConnect;
@@ -83,9 +82,8 @@ pub fn postgres_connector(
     ensure_crypto_provider();
 
     let mut root_store = RootCertStore::empty();
-    let mut reader = BufReader::new(Cursor::new(ca_pem));
     let mut added = 0usize;
-    for cert in certs(&mut reader) {
+    for cert in CertificateDer::pem_slice_iter(ca_pem) {
         let cert = cert.context("failed to parse the CA certificate")?;
         root_store
             .add(cert)
@@ -103,17 +101,19 @@ pub fn postgres_connector(
     let config = match (client_cert_pem, client_key_pem) {
         (None, None) => builder.with_no_client_auth(),
         (Some(cert_pem), Some(key_pem)) => {
-            let chain = certs(&mut BufReader::new(Cursor::new(cert_pem)))
+            let chain = CertificateDer::pem_slice_iter(cert_pem)
                 .collect::<Result<Vec<_>, _>>()
                 .context("failed to parse the client certificate")?;
             if chain.is_empty() {
                 anyhow::bail!("the client certificate contained no certificates");
             }
 
-            let key: PrivateKeyDer<'static> =
-                rustls_pemfile::private_key(&mut BufReader::new(Cursor::new(key_pem)))
-                    .context("failed to parse the client private key")?
-                    .ok_or_else(|| anyhow!("the client key contained no private key"))?;
+            let key: PrivateKeyDer<'static> = match PrivateKeyDer::from_pem_slice(key_pem) {
+                Err(pem::Error::NoItemsFound) => {
+                    anyhow::bail!("the client key contained no private key")
+                }
+                key => key.context("failed to parse the client private key")?,
+            };
 
             builder
                 .with_client_auth_cert(chain, key)

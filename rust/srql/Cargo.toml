@@ -24,7 +24,7 @@ openssl-sys = { workspace = true }
 parking_lot = { workspace = true }
 pq-sys = { workspace = true, features = ["bundled"] }
 rustls = { workspace = true, features = ["ring"] }
-rustls-pemfile = { workspace = true }
+rustls-pki-types = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 # BLOCKED: cannot use the workspace sha2 (0.11). pagination.rs builds Hmac<Sha256>, and

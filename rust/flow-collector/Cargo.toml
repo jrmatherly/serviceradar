@@ -18,7 +18,7 @@ log = { workspace = true }
 netflow_parser = { workspace = true, features = ["parse_unknown_fields"] }
 prost = { workspace = true }
 rustls = { workspace = true }
-rustls-pemfile = { workspace = true }
+rustls-pki-types = { workspace = true }
 sha2 = { workspace = true }
 tokio-rustls = { workspace = true }
 serde = { workspace = true, features = ["derive"] }

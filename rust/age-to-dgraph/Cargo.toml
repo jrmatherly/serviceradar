@@ -17,7 +17,7 @@ path = "tests/lib_tests.rs"
 [dependencies]
 dgraph-topology = { path = "../dgraph-topology" }
 rustls = { workspace = true }
-rustls-pemfile = { workspace = true }
+rustls-pki-types = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
