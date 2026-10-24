@@ -875,7 +875,7 @@ defmodule ServiceRadarWebNGWeb.Settings.NetflowLive.Index do
                               step="0.000001"
                               min="-90"
                               max="90"
-                              placeholder="44.7633"
+                              placeholder="41.9742"
                             />
                             <.input
                               field={@form[:longitude]}

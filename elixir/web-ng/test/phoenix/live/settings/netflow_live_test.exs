@@ -43,7 +43,7 @@ defmodule ServiceRadarWebNGWeb.Settings.NetflowLiveTest do
         "label" => "RFC1918",
         "cidr" => "10.0.0.0/8",
         "location_label" => "edge01 - Chicago, IL",
-        "latitude" => "44.7633",
+        "latitude" => "41.9742",
         "longitude" => "-87.9073",
         "enabled" => "true"
       }
@@ -61,7 +61,7 @@ defmodule ServiceRadarWebNGWeb.Settings.NetflowLiveTest do
 
     assert Enum.any?(cidrs, fn cidr ->
              cidr.cidr == "10.0.0.0/8" and cidr.partition == "default" and
-               cidr.location_label == "edge01 - Chicago, IL" and cidr.latitude == 44.7633 and
+               cidr.location_label == "edge01 - Chicago, IL" and cidr.latitude == 41.9742 and
                cidr.longitude == -87.9073
            end)
 
