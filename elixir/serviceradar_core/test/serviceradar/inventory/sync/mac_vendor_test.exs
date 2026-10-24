@@ -13,8 +13,8 @@ defmodule ServiceRadar.Inventory.Sync.MacVendorTest do
   describe "locally administered addresses are never looked up" do
     test "a randomised MAC yields no prefix even when its prefix is registered" do
       # F29FC2 is the locally administered form of Ubiquiti's registered
-      # F09FC2 -- they differ only in bit 1 of the first octet, and edge01 has
-      # exactly this pair today. A lookup without the bit test returns
+      # F09FC2 -- they differ only in bit 1 of the first octet, and one chassis
+      # can legitimately expose both. A lookup without the bit test returns
       # "Ubiquiti Inc" for a device that merely imitated the address.
       assert MacVendor.prefix_for("F09FC21A4B85") != []
       assert MacVendor.prefix_for("F29FC21A4B7C") == []

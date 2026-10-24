@@ -50,10 +50,9 @@ defmodule ServiceRadar.Inventory.IdentityReconcilerMacClassificationTest do
     test "identifies locally-administered MACs (bit 1 of first octet set)" do
       # 0x0E = 0b00001110, bit 1 is set
       assert IdentityReconciler.locally_administered_mac?("0EEA1432D278")
-      # 0xF6 = 0b11110110, bit 1 is set
+      # 0xF2 = 0b11110010, bit 1 is set
       assert IdentityReconciler.locally_administered_mac?("F29FC21A4B7D")
-      # 0xF4 = 0b11110100, bit 1 is set (yes, 0xF4 & 0x02 = 0x00, bit 1 is NOT set)
-      # Actually: 0xF4 = 11110100, bit 1 (from LSB) = 0. Not locally administered.
+      # 0xF0 = 0b11110000, bit 1 is clear
       refute IdentityReconciler.locally_administered_mac?("F09FC21A4B7D")
       # 0x02 = 0b00000010, bit 1 is set
       assert IdentityReconciler.locally_administered_mac?("020000000001")
@@ -66,7 +65,7 @@ defmodule ServiceRadar.Inventory.IdentityReconcilerMacClassificationTest do
       refute IdentityReconciler.locally_administered_mac?("001122334455")
       # 0x0C = 0b00001100, bit 1 is clear
       refute IdentityReconciler.locally_administered_mac?("0CEA1432D278")
-      # 0xF4 = 0b11110100, bit 1 is clear
+      # 0xF0 = 0b11110000, bit 1 is clear
       refute IdentityReconciler.locally_administered_mac?("F09FC21A4B7D")
       # 0xAC = 0b10101100, bit 1 is clear
       refute IdentityReconciler.locally_administered_mac?("ACDE48000001")

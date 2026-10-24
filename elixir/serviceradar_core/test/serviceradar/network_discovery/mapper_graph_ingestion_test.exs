@@ -674,7 +674,7 @@ defmodule ServiceRadar.NetworkDiscovery.MapperGraphIngestionTest do
   # Required validation because Ash's :string defaults cast the ingestor's ""
   # sentinel back to nil, and one rejected record aborted the whole payload.
   # These payload shapes mirror what go/pkg/mapper actually emits
-  # (snmp_l2_query.go, ubnt_topology.go, and the hub wireguard deriver).
+  # (snmp_l2_query.go, ubnt_topology.go, and the core wireguard deriver).
   test "ingest_topology persists SNMP-L2 ARP+FDB attachment records without a neighbor port id" do
     now = DateTime.truncate(DateTime.utc_now(), :microsecond)
     purge_topology_rows(["sr:it-fdb-switch"])

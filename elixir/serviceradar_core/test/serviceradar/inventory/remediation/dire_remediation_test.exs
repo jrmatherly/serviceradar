@@ -282,6 +282,29 @@ defmodule ServiceRadar.Inventory.Remediation.DireRemediationTest do
     assert second.would_delete_identifiers == 0
   end
 
+  test "stale-agent-devices: skips and reaps nothing when no agent ids or prefixes are given",
+       %{actor: actor} do
+    seed = test_seed()
+    stale = "agent-noargs-stale-#{seed}"
+    {:ok, device} = create_device(actor, %{hostname: "noargs-stale-#{seed}", agent_id: stale})
+    {:ok, _} = create_agent(actor, stale, %{device_uid: device.uid})
+    make_stale_agent!(stale)
+
+    opts = [steps: ["stale-agent-devices"], actor: actor]
+
+    assert {:ok, %{reports: %{"stale-agent-devices" => %{skipped: true, stale_agents: 0}}}} =
+             DireRemediation.run(opts)
+
+    assert {:ok, %{reports: %{"stale-agent-devices" => %{skipped: true}}}} =
+             DireRemediation.run([
+               {:mode, :execute},
+               {:manifest_path, manifest_path("stale_agents_noargs")} | opts
+             ])
+
+    assert {:ok, _} = Agent.get_by_uid(stale, actor: actor)
+    assert {:ok, %Device{deleted_at: nil}} = Device.get_by_uid(device.uid, false, actor: actor)
+  end
+
   test "agent-links: rebuilds per-host devices from ocsf_agents ground truth",
        %{actor: actor} do
     seed = test_seed()

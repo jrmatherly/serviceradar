@@ -54,9 +54,10 @@ defmodule Mix.Tasks.Serviceradar.DireRemediation do
     * `--debris-hostname <hostname>` — debris device hostname (repeatable;
       defaults: k8s-pod-a, k8s-pod-b)
     * `--stale-agent <uid>` — exact unavailable historical agent uid to reap
-      (repeatable; defaults: agent-dusk, agent-agent-dusk)
+      (repeatable; no default)
     * `--stale-agent-prefix <prefix>` — unavailable historical agent uid prefix
-      to reap (repeatable; defaults: agent-dusk-, agent-agent-dusk-, agent-dusk01-)
+      to reap (repeatable; no default). With neither flag the
+      `stale-agent-devices` step is reported as skipped and reaps nothing.
     * `--stale-agent-before <iso8601>` — stale agent last_seen cutoff
       (default 2026-05-01T00:00:00Z)
     * `--agent <uid>` — restrict agent-links to specific agents (repeatable)
