@@ -78,9 +78,9 @@ pub fn config_get_prepend_ts(config: &Config) -> Option<String> {
 
 pub fn build_prepend_ts(format_str: &str) -> Result<String, &'static str> {
     let current_time = OffsetDateTime::now_utc();
-    let format_item = match format_description::parse(format_str) {
+    let format_item = match format_description::parse_borrowed::<1>(format_str) {
         Ok(item) => item,
-        Err(_) => return Err("Failed to format date"),
+        Err(_) => return Err("Invalid time format description"),
     };
 
     match current_time.format(&format_item) {

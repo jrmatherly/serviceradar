@@ -108,7 +108,7 @@ fn parse_clearpass_timestamp(
     time: &str,
     default_timezone: Option<&str>,
 ) -> Result<f64, &'static str> {
-    let format_item = format_description::parse(
+    let format_item = format_description::parse_borrowed::<1>(
         "[year]-[month]-[day] [hour]:[minute]:[second],[subsecond digits:3]",
     )
     .map_err(|_| "Invalid ClearPass timestamp format")?;
@@ -297,7 +297,7 @@ fn parse_date<'a>(
         (idx, ts_str)
     };
 
-    let format_item = format_description::parse(
+    let format_item = format_description::parse_borrowed::<1>(
         "[year] [month repr:short] [day padding:none] [hour]:[minute]:[second]",
     )
     .unwrap();
