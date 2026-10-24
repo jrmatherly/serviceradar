@@ -122,21 +122,20 @@ check "protoc-gen-elixir ${protobuf_version}" fail \
   "escript_at_version $(printf %q "${protoc_gen_elixir}") $(printf %q "${protobuf_version}")" \
   "make install-protoc-gen-elixir"
 
-check protoc fail "on_path protoc" "brew install protobuf"
-check bats fail "on_path bats" "brew install bats-core"
-check gitleaks fail "on_path gitleaks" "brew install gitleaks"
-check rg fail "on_path rg" "brew install ripgrep"
-check bun fail "on_path bun" "mise use -g bun"
-check bazel fail "on_path bazel || on_path bazelisk" "brew install bazelisk"
-check helm fail "on_path helm" "mise use -g helm"
-check kubectl fail "on_path kubectl" "mise use -g kubectl"
+check protoc fail "on_path protoc" "mise install"
+check bats fail "on_path bats" "mise install"
+check gitleaks fail "on_path gitleaks" "mise install"
+check rg fail "on_path rg" "mise install"
+check bun fail "on_path bun" "mise install"
+check bazel fail "on_path bazel || on_path bazelisk" "mise install"
+check helm fail "on_path helm" "mise install"
+check kubectl fail "on_path kubectl" "mise install"
 check docker fail "on_path docker" "brew install docker (plus a runtime such as OrbStack or Docker Desktop)"
 check pkgconf fail "on_path pkgconf" "brew install pkgconf"
-check shellcheck fail "on_path shellcheck" "mise use -g shellcheck"
-check jq fail "on_path jq" "mise use -g jq"
+check shellcheck fail "on_path shellcheck" "mise install"
+check jq fail "on_path jq" "mise install"
 
-check sfw fail "on_path sfw" \
-  "SFW_INSTALL_DIR=~/.local/bin scripts/ci/install-sfw.sh (verifies the published sha256; then put ~/.local/bin on PATH)"
+check sfw fail "on_path sfw" "mise trust && mise install (mise.toml pins the release and its sha256)"
 
 check ".bazelrc.remote" fail "[ -e .bazelrc.remote ]" \
   "read -rs BUILDBUDDY_ORG_API_KEY && export BUILDBUDDY_ORG_API_KEY && scripts/ci/configure-bazel-remote.sh; unset BUILDBUDDY_ORG_API_KEY"

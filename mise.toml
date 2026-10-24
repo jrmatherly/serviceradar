@@ -1,0 +1,29 @@
+# Developer CLIs the fork's gates call, pinned so `mise install` gives every
+# contributor the same set. Toolchains stay in .tool-versions (erlang, elixir,
+# golang) and rust-toolchain.toml. `make doctor` reports what is still missing.
+# Not here: docker and pkgconf (system packages), golangci-lint (make lint-go
+# installs the pinned copy), bazel itself (bazelisk reads .bazelversion).
+
+[tools]
+bazelisk = "1.28.1"   # matches the CI pin in .github/workflows/native-addons.yml
+bats = "1.14.0"
+bun = "1.4.4"
+gitleaks = "8.30.0"   # matches the pre-commit hook rev in .pre-commit-config.yaml
+helm = "4.3.1"
+jq = "1.8.2"
+kubectl = "1.37.1"
+protoc = "36.2"
+ripgrep = "15.2.0"
+shellcheck = "0.11.0"
+
+# Socket Firewall (`sfw npm ci`, `sfw bun install`). Same release and sha256 table as
+# scripts/ci/install-sfw.sh, which CI runners use; bump both together.
+[tools."http:sfw"]
+version = "1.15.0"
+bin = "sfw"
+
+[tools."http:sfw".platforms]
+macos-arm64 = { url = "https://github.com/SocketDev/sfw-free/releases/download/v1.15.0/sfw-free-macos-arm64", checksum = "sha256:fa473291b8b76220f4b636cf655e8a4dc03332145bdea3acfd9bc96887b2da20" }
+macos-x64 = { url = "https://github.com/SocketDev/sfw-free/releases/download/v1.15.0/sfw-free-macos-x86_64", checksum = "sha256:07cfcc9805812130ebca07f73c51c2cd9c0181b394f25be4c969c0d31c9dc26f" }
+linux-x64 = { url = "https://github.com/SocketDev/sfw-free/releases/download/v1.15.0/sfw-free-linux-x86_64", checksum = "sha256:c80371910a808ea5c68916c48e5451716a91ca411cf5e422fdbd8119729b742c" }
+linux-arm64 = { url = "https://github.com/SocketDev/sfw-free/releases/download/v1.15.0/sfw-free-linux-arm64", checksum = "sha256:55671fa409ef3d40fcee66acbba4d7acfff8a5332d349ad47cca809ebf473cd0" }

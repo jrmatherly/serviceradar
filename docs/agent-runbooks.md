@@ -87,9 +87,12 @@ upstream image; override it with `CNPG_IMAGE`. On Apple Silicon add `-f docker-c
 
 ## Machine setup
 
-Run `make doctor` from the repo root on a new machine, and again whenever a gate fails for
-a reason that looks environmental. It checks the toolchains `.tool-versions` and
-`rust-toolchain.toml` pin, the git hooks, fetched Elixir deps, the CLIs the gates call,
+On a new machine run `mise trust && mise install` from the repo root: `.tool-versions` pins
+the toolchains (erlang, elixir, golang) and `mise.toml` pins the CLIs the gates call
+(bazelisk, bats, bun, gitleaks, helm, jq, kubectl, protoc, ripgrep, shellcheck and Socket
+Firewall `sfw`, the last with its published sha256). Then run `make doctor`, and again
+whenever a gate fails for a reason that looks environmental. It checks those pins and
+`rust-toolchain.toml`, the git hooks, fetched Elixir deps, the CLIs the gates call,
 `.bazelrc.remote` and the commit identity. Each `FAIL` and `WARN` line names its fix; run
 it and re-run `make doctor` until no `FAIL` remains. It exits 1 while any `FAIL` remains.
 
