@@ -35,7 +35,7 @@ A control-stream re-apply *storm*, not version nondeterminism (live: version is 
 - `promote_current` **replaces, not merges** (`ingestor.ex:497-528`): a smaller successful scan demotes all prior current rows → a 2-package upload wipes a 487-package inventory. `scan_state/1` defaults unknown states to `scanned` (successful), so partial/validation uploads trigger the wipe.
 
 ### Process listeners — `agent/addon_systemd.go`
-Not a regression and not all hosts. The `serviceradar-netprobe` systemd sidecar that produces `local_processes.*` is **missing/inactive on 4/7 hosts** (`10.0.2.11/12/13`, `192.168.1.62`) — binary staged, `.service` unit never installed, no self-heal; the 3 cp2 hosts run it and report fresh snapshots (DB `lp_observed` matches netprobe state 1:1). Predates the merge. Fix: agent reconciles desired-vs-actual addon unit state.
+Not a regression and not all hosts. The `serviceradar-netprobe` systemd sidecar that produces `local_processes.*` is **missing/inactive on 4/7 hosts** (`10.0.2.11/12/13`, `192.168.1.62`) — binary staged, `.service` unit never installed, no self-heal; the 3 dev-k8s hosts run it and report fresh snapshots (DB `lp_observed` matches netprobe state 1:1). Predates the merge. Fix: agent reconciles desired-vs-actual addon unit state.
 
 ### SNMP interface charts (edge01) — `device_live/interface_data.ex`
 Not a bug. Read path + counter-rate math are correct (other devices show real MB/s). edge01's favorited interfaces are `if4` (oper down, flat counters) and `if46/47` (not in the polled set `{4,11,31,32,33}`); the busy interfaces `if31/33` are not favorited → faithful `0.0 B/s`. Fix is UX: surface down/no-data state. (Open: why `if46/47` aren't polled — separate agent-side SNMP discovery question.)

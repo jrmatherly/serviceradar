@@ -1062,7 +1062,7 @@ defmodule ServiceRadar.Inventory.SyncBatchResolutionTest do
       |> Ash.Changeset.for_create(:create, %{
         uid: "sr:" <> Ecto.UUID.generate(),
         hostname: "edge01",
-        ip: "198.51.100.178",
+        ip: "198.51.100.23",
         mac: "f0:9f:c2:1a:4b:7c"
       })
       |> Ash.create(actor: actor)
@@ -1104,7 +1104,7 @@ defmodule ServiceRadar.Inventory.SyncBatchResolutionTest do
       |> Ash.Changeset.for_create(:create, %{
         uid: "sr:" <> Ecto.UUID.generate(),
         hostname: "edge01",
-        ip: "198.51.100.178",
+        ip: "198.51.100.23",
         mac: "f0:9f:c2:1a:4b:7c"
       })
       |> Ash.create(actor: actor)

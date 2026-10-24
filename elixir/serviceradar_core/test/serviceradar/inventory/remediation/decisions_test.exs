@@ -422,7 +422,7 @@ defmodule ServiceRadar.Inventory.Remediation.DecisionsTest do
     @mac_a "001AA0B94040"
     @mac_b "001422F42A2A"
     @mac_c "0050B6AABB01"
-    @local_mac "02EA1432D278"
+    @local_mac "02A1B2C3D4E5"
 
     defp mega_device(overrides \\ %{}) do
       armis_id = Map.get(overrides, :armis_device_id, "armis-777")

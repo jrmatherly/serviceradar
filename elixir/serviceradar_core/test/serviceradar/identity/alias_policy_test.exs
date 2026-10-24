@@ -12,10 +12,10 @@ defmodule ServiceRadar.Identity.AliasPolicyTest do
   describe "valid_alias_ip?/1" do
     test "accepts routable addresses of both families" do
       for ip <- [
-            "198.51.100.178",
+            "198.51.100.23",
             "192.168.1.1",
-            "2001:db8:c0b5:1::1",
-            "fd2f:420a:24b1:1:f29f:c2ff:fe1a:4b84",
+            "2001:db8:5:1::1",
+            "fd6b:1c93:7e42:1:f29f:c2ff:fe1a:4b84",
             "fc00::1"
           ] do
         assert AliasPolicy.valid_alias_ip?(ip), "expected #{ip} to be aliasable"

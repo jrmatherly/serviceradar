@@ -496,7 +496,7 @@ func TestGenerateDeviceIDPrefersExistingIdentityForSameIP(t *testing.T) {
 			Devices: []*DiscoveredDevice{
 				{
 					DeviceID: "mac-f09fc21a4b7c",
-					IP:       "198.51.100.178",
+					IP:       "198.51.100.23",
 					MAC:      "f0:9f:c2:1a:4b:7c",
 					Metadata: map[string]string{},
 				},
@@ -506,7 +506,7 @@ func TestGenerateDeviceIDPrefersExistingIdentityForSameIP(t *testing.T) {
 	}
 
 	device := &DiscoveredDevice{
-		IP:       "198.51.100.178",
+		IP:       "198.51.100.23",
 		MAC:      "f2:9f:c2:1a:4b:7c",
 		DeviceID: "",
 	}

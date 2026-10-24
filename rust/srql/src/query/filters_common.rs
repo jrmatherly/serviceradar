@@ -234,7 +234,7 @@ pub(crate) fn is_negated_membership_op(op: &crate::parser::FilterOp) -> bool {
 /// Normalizes a MAC address value by stripping non-hex characters and lowercasing.
 ///
 /// When `allow_wildcards` is true, `%` and `_` (SQL LIKE wildcards) are preserved.
-/// E.g. `"0E-EA-14-32-D2-78"` → `"0eea1432d278"`, `"%0e:ea%"` → `"%0eea%"`.
+/// E.g. `"0E-EA-14-32-D2-78"` → `"0ea1b2c3d4e5"`, `"%0e:ea%"` → `"%0eea%"`.
 pub(crate) fn normalize_mac_value(raw: &str, allow_wildcards: bool) -> Result<String> {
     let mut normalized = String::with_capacity(raw.len());
 

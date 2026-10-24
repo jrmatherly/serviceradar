@@ -49,7 +49,7 @@ defmodule ServiceRadar.Inventory.IdentityReconcilerMacClassificationTest do
   describe "locally_administered_mac?/1" do
     test "identifies locally-administered MACs (bit 1 of first octet set)" do
       # 0x0E = 0b00001110, bit 1 is set
-      assert IdentityReconciler.locally_administered_mac?("0EEA1432D278")
+      assert IdentityReconciler.locally_administered_mac?("0EA1B2C3D4E5")
       # 0xF2 = 0b11110010, bit 1 is set
       assert IdentityReconciler.locally_administered_mac?("F29FC21A4B7D")
       # 0xF0 = 0b11110000, bit 1 is clear
@@ -64,7 +64,7 @@ defmodule ServiceRadar.Inventory.IdentityReconcilerMacClassificationTest do
       # 0x00 = 0b00000000
       refute IdentityReconciler.locally_administered_mac?("001122334455")
       # 0x0C = 0b00001100, bit 1 is clear
-      refute IdentityReconciler.locally_administered_mac?("0CEA1432D278")
+      refute IdentityReconciler.locally_administered_mac?("0CA1B2C3D4E5")
       # 0xF0 = 0b11110000, bit 1 is clear
       refute IdentityReconciler.locally_administered_mac?("F09FC21A4B7D")
       # 0xAC = 0b10101100, bit 1 is clear
@@ -77,20 +77,20 @@ defmodule ServiceRadar.Inventory.IdentityReconcilerMacClassificationTest do
     end
 
     test "handles MAC with separators" do
-      assert IdentityReconciler.locally_administered_mac?("0E:EA:14:32:D2:78")
-      refute IdentityReconciler.locally_administered_mac?("0C:EA:14:32:D2:78")
+      assert IdentityReconciler.locally_administered_mac?("0E:A1:B2:C3:D4:E5")
+      refute IdentityReconciler.locally_administered_mac?("0C:A1:B2:C3:D4:E5")
     end
   end
 
   describe "mac_confidence/1" do
     test "returns :medium for locally-administered MACs" do
-      assert IdentityReconciler.mac_confidence("0EEA1432D278") == :medium
+      assert IdentityReconciler.mac_confidence("0EA1B2C3D4E5") == :medium
       assert IdentityReconciler.mac_confidence("F29FC21A4B7D") == :medium
     end
 
     test "returns :strong for globally-unique MACs" do
       assert IdentityReconciler.mac_confidence("001122334455") == :strong
-      assert IdentityReconciler.mac_confidence("0CEA1432D278") == :strong
+      assert IdentityReconciler.mac_confidence("0CA1B2C3D4E5") == :strong
     end
   end
 
@@ -301,7 +301,7 @@ defmodule ServiceRadar.Inventory.IdentityReconcilerMacClassificationTest do
                IdentityReconciler.resolve_device_id(
                  %{
                    device_id: nil,
-                   ip: "198.51.100.178",
+                   ip: "198.51.100.23",
                    mac: "f0:9f:c2:1a:4b:7c",
                    partition: "default",
                    metadata: %{"alt_mac:f29fc21a4b7c" => "1"}

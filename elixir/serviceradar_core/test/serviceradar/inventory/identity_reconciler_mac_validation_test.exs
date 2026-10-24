@@ -98,7 +98,7 @@ defmodule ServiceRadar.Inventory.IdentityReconcilerMacValidationTest do
       ids =
         IdentityReconciler.extract_strong_identifiers(%{
           device_id: nil,
-          ip: "198.51.100.178",
+          ip: "198.51.100.23",
           mac: "f0:9f:c2:1a:4b:7c",
           partition: "default",
           metadata: %{"alt_mac:f29fc21a4b7c" => "1"}

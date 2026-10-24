@@ -690,7 +690,7 @@ defmodule ServiceRadar.Inventory.SyncIngestorIpConflictTest do
       # so this is that something.
       addresses = [
         "8.8.8.8",
-        "198.51.100.178",
+        "198.51.100.23",
         "10.0.0.5",
         "192.168.1.1",
         "172.16.0.1",
@@ -703,7 +703,7 @@ defmodule ServiceRadar.Inventory.SyncIngestorIpConflictTest do
         "2001:4860:4860::8888",
         "::1",
         "::",
-        "fd2f:420a:24b1:1:f29f:c2ff:fe1a:4b84",
+        "fd6b:1c93:7e42:1:f29f:c2ff:fe1a:4b84",
         "fe80::f29f:c2ff:fe1a:4b2b",
         "fe90::1",
         "febf::1",
@@ -805,7 +805,7 @@ defmodule ServiceRadar.Inventory.SyncIngestorIpConflictTest do
 
       assert :ok =
                SyncIngestor.ingest_updates(
-                 [mac_update(mac, "fd2f:420a:24b1:1:f29f:c2ff:fe1a:4bef")],
+                 [mac_update(mac, "fd6b:1c93:7e42:1:f29f:c2ff:fe1a:4bef")],
                  actor: actor
                )
 

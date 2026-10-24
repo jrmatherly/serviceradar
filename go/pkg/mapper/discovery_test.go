@@ -569,7 +569,7 @@ func TestAddOrUpdateDeviceToResultsCanonicalizesSameIPIdentity(t *testing.T) {
 
 	existing := &DiscoveredDevice{
 		DeviceID: "mac-f09fc21a4b7c",
-		IP:       "198.51.100.178",
+		IP:       "198.51.100.23",
 		MAC:      "f0:9f:c2:1a:4b:7c",
 		Hostname: "edge01",
 		Metadata: map[string]string{"source": "unifi-api"},
@@ -589,7 +589,7 @@ func TestAddOrUpdateDeviceToResultsCanonicalizesSameIPIdentity(t *testing.T) {
 
 	incomingSNMP := &DiscoveredDevice{
 		DeviceID: "mac-f29fc21a4b7c",
-		IP:       "198.51.100.178",
+		IP:       "198.51.100.23",
 		MAC:      "f2:9f:c2:1a:4b:7c",
 		Hostname: "edge01",
 		Metadata: map[string]string{"source": "snmp"},
@@ -1023,7 +1023,7 @@ func TestAttachTopologyObservationV2(t *testing.T) {
 		LocalIfIndex:       23,
 		LocalIfName:        "eth4",
 		NeighborMgmtAddr:   "192.168.10.154",
-		NeighborChassisID:  "0c:ea:14:32:d2:77",
+		NeighborChassisID:  "0c:a1:b2:c3:d4:e7",
 		NeighborPortID:     "eth4",
 		NeighborSystemName: "hub01",
 		Metadata: map[string]string{
@@ -1049,7 +1049,7 @@ func TestAttachTopologyObservationV2(t *testing.T) {
 	var parsed TopologyObservationV2
 	require.NoError(t, json.Unmarshal([]byte(link.Metadata["observation_v2_json"]), &parsed))
 	assert.Equal(t, "mac-001122334455", parsed.SourceEndpoint.UID)
-	assert.Equal(t, "0c:ea:14:32:d2:77", parsed.TargetEndpoint.UID)
+	assert.Equal(t, "0c:a1:b2:c3:d4:e7", parsed.TargetEndpoint.UID)
 }
 
 func TestAttachTopologyObservationV2FallsBackToNeighborDeviceID(t *testing.T) {

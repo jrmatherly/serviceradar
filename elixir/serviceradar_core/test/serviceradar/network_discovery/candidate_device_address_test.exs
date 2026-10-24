@@ -15,7 +15,7 @@ defmodule ServiceRadar.NetworkDiscovery.CandidateDeviceAddressTest do
   alias ServiceRadar.NetworkDiscovery.MapperResultsIngestor
 
   test "routable addresses may seed a candidate device" do
-    for ip <- ["192.168.1.143", "10.0.2.13", "198.51.100.178", "2001:db8:c0b5:1::1"] do
+    for ip <- ["192.168.1.143", "10.0.2.13", "198.51.100.23", "2001:db8:5:1::1"] do
       assert MapperResultsIngestor.candidate_device_address?(ip), "expected #{ip} to be allowed"
     end
   end

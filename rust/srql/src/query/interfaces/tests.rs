@@ -186,7 +186,7 @@ fn interfaces_mac_filter_normalizes_exact_match() {
     );
 
     match binds.as_slice().first() {
-        Some(BindParam::Text(value)) => assert_eq!(value, "0eea1432d278"),
+        Some(BindParam::Text(value)) => assert_eq!(value, "0ea1b2c3d4e5"),
         other => panic!("unexpected binds: {other:?}"),
     }
 }
@@ -195,7 +195,7 @@ fn interfaces_mac_filter_normalizes_exact_match() {
 fn interfaces_mac_filter_preserves_wildcards() {
     let plan = base_plan_with_filter(Filter {
         field: "mac".into(),
-        value: FilterValue::Scalar("%0e:ea:14:32:d2:78%".into()),
+        value: FilterValue::Scalar("%0e:a1:b2:c3:d4:e5%".into()),
         op: FilterOp::Like,
     });
 
@@ -206,7 +206,7 @@ fn interfaces_mac_filter_preserves_wildcards() {
     );
 
     match binds.as_slice().first() {
-        Some(BindParam::Text(value)) => assert_eq!(value, "%0eea1432d278%"),
+        Some(BindParam::Text(value)) => assert_eq!(value, "%0ea1b2c3d4e5%"),
         other => panic!("unexpected binds: {other:?}"),
     }
 }

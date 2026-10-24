@@ -82,7 +82,7 @@ defmodule ServiceRadar.Inventory.SyncIngestorVendorTypeTest do
 
     update = %{
       "ip" => ip,
-      "hostname" => "farm01",
+      "hostname" => "edge01",
       "source" => "mapper",
       "metadata" => %{
         "sys_object_id" => ".1.3.6.1.4.1.8072.3.2.10",
@@ -231,12 +231,12 @@ defmodule ServiceRadar.Inventory.SyncIngestorVendorTypeTest do
 
     update = %{
       "ip" => ip,
-      "hostname" => "farm01",
+      "hostname" => "edge01",
       "source" => "mapper",
       "metadata" => %{},
       "snmp_fingerprint" => %{
         "system" => %{
-          "sys_name" => "farm01",
+          "sys_name" => "edge01",
           "sys_descr" => "Ubiquiti UniFi UDM-Pro 4.4.6 Linux 4.19.152 al324",
           "sys_object_id" => ".1.3.6.1.4.1.8072.3.2.10",
           "sys_contact" => "Network Operations",
@@ -259,7 +259,7 @@ defmodule ServiceRadar.Inventory.SyncIngestorVendorTypeTest do
     assert device.metadata["sys_object_id"] == ".1.3.6.1.4.1.8072.3.2.10"
     assert device.metadata["ip_forwarding"] == "1"
     assert device.metadata["bridge_base_mac"] == "F0:9F:C2:1A:4B:85"
-    assert device.metadata["snmp_name"] == "farm01"
+    assert device.metadata["snmp_name"] == "edge01"
     assert device.metadata["snmp_owner"] == "Network Operations"
     assert device.metadata["snmp_location"] == "HQ"
 

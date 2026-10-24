@@ -11,8 +11,8 @@ metadata:
 data:
   gobgpd.toml: |
     [global.config]
-      as = {{ .Values.gobgp.bgp.localAsn | default 401642 }}
-      router-id = "{{ .Values.gobgp.bgp.routerId | default "204.209.51.59" }}"
+      as = {{ .Values.gobgp.bgp.localAsn | default 4200000001 }}
+      router-id = "{{ .Values.gobgp.bgp.routerId | default "192.0.2.10" }}"
 
     [[bmp-servers]]
       [bmp-servers.config]

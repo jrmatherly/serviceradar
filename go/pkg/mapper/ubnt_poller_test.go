@@ -1696,7 +1696,7 @@ func TestCreateDiscoveredDeviceAliasesControllerHostForGateway(t *testing.T) {
 
 	device := &UniFiDevice{
 		ID:        "62cdf205-fe09-3ceb-9e57-950b6e956104",
-		IPAddress: "198.51.100.178",
+		IPAddress: "198.51.100.23",
 		Name:      "edge01",
 		MAC:       "f0:9f:c2:1a:4b:7c",
 	}
@@ -1711,7 +1711,7 @@ func TestCreateDiscoveredDeviceAliasesControllerHostForGateway(t *testing.T) {
 		createDiscoveredDevice(job, device, apiConfig, site)
 
 	require.NotNil(t, result)
-	assert.Equal(t, "198.51.100.178", result.IP)
+	assert.Equal(t, "198.51.100.23", result.IP)
 	assert.Equal(t, "1", result.Metadata["alt_ip:192.168.1.1"])
 	assert.Contains(t, result.Metadata, "ip_alias:192.168.1.1")
 }
@@ -1721,7 +1721,7 @@ func TestAddOrUpdateDeviceAttachesSNMPSeedToUniFiGatewayAlias(t *testing.T) {
 
 	existing := &DiscoveredDevice{
 		DeviceID: "mac-f09fc21a4b7c",
-		IP:       "198.51.100.178",
+		IP:       "198.51.100.23",
 		MAC:      "f0:9f:c2:1a:4b:7c",
 		Hostname: "edge01",
 		Metadata: map[string]string{

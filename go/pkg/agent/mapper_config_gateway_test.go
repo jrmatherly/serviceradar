@@ -101,7 +101,7 @@ func TestParseMapperJobCredsRoundTripsSNMPv3(t *testing.T) {
 		"mapper": {
 			"scheduled_jobs": [
 				{
-					"name": "farm",
+					"name": "edge",
 					"enabled": true,
 					"interval": "5m",
 					"type": "full",

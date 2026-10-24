@@ -138,7 +138,7 @@ The system SHALL NOT include the polling agent's `agent_id` when registering int
 
 #### Scenario: Agent polls remote device interfaces without false merge
 - **GIVEN** agent-alpha (at `192.168.2.22`) SNMP-polls hub01 (`192.168.10.1`)
-- **AND** hub01 has interface MAC `0e:ea:14:32:d2:78`
+- **AND** hub01 has interface MAC `0e:a1:b2:c3:d4:e5`
 - **WHEN** the mapper registers interface identifiers for hub01
 - **THEN** the MAC SHALL be registered as an identifier for hub01
 - **AND** `agent-alpha` SHALL NOT be included in the identifier registration for hub01
@@ -165,7 +165,7 @@ The system SHALL create a device record through DIRE when the mapper discovers i
 The system SHALL classify MAC addresses as globally-unique or locally-administered using the IEEE standard (bit 1 of the first octet). Locally-administered MACs MUST be registered with `medium` confidence and SHALL NOT be used as the sole basis for merging two devices.
 
 #### Scenario: Locally-administered MAC does not trigger merge
-- **GIVEN** device A has locally-administered MAC `0EEA1432D278` registered as a medium-confidence identifier
+- **GIVEN** device A has locally-administered MAC `0EA1B2C3D4E5` registered as a medium-confidence identifier
 - **AND** device B reports the same MAC from interface discovery
 - **WHEN** DIRE processes the interface MAC registration
 - **THEN** DIRE SHALL NOT merge device B into device A based solely on a medium-confidence identifier match

@@ -185,13 +185,13 @@ SRQL `in:interfaces` queries SHALL project interface error counter fields (`in_e
 The SRQL service SHALL support `mac` filters for `in:interfaces` queries with case-insensitive, separator-insensitive matching and `%` wildcard patterns.
 
 #### Scenario: Exact MAC match with mixed separators
-- **GIVEN** an interface stored with MAC address `0e:ea:14:32:d2:78`
+- **GIVEN** an interface stored with MAC address `0e:a1:b2:c3:d4:e5`
 - **WHEN** a client sends `in:interfaces mac:0E-EA-14-32-D2-78`
 - **THEN** SRQL returns the interface in the results
 
 #### Scenario: Wildcard MAC match in interface search
-- **GIVEN** an interface stored with MAC address `0e:ea:14:32:d2:78`
-- **WHEN** a client sends `in:interfaces mac:%0e:ea:14:32:d2:78%`
+- **GIVEN** an interface stored with MAC address `0e:a1:b2:c3:d4:e5`
+- **WHEN** a client sends `in:interfaces mac:%0e:a1:b2:c3:d4:e5%`
 - **THEN** SRQL executes successfully and returns the interface in the results
 
 ### Requirement: SRQL builder query assembly

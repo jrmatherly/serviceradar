@@ -14,13 +14,13 @@ func TestDefaultBGPPeersIncludesIPv4AndIPv6AndISP(t *testing.T) {
 
 	var hasIPv4, hasIPv6, hasISP bool
 	for _, p := range peers {
-		if p.PeerASN == 10242 {
+		if p.PeerASN == 64500 {
 			hasISP = true
 		}
-		if p.IP == "204.209.51.58" {
+		if p.IP == "192.0.2.9" {
 			hasIPv4 = true
 		}
-		if p.IP == "2605:8400:ff:142::" {
+		if p.IP == "2001:db8:ff:9::" {
 			hasIPv6 = true
 		}
 	}

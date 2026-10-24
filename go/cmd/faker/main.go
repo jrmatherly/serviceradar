@@ -527,7 +527,7 @@ func (c *Config) applyDefaults() {
 	c.Simulation.BGP.GobgpBinary = "gobgpd"
 	c.Simulation.BGP.GobgpCLIBinary = "gobgp"
 	c.Simulation.BGP.BMPCollectorAddress = "127.0.0.1:11019"
-	c.Simulation.BGP.RouterID = "204.209.51.59"
+	c.Simulation.BGP.RouterID = "192.0.2.10"
 	c.Simulation.BGP.MaxPrefixesPerTick = 3
 	c.Simulation.BGP.LocalASN = 401_642
 	c.Simulation.BGP.Peers = defaultBGPPeers()

@@ -22,7 +22,7 @@ func TestLookupKnownDeviceNameUsesPrimaryAndAliasIP(t *testing.T) {
 		Results: &DiscoveryResults{
 			Devices: []*DiscoveredDevice{
 				{
-					IP:       "198.51.100.178",
+					IP:       "198.51.100.23",
 					Hostname: "edge01",
 					Metadata: map[string]string{"alt_ip:192.168.1.1": "1"},
 				},

@@ -43,7 +43,7 @@ defmodule ServiceRadar.Inventory.IdentityReconcilerInterfaceMacTest do
       armis_id: nil,
       integration_id: nil,
       netbox_id: nil,
-      mac: "0EEA1432D278",
+      mac: "0EA1B2C3D4E5",
       ip: "",
       partition: "default"
     }
@@ -58,7 +58,7 @@ defmodule ServiceRadar.Inventory.IdentityReconcilerInterfaceMacTest do
     mac_query =
       Ash.Query.for_read(DeviceIdentifier, :lookup, %{
         identifier_type: :mac,
-        identifier_value: "0EEA1432D278",
+        identifier_value: "0EA1B2C3D4E5",
         partition: "default"
       })
 

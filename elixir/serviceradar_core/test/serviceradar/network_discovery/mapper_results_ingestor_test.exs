@@ -427,14 +427,14 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
                 "source_endpoint" => %{
                   "uid" => "mac-f09fc21a4b7c",
                   "device_id" => "mac-f09fc21a4b7c",
-                  "ip" => "198.51.100.178",
+                  "ip" => "198.51.100.23",
                   "if_name" => "eth0"
                 },
                 "target_endpoint" => %{
                   "uid" => "chassis-0cea1432d277",
                   "device_id" => "sr:hub01",
                   "ip" => "192.168.10.1",
-                  "mac" => "0c:ea:14:32:d2:77",
+                  "mac" => "0c:a1:b2:c3:d4:e7",
                   "port_id" => "eth4"
                 }
               })
@@ -593,7 +593,7 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
     test "suppresses low-confidence public SNMP ARP/FDB sightings without neighbor name" do
       record = %{
         protocol: "SNMP-L2",
-        neighbor_mgmt_addr: "204.209.51.58",
+        neighbor_mgmt_addr: "192.0.2.9",
         neighbor_system_name: nil,
         metadata: %{
           "source" => "snmp-arp-fdb",
@@ -621,7 +621,7 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
     test "does not suppress when neighbor system name is present" do
       record = %{
         protocol: "SNMP-L2",
-        neighbor_mgmt_addr: "204.209.51.58",
+        neighbor_mgmt_addr: "192.0.2.9",
         neighbor_system_name: "wan-uplink",
         metadata: %{
           "source" => "snmp-arp-fdb",
@@ -729,7 +729,7 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
     end
 
     test "prefers chassis MAC over a conflicting neighbor IP" do
-      # Farm Catalyst FDB can report vJunos' chassis MAC on the same port
+      # Edge Catalyst FDB can report vJunos' chassis MAC on the same port
       # whose ARP table still has a dead MikroTik's IP. IP-first resolution
       # glued those into one neighbor and later into one device.
       records = [
@@ -1398,10 +1398,10 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
     test "accepts routable addresses of both families" do
       # Captured from a production router's ipAddressTable walk.
       for ip <- [
-            "198.51.100.178",
+            "198.51.100.23",
             "192.168.1.1",
-            "2001:db8:c0b5:1::1",
-            "fd2f:420a:24b1:1:f29f:c2ff:fe1a:4b84"
+            "2001:db8:5:1::1",
+            "fd6b:1c93:7e42:1:f29f:c2ff:fe1a:4b84"
           ] do
         assert MapperResultsIngestor.valid_alias_ip?(ip), "expected #{ip} to be aliasable"
       end

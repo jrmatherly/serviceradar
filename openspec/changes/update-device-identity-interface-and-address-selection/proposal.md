@@ -11,13 +11,13 @@ identify a device correctly, then declines to use it for identity.
 
 | device | ip | mac | identifiers |
 | --- | --- | --- | --- |
-| `sr:dd250d1a...` | 198.51.100.178 | `f0:9f:c2:1a:4b:7c` | `F09FC21A4B7C` strong, `F29FC21A4B7C` medium |
+| `sr:dd250d1a...` | 198.51.100.23 | `f0:9f:c2:1a:4b:7c` | `F09FC21A4B7C` strong, `F29FC21A4B7C` medium |
 | `sr:a6a7e25a...` | 192.168.1.1 | `f0:9f:c2:1a:4b:85` | `F09FC21A4B85` strong |
 
 The SNMP walk ALREADY knows both interfaces belong to that chassis:
 
 ```
-eth9  | f0:9f:c2:1a:4b:84 | idx 3 | {198.51.100.178, ...}
+eth9  | f0:9f:c2:1a:4b:84 | idx 3 | {198.51.100.23, ...}
 eth10 | f0:9f:c2:1a:4b:85 | idx 5 | {}          <- the second device's exact MAC
 ```
 

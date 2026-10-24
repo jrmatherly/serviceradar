@@ -17,11 +17,11 @@ defmodule ServiceRadar.Inventory.Identity.MacUniversalTest do
     end
 
     test "drops locally-administered MACs (2nd hex char has the 0x02 bit)" do
-      assert Mac.universal_macs(["02EA1432D278", "F29FC21A4B7D"]) == MapSet.new()
+      assert Mac.universal_macs(["02A1B2C3D4E5", "F29FC21A4B7D"]) == MapSet.new()
     end
 
     test "normalizes comma blobs to atomic MACs before filtering" do
-      assert Mac.universal_macs(["001AA0B94040,02EA1432D278,00:14:22:F4:2A:2A"]) ==
+      assert Mac.universal_macs(["001AA0B94040,02A1B2C3D4E5,00:14:22:F4:2A:2A"]) ==
                MapSet.new(["001AA0B94040", "001422F42A2A"])
     end
 
