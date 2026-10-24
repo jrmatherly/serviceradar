@@ -8,7 +8,7 @@
 actionlint = "1.7.12" # scripts/ci/check-fork-ci.sh
 bazelisk = "1.28.1"   # matches the CI pin in .github/workflows/native-addons.yml
 bats = "1.14.0"
-bun = "1.4.4"
+bun = "1.3.9"        # matches web-ng-lint.yml; a newer bun rewrites assets/bun.lock to lockfileVersion 3, which 1.3.9 cannot read
 cosign = "3.0.3"      # matches scripts/install-cosign.sh
 crane = "0.22.1"      # image inspection and the publish-plan checks
 gitleaks = "8.30.0"   # matches the pre-commit hook rev in .pre-commit-config.yaml
