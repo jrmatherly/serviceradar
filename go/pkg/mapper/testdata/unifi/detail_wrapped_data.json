@@ -7,7 +7,7 @@
         "chassisId": "0c:a1:b2:c3:d4:e7",
         "portId": "eth4",
         "portDescription": "eth4",
-        "systemName": "tonka01",
+        "systemName": "hub01",
         "managementAddr": "192.168.10.1"
       }
     ],

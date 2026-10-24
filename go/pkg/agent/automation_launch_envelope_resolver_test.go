@@ -50,7 +50,7 @@ func TestAutomationLaunchEnvelopeResolverBindsAgentAndCommand(t *testing.T) {
 	gateway := &fakeAutomationLaunchEnvelopeGateway{
 		response: response,
 	}
-	resolver := newControlPlaneAutomationLaunchEnvelopeResolver(gateway, " agent-farm01 ")
+	resolver := newControlPlaneAutomationLaunchEnvelopeResolver(gateway, " agent-edge01 ")
 	resolver.now = func() time.Time { return now }
 
 	material, err := resolver.Resolve(context.Background(), reference, commandID)
@@ -59,7 +59,7 @@ func TestAutomationLaunchEnvelopeResolverBindsAgentAndCommand(t *testing.T) {
 	}
 	defer material.Destroy()
 
-	if gateway.request.GetAgentId() != "agent-farm01" {
+	if gateway.request.GetAgentId() != "agent-edge01" {
 		t.Fatalf("expected authenticated agent correlation, got %q", gateway.request.GetAgentId())
 	}
 	if gateway.request.GetEnvelopeRef() != reference || gateway.request.GetCommandId() != commandID {
@@ -146,7 +146,7 @@ func TestAutomationLaunchEnvelopeResolverDeniesIncompleteOrRejectedResponse(t *t
 			}
 			resolver := newControlPlaneAutomationLaunchEnvelopeResolver(
 				&fakeAutomationLaunchEnvelopeGateway{response: response},
-				"agent-farm01",
+				"agent-edge01",
 			)
 			resolver.now = func() time.Time { return now }
 
@@ -203,7 +203,7 @@ func TestAutomationLaunchEnvelopeResolverBridgesExactAWXMaterialOnce(t *testing.
 	response := validAutomationLaunchEnvelopeResponse(now.Add(5*time.Minute), commandID, grantID)
 	responseBuffers := automationLaunchEnvelopeResponseBuffers(response)
 	gateway := &fakeAutomationLaunchEnvelopeGateway{response: response, singleUse: true}
-	resolver := newControlPlaneAutomationLaunchEnvelopeResolver(gateway, "agent-farm01")
+	resolver := newControlPlaneAutomationLaunchEnvelopeResolver(gateway, "agent-edge01")
 	resolver.now = func() time.Time { return now }
 	binding := validAWXBridgeBinding(reference, commandID)
 
@@ -286,7 +286,7 @@ func TestAutomationLaunchEnvelopeResolverRejectsAWXBindingOrMetadataTamper(t *te
 			response := validAutomationLaunchEnvelopeResponse(now.Add(5*time.Minute), commandID, grantID)
 			resolver := newControlPlaneAutomationLaunchEnvelopeResolver(
 				&fakeAutomationLaunchEnvelopeGateway{response: response},
-				"agent-farm01",
+				"agent-edge01",
 			)
 			resolver.now = func() time.Time { return now }
 
@@ -320,7 +320,7 @@ func TestAutomationLaunchEnvelopeResolverRejectsAWXBindingOrMetadataTamper(t *te
 			buffers := automationLaunchEnvelopeResponseBuffers(response)
 			resolver := newControlPlaneAutomationLaunchEnvelopeResolver(
 				&fakeAutomationLaunchEnvelopeGateway{response: response},
-				"agent-farm01",
+				"agent-edge01",
 			)
 			resolver.now = func() time.Time { return now }
 
@@ -343,7 +343,7 @@ func TestNewPushLoopInstallsAWXCallbackEnvelopeResolver(t *testing.T) {
 	manager := NewPluginManager(t.Context(), PluginManagerConfig{Logger: logger.NewTestLogger()})
 	defer manager.Stop()
 	server := &Server{
-		config:        &ServerConfig{AgentID: "agent-farm01"},
+		config:        &ServerConfig{AgentID: "agent-edge01"},
 		pluginManager: manager,
 		logger:        logger.NewTestLogger(),
 	}
@@ -356,7 +356,7 @@ func TestNewPushLoopInstallsAWXCallbackEnvelopeResolver(t *testing.T) {
 	if !ok || resolver == nil {
 		t.Fatalf("AWX callback resolver was not installed: %#v", installed)
 	}
-	if resolver != server.launchEnvelopes || resolver.agentID != "agent-farm01" {
+	if resolver != server.launchEnvelopes || resolver.agentID != "agent-edge01" {
 		t.Fatal("PluginManager and Server did not receive the same selected-agent resolver")
 	}
 }
@@ -386,7 +386,7 @@ func validAutomationLaunchEnvelopeResponse(
 		CallbackCredentialTypeId:         91,
 		CallbackCredentialOrganizationId: 2,
 		CallbackCredentialInjectorSha256: []byte(repeatedByte('d', 64)),
-		DispatchAgentId:                  "agent-farm01",
+		DispatchAgentId:                  "agent-edge01",
 		ChildExecutionId:                 "01980a6d-4a62-7b3f-a249-5f825874ca42",
 		CommandId:                        commandID,
 	}
@@ -396,7 +396,7 @@ func validAWXBridgeBinding(reference, commandID string) AWXCallbackCredentialBin
 	return AWXCallbackCredentialBinding{
 		Schema:           awxCallbackCredentialBindingSchema,
 		EnvelopeRef:      reference,
-		DispatchAgentID:  "agent-farm01",
+		DispatchAgentID:  "agent-edge01",
 		ControllerID:     "01980a6d-4a62-7b3f-a249-5f825874ca44",
 		ChildExecutionID: "01980a6d-4a62-7b3f-a249-5f825874ca42",
 		InventoryID:      17,

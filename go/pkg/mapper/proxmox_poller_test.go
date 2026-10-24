@@ -48,7 +48,7 @@ func TestQueryProxmoxDevices(t *testing.T) {
 		case "/api2/json/nodes":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"data": []map[string]any{
-					{"node": "tonka01"},
+					{"node": "hub01"},
 				},
 			})
 		case "/api2/json/cluster/resources":
@@ -59,14 +59,14 @@ func TestQueryProxmoxDevices(t *testing.T) {
 						"type":   "qemu",
 						"vmid":   197,
 						"name":   "vJunos-Lab-01.lab.carverauto.dev",
-						"node":   "tonka01",
+						"node":   "hub01",
 						"status": "running",
 					},
 					{
 						"type":     "qemu",
 						"vmid":     900,
 						"name":     "tmpl-router",
-						"node":     "tonka01",
+						"node":     "hub01",
 						"status":   "stopped",
 						"template": 1,
 					},
@@ -86,7 +86,7 @@ func TestQueryProxmoxDevices(t *testing.T) {
 					BaseURL:     server.URL,
 					TokenID:     "svc@pve!codex",
 					TokenSecret: "secret-token",
-					Name:        "tonka01-pve",
+					Name:        "hub01-pve",
 				},
 			},
 		},
@@ -97,7 +97,7 @@ func TestQueryProxmoxDevices(t *testing.T) {
 		ID: "test-job",
 		Params: &DiscoveryParams{
 			Options: map[string]string{
-				"proxmox_api_names": "tonka01-pve",
+				"proxmox_api_names": "hub01-pve",
 			},
 		},
 	}
@@ -107,7 +107,7 @@ func TestQueryProxmoxDevices(t *testing.T) {
 	require.Len(t, devices, 2)
 	require.Len(t, links, 1)
 
-	assert.Equal(t, "tonka01", devices[0].Hostname)
+	assert.Equal(t, "hub01", devices[0].Hostname)
 	assert.Equal(t, GenerateDeviceIDFromIP("127.0.0.1"), devices[0].DeviceID)
 	assert.Equal(t, "hypervisor", devices[0].Metadata["device_role"])
 
@@ -270,7 +270,7 @@ func TestApplyJobOptionsMetadataSkipsProxmoxCandidateProbeOption(t *testing.T) {
 	job := &DiscoveryJob{
 		Params: &DiscoveryParams{
 			Options: map[string]string{
-				"mapper_job_name":           "tonka01",
+				"mapper_job_name":           "hub01",
 				proxmoxCandidateProbeOption: "true",
 			},
 		},
@@ -279,7 +279,7 @@ func TestApplyJobOptionsMetadataSkipsProxmoxCandidateProbeOption(t *testing.T) {
 
 	applyJobOptionsMetadata(job, metadata)
 
-	assert.Equal(t, "tonka01", metadata["mapper_job_name"])
+	assert.Equal(t, "hub01", metadata["mapper_job_name"])
 	assert.NotContains(t, metadata, proxmoxCandidateProbeOption)
 }
 

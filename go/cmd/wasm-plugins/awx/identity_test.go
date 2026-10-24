@@ -9,10 +9,10 @@ func TestAWXIntegrationIDIsControllerScoped(t *testing.T) {
 	// The whole point: two hosts named the same on different controllers must
 	// not collapse. Under the old hostname-derived key both minted
 	// "awx:host:pve01".
-	a := awxIntegrationID("farm01", 7)
-	b := awxIntegrationID("tonka01", 7)
+	a := awxIntegrationID("edge01", 7)
+	b := awxIntegrationID("hub01", 7)
 
-	if a != "awx:v2:farm01:host:7" {
+	if a != "awx:v2:edge01:host:7" {
 		t.Fatalf("unexpected integration id: %q", a)
 	}
 
@@ -24,7 +24,7 @@ func TestAWXIntegrationIDIsControllerScoped(t *testing.T) {
 		t.Fatalf("blank controller must not mint an id, got %q", got)
 	}
 
-	if got := awxIntegrationID("farm01", 0); got != "" {
+	if got := awxIntegrationID("edge01", 0); got != "" {
 		t.Fatalf("missing host id must not mint an id, got %q", got)
 	}
 }
@@ -32,7 +32,7 @@ func TestAWXIntegrationIDIsControllerScoped(t *testing.T) {
 func TestAWXLegacyIDsBridgeTheHostnameKey(t *testing.T) {
 	// buildDiscoveredHost substitutes ansible_host when the AWX name is blank,
 	// so both spellings have to be offered or the existing row will not bridge.
-	got := awxLegacyIDs("db01.example.org", "db01", "awx:v2:farm01:host:7")
+	got := awxLegacyIDs("db01.example.org", "db01", "awx:v2:edge01:host:7")
 	want := []string{"awx:host:db01.example.org", "awx:host:db01"}
 
 	if !reflect.DeepEqual(got, want) {
@@ -40,7 +40,7 @@ func TestAWXLegacyIDsBridgeTheHostnameKey(t *testing.T) {
 	}
 
 	// Identical names collapse to one entry.
-	if got := awxLegacyIDs("db01", "db01", "awx:v2:farm01:host:7"); len(got) != 1 {
+	if got := awxLegacyIDs("db01", "db01", "awx:v2:edge01:host:7"); len(got) != 1 {
 		t.Fatalf("duplicate names must dedupe, got %#v", got)
 	}
 
@@ -129,7 +129,7 @@ func TestAWXHostMACsDedupes(t *testing.T) {
 }
 
 func TestBuildDiscoveredHostEmitsIdentityChannels(t *testing.T) {
-	cfg := InventorySyncControllerConfig{ControllerID: "farm01", ControllerName: "Farm"}
+	cfg := InventorySyncControllerConfig{ControllerID: "edge01", ControllerName: "Edge"}
 	inv := awxInventoryRow{ID: 3, Name: "prod"}
 	host := awxHostRow{
 		ID:        7,
@@ -140,7 +140,7 @@ func TestBuildDiscoveredHostEmitsIdentityChannels(t *testing.T) {
 
 	device := buildDiscoveredHost(cfg, inv, host)
 
-	if got := device.Metadata["integration_id"]; got != "awx:v2:farm01:host:7" {
+	if got := device.Metadata["integration_id"]; got != "awx:v2:edge01:host:7" {
 		t.Fatalf("integration_id = %#v", got)
 	}
 
@@ -156,13 +156,13 @@ func TestBuildDiscoveredHostEmitsIdentityChannels(t *testing.T) {
 
 	// The AWX join block the reconciler resolves against must survive intact.
 	awxBlock, ok := device.Metadata["awx"].(map[string]any)
-	if !ok || awxBlock["host_id"] != 7 || awxBlock["controller_id"] != "farm01" {
+	if !ok || awxBlock["host_id"] != 7 || awxBlock["controller_id"] != "edge01" {
 		t.Fatalf("awx metadata block = %#v", device.Metadata["awx"])
 	}
 }
 
 func TestBuildDiscoveredHostEmitsLegacySSHHostIP(t *testing.T) {
-	cfg := InventorySyncControllerConfig{ControllerID: "farm01"}
+	cfg := InventorySyncControllerConfig{ControllerID: "edge01"}
 	inv := awxInventoryRow{ID: 1, Name: "prod"}
 	host := awxHostRow{
 		ID:        8,
@@ -179,7 +179,7 @@ func TestBuildDiscoveredHostEmitsLegacySSHHostIP(t *testing.T) {
 	if device.Hostname != "db01" {
 		t.Fatalf("hostname = %q, want the AWX name", device.Hostname)
 	}
-	if got := device.Metadata["integration_id"]; got != "awx:v2:farm01:host:8" {
+	if got := device.Metadata["integration_id"]; got != "awx:v2:edge01:host:8" {
 		t.Fatalf("integration_id = %#v", got)
 	}
 }
@@ -188,7 +188,7 @@ func TestBuildDiscoveredHostEmitsLegacySSHHostIP(t *testing.T) {
 // still get a source key, and must NOT get a fabricated hardware anchor -- there
 // is no honest way to link those to an agent-discovered twin.
 func TestBuildDiscoveredHostWithoutNICDataEmitsNoMAC(t *testing.T) {
-	cfg := InventorySyncControllerConfig{ControllerID: "farm01"}
+	cfg := InventorySyncControllerConfig{ControllerID: "edge01"}
 	host := awxHostRow{ID: 9, Name: "sr-win-test01", Variables: `{"ansible_host":"192.168.2.126"}`}
 
 	device := buildDiscoveredHost(cfg, awxInventoryRow{ID: 1}, host)
@@ -197,7 +197,7 @@ func TestBuildDiscoveredHostWithoutNICDataEmitsNoMAC(t *testing.T) {
 		t.Fatalf("must not invent a MAC: %#v", device.Metadata["mac_addresses"])
 	}
 
-	if got := device.Metadata["integration_id"]; got != "awx:v2:farm01:host:9" {
+	if got := device.Metadata["integration_id"]; got != "awx:v2:edge01:host:9" {
 		t.Fatalf("integration_id = %#v", got)
 	}
 }
