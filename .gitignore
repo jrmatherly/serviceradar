@@ -341,3 +341,7 @@ __pycache__/
 
 # Xcode per-user state (window layout, breakpoints); never shared.
 xcuserdata/
+
+# AI Generated Files and Working Directories
+.remember/
+.codegraph/
