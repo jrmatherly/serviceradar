@@ -55,7 +55,7 @@ echo 'serviceradar:x:{gid}:' >> $(location {name}_group)
             "etc/passwd": "0644",
             "etc/group": "0644",
         },
-        # Writable directories, for the same reason as service_layer below.
+        # Writable directories, for the same reason as in service_layer.
         mode = "0755",
         owner = "{}.{}".format(_SERVICERADAR_UID, _SERVICERADAR_GID),
         package_dir = "/",
