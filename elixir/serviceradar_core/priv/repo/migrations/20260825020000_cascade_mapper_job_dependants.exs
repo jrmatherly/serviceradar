@@ -8,12 +8,10 @@ defmodule ServiceRadar.Repo.Migrations.CascadeMapperJobDependants do
   exists: invisible in the UI (which lists jobs), still present in the database,
   and impossible for an operator to find or remove through the product.
 
-  Observed on a real deployment: a job deleted on 2026-08-11 while splitting two
-  networks left behind a seed (`192.168.1.1`) and a UniFi controller (`farm01`,
-  `https://192.168.1.1/...`), both referencing job
-  `340c1db1-df38-465d-b3d6-0b3785b31ec9`. The links that job had produced -- 390
-  of 521, 75% of the topology -- froze on that date and were still being drawn as
-  current two weeks later.
+  Observed on a real deployment: a job deleted while splitting two networks left
+  behind a seed and a UniFi controller that still referenced it. The links that
+  job had produced, most of the topology, froze on that date and were still being
+  drawn as current two weeks later.
 
   A foreign key with ON DELETE CASCADE makes this the database's problem rather
   than a thing application code has to remember. Cascade rather than SET NULL

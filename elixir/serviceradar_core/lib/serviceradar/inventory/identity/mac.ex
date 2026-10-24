@@ -103,10 +103,10 @@ defmodule ServiceRadar.Inventory.Identity.Mac do
       iex> IdentityReconciler.locally_administered_mac?("0CEA1432D278")
       false
 
-      iex> IdentityReconciler.locally_administered_mac?("F692BF75C722")
+      iex> IdentityReconciler.locally_administered_mac?("F692BF0A1B2C")
       true
 
-      iex> IdentityReconciler.locally_administered_mac?("F492BF75C722")
+      iex> IdentityReconciler.locally_administered_mac?("F492BF0A1B2C")
       false
   """
   @spec locally_administered_mac?(String.t() | nil) :: boolean()

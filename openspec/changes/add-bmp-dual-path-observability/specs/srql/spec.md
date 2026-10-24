@@ -13,7 +13,7 @@ SRQL `in:bmp_events` queries SHALL support routing-oriented filters including `e
 
 #### Scenario: Filter by router and peer
 - **GIVEN** BMP events exist for multiple routers and peers
-- **WHEN** a client sends `in:bmp_events router_ip:10.42.68.85 peer_ip:10.0.2.4 time:last_1h`
+- **WHEN** a client sends `in:bmp_events router_ip:192.0.2.85 peer_ip:10.0.2.4 time:last_1h`
 - **THEN** SRQL SHALL return only rows matching both router and peer filters
 
 #### Scenario: Filter by prefix and event type
