@@ -613,7 +613,7 @@ defmodule ServiceRadar.Observability.LogPromotionTest do
       severity_number: 21,
       body: message,
       service_name: "falco",
-      service_instance: "k8s-cp2-worker2",
+      service_instance: "dev-k8s-worker2",
       attributes: %{
         "falco" => %{
           "uuid" => "drop-execute-test-1",
@@ -627,7 +627,7 @@ defmodule ServiceRadar.Observability.LogPromotionTest do
             "container.name" => "forgejo-runner",
             "evt.arg.flags" => "O_RDONLY|O_CLOEXEC",
             "evt.type" => "execve",
-            "hostname" => "k8s-cp2-worker2",
+            "hostname" => "dev-k8s-worker2",
             "proc.cmdline" => "/tmp/.build/tool --lint",
             "proc.cwd" => "/workspace/carverauto/serviceradar",
             "proc.exe" => "/tmp/.build/tool",
@@ -642,7 +642,7 @@ defmodule ServiceRadar.Observability.LogPromotionTest do
         "serviceradar" => %{"ingest" => %{"subject" => "falco.logs.processed"}}
       },
       resource_attributes: %{
-        "host.name" => "k8s-cp2-worker2",
+        "host.name" => "dev-k8s-worker2",
         "container.id" => container_id,
         "container.name" => "forgejo-runner"
       },
@@ -667,7 +667,7 @@ defmodule ServiceRadar.Observability.LogPromotionTest do
     diagnostics = metadata["security_signal"]["diagnostics"]
 
     assert diagnostics["rule"]["name"] == falco_rule
-    assert diagnostics["host"]["name"] == "k8s-cp2-worker2"
+    assert diagnostics["host"]["name"] == "dev-k8s-worker2"
     assert diagnostics["process"]["name"] == "tool"
     assert diagnostics["process"]["command"] == "/tmp/.build/tool --lint"
     assert diagnostics["process"]["cwd"] == "/workspace/carverauto/serviceradar"

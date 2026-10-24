@@ -53,7 +53,7 @@ func TestPublishDeviceIncludesSNMPFingerprint(t *testing.T) {
 		IP:       "192.168.1.1",
 		SNMPFingerprint: &mapper.SNMPFingerprint{
 			System: &mapper.SNMPSystemFingerprint{
-				SysName:      "farm01",
+				SysName:      "edge01",
 				SysDescr:     "Ubiquiti UniFi UDM-Pro 4.4.6 Linux 4.19.152 al324",
 				SysObjectID:  ".1.3.6.1.4.1.8072.3.2.10",
 				SysContact:   "ops",
@@ -61,7 +61,7 @@ func TestPublishDeviceIncludesSNMPFingerprint(t *testing.T) {
 				IPForwarding: 1,
 			},
 			Bridge: &mapper.SNMPBridgeFingerprint{
-				BridgeBaseMAC:          "F4:92:BF:75:C7:2B",
+				BridgeBaseMAC:          "F0:9F:C2:1A:4B:85",
 				BridgePortCount:        8,
 				STPForwardingPortCount: 6,
 			},
@@ -87,8 +87,8 @@ func TestPublishDeviceIncludesSNMPFingerprint(t *testing.T) {
 		t.Fatalf("expected snmp_fingerprint.system map in update")
 	}
 
-	if got := system["sys_name"]; got != "farm01" {
-		t.Fatalf("expected sys_name=farm01, got %v", got)
+	if got := system["sys_name"]; got != "edge01" {
+		t.Fatalf("expected sys_name=edge01, got %v", got)
 	}
 
 	if got := system["ip_forwarding"]; got != int32(1) {

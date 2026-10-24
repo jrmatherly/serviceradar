@@ -4,11 +4,11 @@
       `2026-08-31 18:15:31 UTC` (or record the new dates if CNPG has already renewed).
       Operator-managed client/replication pair still expires 2026-08-31; new server CA
       expires 2036-08-14; new server cert expires 2026-11-15.
-- [x] 1.2 Stop scheduling `srql-fixture` pods on `k8s-cp3-worker3` (or any node that cannot
+- [x] 1.2 Stop scheduling `srql-fixture` pods on `lab-k8s-worker3` (or any node that cannot
       pull the digest-pinned Harbor CNPG image). Wait until the Cluster reports Ready `2/2`
       before any certificate cutover.
       Replica 2's local-path PVC was node-bound to worker3; retired that instance, cut
-      over TLS on the primary, then let CNPG create `srql-fixture-4` on `k8s-cp3-worker1`.
+      over TLS on the primary, then let CNPG create `srql-fixture-4` on `lab-k8s-worker1`.
       Cluster is `2/2` healthy. Also set `imagePullPolicy: IfNotPresent` and re-pushed
       Harbor digest `e54ee025...` after GC 404'd the image on restart.
 - [x] 1.3 If this change will not be applied before `2026-08-24`, refresh the BuildBuddy and
@@ -43,7 +43,7 @@
       `srql-fixture-rw.srql-fixtures.svc.cluster.local` succeeds with the new `ca.crt`.
 - [x] 3.3 Confirm streaming replication still authenticates (replica is streaming, not
       `ImagePullBackOff` or TLS-failed).
-      `srql-fixture-4` joined on `k8s-cp3-worker1`; cluster reports healthy `2/2`.
+      `srql-fixture-4` joined on `lab-k8s-worker1`; cluster reports healthy `2/2`.
 
 ## 4. Public CA bundle
 

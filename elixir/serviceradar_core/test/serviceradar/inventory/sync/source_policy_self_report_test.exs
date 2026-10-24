@@ -16,7 +16,7 @@ defmodule ServiceRadar.Inventory.Sync.SourcePolicySelfReportTest do
 
   alias ServiceRadar.Inventory.Sync.SourcePolicy
 
-  @agent_id "agent-k8s-cp3-worker1"
+  @agent_id "agent-lab-k8s-worker1"
 
   defp update(source, metadata \\ %{}) do
     %{source: source, metadata: metadata}

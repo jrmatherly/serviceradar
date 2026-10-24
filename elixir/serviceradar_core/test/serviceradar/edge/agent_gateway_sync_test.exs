@@ -1020,14 +1020,14 @@ defmodule ServiceRadar.Edge.AgentGatewaySyncTest do
            unique_id: unique_id,
            actor: actor
          } do
-      old_agent_id = "agent-dusk-#{unique_id}"
-      replacement_agent_id = "agent-agent-dusk-#{unique_id}"
+      old_agent_id = "agent-alpha-#{unique_id}"
+      replacement_agent_id = "agent-agent-alpha-#{unique_id}"
       source_ip = "192.168.50.#{rem(unique_id, 200) + 10}"
 
       # The host's MAC makes the re-enrolled agent the same device; a shared hostname and
       # address alone would not (#4664).
       attrs = %{
-        hostname: "dusk-#{unique_id}",
+        hostname: "alpha-#{unique_id}",
         source_ip: source_ip,
         partition: "default",
         capabilities: ["sysmon"],
@@ -1068,14 +1068,14 @@ defmodule ServiceRadar.Edge.AgentGatewaySyncTest do
            unique_id: unique_id,
            actor: actor
          } do
-      old_agent_id = "agent-dusk-#{unique_id}"
-      replacement_agent_id = "agent-dusk01-#{unique_id}"
+      old_agent_id = "agent-alpha-#{unique_id}"
+      replacement_agent_id = "agent-alpha01-#{unique_id}"
       source_ip = "192.168.60.#{rem(unique_id, 200) + 10}"
 
       # The host's MAC makes the re-enrolled agent the same device; a shared hostname and
       # address alone would not (#4664).
       attrs = %{
-        hostname: "dusk-#{unique_id}",
+        hostname: "alpha-#{unique_id}",
         source_ip: source_ip,
         partition: "default",
         capabilities: ["sysmon"],

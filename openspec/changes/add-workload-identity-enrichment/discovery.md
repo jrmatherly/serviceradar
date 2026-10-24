@@ -39,12 +39,12 @@ Observed node-local metadata:
 
 | Node | Pods | Containers | Sample pod identity | Sample container identity |
 | --- | ---: | ---: | --- | --- |
-| k8s-cp2-worker1 | 82 | 81 | `demo/serviceradar-datasvc-7c6f79649-98s8v`, pod UID, labels, annotations, sandbox cgroup path | `datasvc`, image digest, runtime PID, labels, annotations, container cgroup path |
-| k8s-cp2-worker2 | 98 | 95 | `renovate/renovate-29678777-z9sqr`, pod UID, labels, annotations, sandbox cgroup path | `renovate`, image ref, runtime PID, labels, annotations, container cgroup path |
-| k8s-cp2-worker3 | 43 | 44 | `forgejo-actions/forgejo-runner-serviceradar-678f68685-xs65c`, pod UID, labels, annotations, sandbox cgroup path | `dind`, image ref, runtime PID, labels, annotations, container cgroup path |
-| k8s-cp3-worker1 | 109 | 99 | `forgejo-actions/forgejo-runner-serviceradar-678f68685-gtvgk`, pod UID, labels, annotations, sandbox cgroup path | `dind`, image ref, runtime PID, labels, annotations, container cgroup path |
-| k8s-cp3-worker2 | 33 | 42 | `forgejo-actions/forgejo-runner-serviceradar-678f68685-q5vsk`, pod UID, labels, annotations, sandbox cgroup path | `dind`, image ref, runtime PID, labels, annotations, container cgroup path |
-| k8s-cp3-worker3 | 86 | 83 | `forgejo-actions/forgejo-runner-serviceradar-678f68685-mxxgp`, pod UID, labels, annotations, sandbox cgroup path | `dind`, image ref, runtime PID, labels, annotations, container cgroup path |
+| dev-k8s-worker1 | 82 | 81 | `demo/serviceradar-datasvc-7c6f79649-98s8v`, pod UID, labels, annotations, sandbox cgroup path | `datasvc`, image digest, runtime PID, labels, annotations, container cgroup path |
+| dev-k8s-worker2 | 98 | 95 | `renovate/renovate-29678777-z9sqr`, pod UID, labels, annotations, sandbox cgroup path | `renovate`, image ref, runtime PID, labels, annotations, container cgroup path |
+| dev-k8s-worker3 | 43 | 44 | `forgejo-actions/forgejo-runner-serviceradar-678f68685-xs65c`, pod UID, labels, annotations, sandbox cgroup path | `dind`, image ref, runtime PID, labels, annotations, container cgroup path |
+| lab-k8s-worker1 | 109 | 99 | `forgejo-actions/forgejo-runner-serviceradar-678f68685-gtvgk`, pod UID, labels, annotations, sandbox cgroup path | `dind`, image ref, runtime PID, labels, annotations, container cgroup path |
+| lab-k8s-worker2 | 33 | 42 | `forgejo-actions/forgejo-runner-serviceradar-678f68685-q5vsk`, pod UID, labels, annotations, sandbox cgroup path | `dind`, image ref, runtime PID, labels, annotations, container cgroup path |
+| lab-k8s-worker3 | 86 | 83 | `forgejo-actions/forgejo-runner-serviceradar-678f68685-mxxgp`, pod UID, labels, annotations, sandbox cgroup path | `dind`, image ref, runtime PID, labels, annotations, container cgroup path |
 
 Conclusion: direct worker-node CRI access is enough for the MVP baseline: namespace, pod name, pod UID, container name, image, runtime PID, cgroup path, and selected runtime-exposed labels/annotations. Kubernetes API/RBAC is not required for this baseline. The optional overlay is still needed for owner chains, cross-node inventory, and higher-fidelity mutable metadata.
 

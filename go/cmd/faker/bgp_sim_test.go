@@ -14,13 +14,13 @@ func TestDefaultBGPPeersIncludesIPv4AndIPv6AndISP(t *testing.T) {
 
 	var hasIPv4, hasIPv6, hasISP bool
 	for _, p := range peers {
-		if p.PeerASN == 10242 {
+		if p.PeerASN == 64500 {
 			hasISP = true
 		}
-		if p.IP == "204.209.51.58" {
+		if p.IP == "192.0.2.9" {
 			hasIPv4 = true
 		}
-		if p.IP == "2605:8400:ff:142::" {
+		if p.IP == "2001:db8:ff:9::" {
 			hasIPv6 = true
 		}
 	}
@@ -86,11 +86,11 @@ func TestConfigValidateRequiresMaxPrefixesWhenBGPEnabled(t *testing.T) {
 
 func TestBGPSimulationConfigUnmarshalAcceptsScientificSeed(t *testing.T) {
 	cfg := BGPSimulationConfig{}
-	data := []byte(`{"seed":4.01642e+07}`)
+	data := []byte(`{"seed":7.3911046e+07}`)
 
 	err := json.Unmarshal(data, &cfg)
 	require.NoError(t, err)
-	require.Equal(t, int64(40164200), cfg.Seed)
+	require.Equal(t, int64(73911046), cfg.Seed)
 }
 
 func TestBGPSimulationConfigUnmarshalRejectsFractionalSeed(t *testing.T) {

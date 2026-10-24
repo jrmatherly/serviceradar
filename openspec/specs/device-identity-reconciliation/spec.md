@@ -137,26 +137,26 @@ The system SHALL reassign inventory-linked records to the canonical device ID du
 The system SHALL NOT include the polling agent's `agent_id` when registering interface MAC addresses discovered via SNMP or other remote polling. The `agent_id` in interface discovery records identifies the agent that performed the poll, not the device that owns the interface, and MUST be excluded from identifier registration for the polled device.
 
 #### Scenario: Agent polls remote device interfaces without false merge
-- **GIVEN** agent-dusk (at `192.168.2.22`) SNMP-polls tonka01 (`192.168.10.1`)
-- **AND** tonka01 has interface MAC `0e:ea:14:32:d2:78`
-- **WHEN** the mapper registers interface identifiers for tonka01
-- **THEN** the MAC SHALL be registered as an identifier for tonka01
-- **AND** `agent-dusk` SHALL NOT be included in the identifier registration for tonka01
-- **AND** the agent-dusk device and tonka01 SHALL remain separate devices
+- **GIVEN** agent-alpha (at `192.168.2.22`) SNMP-polls hub01 (`192.168.10.1`)
+- **AND** hub01 has interface MAC `0e:a1:b2:c3:d4:e5`
+- **WHEN** the mapper registers interface identifiers for hub01
+- **THEN** the MAC SHALL be registered as an identifier for hub01
+- **AND** `agent-alpha` SHALL NOT be included in the identifier registration for hub01
+- **AND** the agent-alpha device and hub01 SHALL remain separate devices
 
 ### Requirement: Mapper Device Creation for Unresolved IPs
 The system SHALL create a device record through DIRE when the mapper discovers interfaces on a device IP that has no existing device in inventory. The device SHALL receive a proper `sr:` UUID via DIRE and SHALL have `mapper` added to its `discovery_sources`.
 
 #### Scenario: Mapper creates device for SNMP-polled host with no existing record
-- **GIVEN** agent-dusk SNMP-polls farm01 at `192.168.2.1`
+- **GIVEN** agent-alpha SNMP-polls edge01 at `192.168.2.1`
 - **AND** no device exists in `ocsf_devices` with IP `192.168.2.1`
 - **WHEN** the mapper processes the interface results
-- **THEN** DIRE SHALL generate a deterministic `sr:` UUID for farm01
+- **THEN** DIRE SHALL generate a deterministic `sr:` UUID for edge01
 - **AND** a device record SHALL be created with `ip: 192.168.2.1` and `discovery_sources: ["mapper"]`
 - **AND** interface records SHALL be processed and linked to the new device
 
 #### Scenario: Mapper does not duplicate existing device
-- **GIVEN** tonka01 already exists in `ocsf_devices` at IP `192.168.10.1`
+- **GIVEN** hub01 already exists in `ocsf_devices` at IP `192.168.10.1`
 - **WHEN** the mapper processes interface results for `192.168.10.1`
 - **THEN** the existing device SHALL be used
 - **AND** no new device SHALL be created
@@ -165,7 +165,7 @@ The system SHALL create a device record through DIRE when the mapper discovers i
 The system SHALL classify MAC addresses as globally-unique or locally-administered using the IEEE standard (bit 1 of the first octet). Locally-administered MACs MUST be registered with `medium` confidence and SHALL NOT be used as the sole basis for merging two devices.
 
 #### Scenario: Locally-administered MAC does not trigger merge
-- **GIVEN** device A has locally-administered MAC `0EEA1432D278` registered as a medium-confidence identifier
+- **GIVEN** device A has locally-administered MAC `0EA1B2C3D4E5` registered as a medium-confidence identifier
 - **AND** device B reports the same MAC from interface discovery
 - **WHEN** DIRE processes the interface MAC registration
 - **THEN** DIRE SHALL NOT merge device B into device A based solely on a medium-confidence identifier match

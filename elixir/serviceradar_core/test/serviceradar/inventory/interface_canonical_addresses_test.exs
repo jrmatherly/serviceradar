@@ -19,9 +19,9 @@ defmodule ServiceRadar.Inventory.InterfaceCanonicalAddressesTest do
   test "a reordered input yields an identical result" do
     # The 12-values-for-3-sets case. Without this, a reshuffle is indistinguishable
     # from a real change.
-    a = ["152.117.116.178", "fd2f:420a:24b1:1::1", "fe80::f692:bfff:fe75:c72a"]
-    b = ["fe80::f692:bfff:fe75:c72a", "152.117.116.178", "fd2f:420a:24b1:1::1"]
-    c = ["fd2f:420a:24b1:1::1", "fe80::f692:bfff:fe75:c72a", "152.117.116.178"]
+    a = ["198.51.100.23", "fd6b:1c93:7e42:1::1", "fe80::f29f:c2ff:fe1a:4b84"]
+    b = ["fe80::f29f:c2ff:fe1a:4b84", "198.51.100.23", "fd6b:1c93:7e42:1::1"]
+    c = ["fd6b:1c93:7e42:1::1", "fe80::f29f:c2ff:fe1a:4b84", "198.51.100.23"]
 
     assert Interface.canonical_ip_addresses(a) == Interface.canonical_ip_addresses(b)
     assert Interface.canonical_ip_addresses(b) == Interface.canonical_ip_addresses(c)
@@ -31,11 +31,11 @@ defmodule ServiceRadar.Inventory.InterfaceCanonicalAddressesTest do
     # primary_ip = ip_addresses[1]. Ordering by routability makes "primary" mean
     # something; alphabetical ordering would make it mean nothing -- and would
     # pick 10.0.0.5 over 192.168.1.1 purely on digits.
-    assert ["152.117.116.178" | _] =
+    assert ["198.51.100.23" | _] =
              Interface.canonical_ip_addresses([
                "fe80::1",
                "fd00::1",
-               "152.117.116.178",
+               "198.51.100.23",
                "192.168.1.1"
              ])
   end

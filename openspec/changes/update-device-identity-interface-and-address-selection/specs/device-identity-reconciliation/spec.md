@@ -19,11 +19,11 @@ reconciliation merges duplicates by the existing shared-strong-identifier rule.
 
 #### Scenario: A router's second interface is not a second device
 
-- **GIVEN** a chassis whose interface table reports `eth9` with MAC `f4:92:bf:75:c7:2a` and `eth10`
-  with MAC `f4:92:bf:75:c7:2b`
-- **AND** a separate device row already exists carrying `f4:92:bf:75:c7:2b`
+- **GIVEN** a chassis whose interface table reports `eth9` with MAC `f0:9f:c2:1a:4b:84` and `eth10`
+  with MAC `f0:9f:c2:1a:4b:85`
+- **AND** a separate device row already exists carrying `f0:9f:c2:1a:4b:85`
 - **WHEN** the interface MACs are registered on the chassis device
-- **THEN** the chassis device SHALL carry `f4:92:bf:75:c7:2b` as a strong identifier
+- **THEN** the chassis device SHALL carry `f0:9f:c2:1a:4b:85` as a strong identifier
 - **AND** the two rows SHALL share a strong identifier
 - **AND** the scheduled duplicate reconciliation SHALL merge them by the existing rule
 
@@ -70,7 +70,7 @@ remain valid sighting evidence; only the choice of primary address changes.
 
 #### Scenario: A routable alias is promoted over a link-local primary
 
-- **GIVEN** a device whose primary IP is `fe80::f692:bfff:fe75:c72b`
+- **GIVEN** a device whose primary IP is `fe80::f29f:c2ff:fe1a:4b85`
 - **AND** which holds `192.168.1.1` as a confirmed alias
 - **WHEN** primary-address selection runs
 - **THEN** the device's primary IP SHALL become `192.168.1.1`

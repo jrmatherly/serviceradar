@@ -49,12 +49,11 @@ defmodule ServiceRadar.Inventory.IdentityReconcilerMacClassificationTest do
   describe "locally_administered_mac?/1" do
     test "identifies locally-administered MACs (bit 1 of first octet set)" do
       # 0x0E = 0b00001110, bit 1 is set
-      assert IdentityReconciler.locally_administered_mac?("0EEA1432D278")
-      # 0xF6 = 0b11110110, bit 1 is set
-      assert IdentityReconciler.locally_administered_mac?("F692BF75C722")
-      # 0xF4 = 0b11110100, bit 1 is set (yes, 0xF4 & 0x02 = 0x00, bit 1 is NOT set)
-      # Actually: 0xF4 = 11110100, bit 1 (from LSB) = 0. Not locally administered.
-      refute IdentityReconciler.locally_administered_mac?("F492BF75C722")
+      assert IdentityReconciler.locally_administered_mac?("0EA1B2C3D4E5")
+      # 0xF2 = 0b11110010, bit 1 is set
+      assert IdentityReconciler.locally_administered_mac?("F29FC21A4B7D")
+      # 0xF0 = 0b11110000, bit 1 is clear
+      refute IdentityReconciler.locally_administered_mac?("F09FC21A4B7D")
       # 0x02 = 0b00000010, bit 1 is set
       assert IdentityReconciler.locally_administered_mac?("020000000001")
       # 0x0A = 0b00001010, bit 1 is set
@@ -65,9 +64,9 @@ defmodule ServiceRadar.Inventory.IdentityReconcilerMacClassificationTest do
       # 0x00 = 0b00000000
       refute IdentityReconciler.locally_administered_mac?("001122334455")
       # 0x0C = 0b00001100, bit 1 is clear
-      refute IdentityReconciler.locally_administered_mac?("0CEA1432D278")
-      # 0xF4 = 0b11110100, bit 1 is clear
-      refute IdentityReconciler.locally_administered_mac?("F492BF75C722")
+      refute IdentityReconciler.locally_administered_mac?("0CA1B2C3D4E5")
+      # 0xF0 = 0b11110000, bit 1 is clear
+      refute IdentityReconciler.locally_administered_mac?("F09FC21A4B7D")
       # 0xAC = 0b10101100, bit 1 is clear
       refute IdentityReconciler.locally_administered_mac?("ACDE48000001")
     end
@@ -78,20 +77,20 @@ defmodule ServiceRadar.Inventory.IdentityReconcilerMacClassificationTest do
     end
 
     test "handles MAC with separators" do
-      assert IdentityReconciler.locally_administered_mac?("0E:EA:14:32:D2:78")
-      refute IdentityReconciler.locally_administered_mac?("0C:EA:14:32:D2:78")
+      assert IdentityReconciler.locally_administered_mac?("0E:A1:B2:C3:D4:E5")
+      refute IdentityReconciler.locally_administered_mac?("0C:A1:B2:C3:D4:E5")
     end
   end
 
   describe "mac_confidence/1" do
     test "returns :medium for locally-administered MACs" do
-      assert IdentityReconciler.mac_confidence("0EEA1432D278") == :medium
-      assert IdentityReconciler.mac_confidence("F692BF75C722") == :medium
+      assert IdentityReconciler.mac_confidence("0EA1B2C3D4E5") == :medium
+      assert IdentityReconciler.mac_confidence("F29FC21A4B7D") == :medium
     end
 
     test "returns :strong for globally-unique MACs" do
       assert IdentityReconciler.mac_confidence("001122334455") == :strong
-      assert IdentityReconciler.mac_confidence("0CEA1432D278") == :strong
+      assert IdentityReconciler.mac_confidence("0CA1B2C3D4E5") == :strong
     end
   end
 
@@ -222,11 +221,11 @@ defmodule ServiceRadar.Inventory.IdentityReconcilerMacClassificationTest do
 
   describe "distinct_mac_conflict?/3" do
     test "UAA/LAA NIC siblings are not distinct hardware", %{actor: actor} do
-      {:ok, unifi} = create_device(actor, "farm01-unifi")
-      {:ok, snmp} = create_device(actor, "farm01-snmp")
+      {:ok, unifi} = create_device(actor, "edge01-unifi")
+      {:ok, snmp} = create_device(actor, "edge01-snmp")
 
-      assert {:ok, _} = register_identifier(actor, unifi.uid, :mac, "F492BF75C721", :strong)
-      assert {:ok, _} = register_identifier(actor, snmp.uid, :mac, "F692BF75C721", :medium)
+      assert {:ok, _} = register_identifier(actor, unifi.uid, :mac, "F09FC21A4B7C", :strong)
+      assert {:ok, _} = register_identifier(actor, snmp.uid, :mac, "F29FC21A4B7C", :medium)
 
       refute ServiceRadar.Inventory.Identity.AliasGuard.distinct_mac_conflict?(
                unifi.uid,
@@ -238,23 +237,23 @@ defmodule ServiceRadar.Inventory.IdentityReconcilerMacClassificationTest do
 
   describe "hardware_mac_siblings?/2" do
     test "detects the UniFi burned-in / locally-administered pair" do
-      assert IdentityReconciler.hardware_mac_siblings?("F492BF75C721", "F692BF75C721")
-      refute IdentityReconciler.hardware_mac_siblings?("F492BF75C721", "F492BF75C722")
-      refute IdentityReconciler.hardware_mac_siblings?("F492BF75C721", "F492BF75C721")
+      assert IdentityReconciler.hardware_mac_siblings?("F09FC21A4B7C", "F29FC21A4B7C")
+      refute IdentityReconciler.hardware_mac_siblings?("F09FC21A4B7C", "F09FC21A4B7D")
+      refute IdentityReconciler.hardware_mac_siblings?("F09FC21A4B7C", "F09FC21A4B7C")
     end
   end
 
   describe "resolve_device_id/2 hardware MAC siblings" do
     test "first SNMP LAN sighting attaches to the existing UniFi WAN identity", %{actor: actor} do
-      {:ok, unifi} = create_device(actor, "farm01-unifi")
-      assert {:ok, _} = register_identifier(actor, unifi.uid, :mac, "F492BF75C721", :strong)
+      {:ok, unifi} = create_device(actor, "edge01-unifi")
+      assert {:ok, _} = register_identifier(actor, unifi.uid, :mac, "F09FC21A4B7C", :strong)
 
       assert {:ok, resolved} =
                IdentityReconciler.resolve_device_id(
                  %{
                    device_id: nil,
                    ip: "192.168.1.1",
-                   mac: "f6:92:bf:75:c7:21",
+                   mac: "f2:9f:c2:1a:4b:7c",
                    partition: "default",
                    metadata: %{}
                  },
@@ -265,18 +264,18 @@ defmodule ServiceRadar.Inventory.IdentityReconcilerMacClassificationTest do
     end
 
     test "heals an existing UniFi WAN / SNMP LAN split onto the UAA survivor", %{actor: actor} do
-      {:ok, unifi} = create_device(actor, "farm01-unifi")
-      {:ok, snmp} = create_device(actor, "farm01-snmp")
+      {:ok, unifi} = create_device(actor, "edge01-unifi")
+      {:ok, snmp} = create_device(actor, "edge01-snmp")
 
-      assert {:ok, _} = register_identifier(actor, unifi.uid, :mac, "F492BF75C721", :strong)
-      assert {:ok, _} = register_identifier(actor, snmp.uid, :mac, "F692BF75C721", :medium)
+      assert {:ok, _} = register_identifier(actor, unifi.uid, :mac, "F09FC21A4B7C", :strong)
+      assert {:ok, _} = register_identifier(actor, snmp.uid, :mac, "F29FC21A4B7C", :medium)
 
       assert {:ok, resolved} =
                IdentityReconciler.resolve_device_id(
                  %{
                    device_id: nil,
                    ip: "192.168.1.1",
-                   mac: "f6:92:bf:75:c7:21",
+                   mac: "f2:9f:c2:1a:4b:7c",
                    partition: "default",
                    metadata: %{}
                  },
@@ -292,20 +291,20 @@ defmodule ServiceRadar.Inventory.IdentityReconcilerMacClassificationTest do
     end
 
     test "merges a UniFi WAN identity onto the SNMP LAN sibling via alt_mac", %{actor: actor} do
-      {:ok, unifi} = create_device(actor, "farm01-unifi")
-      {:ok, snmp} = create_device(actor, "farm01-snmp")
+      {:ok, unifi} = create_device(actor, "edge01-unifi")
+      {:ok, snmp} = create_device(actor, "edge01-snmp")
 
-      assert {:ok, _} = register_identifier(actor, unifi.uid, :mac, "F492BF75C721", :strong)
-      assert {:ok, _} = register_identifier(actor, snmp.uid, :mac, "F692BF75C721", :medium)
+      assert {:ok, _} = register_identifier(actor, unifi.uid, :mac, "F09FC21A4B7C", :strong)
+      assert {:ok, _} = register_identifier(actor, snmp.uid, :mac, "F29FC21A4B7C", :medium)
 
       assert {:ok, resolved} =
                IdentityReconciler.resolve_device_id(
                  %{
                    device_id: nil,
-                   ip: "152.117.116.178",
-                   mac: "f4:92:bf:75:c7:21",
+                   ip: "198.51.100.23",
+                   mac: "f0:9f:c2:1a:4b:7c",
                    partition: "default",
-                   metadata: %{"alt_mac:f692bf75c721" => "1"}
+                   metadata: %{"alt_mac:f29fc21a4b7c" => "1"}
                  },
                  actor: actor
                )

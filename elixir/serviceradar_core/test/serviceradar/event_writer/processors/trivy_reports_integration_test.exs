@@ -105,14 +105,14 @@ defmodule ServiceRadar.EventWriter.Processors.TrivyReportsIntegrationTest do
              "html/template: URLs in meta content attribute actions are not escaped",
              "MEDIUM",
              3,
-             "agent-k8s-cp3-worker1",
+             "agent-lab-k8s-worker1",
              "sr:trivy-node-1",
              "ReplicaSet",
              "sealed-secrets",
              "sealed-secrets",
              "pod-uid-1",
              "10.0.2.11",
-             "agent-k8s-cp3-worker1",
+             "agent-lab-k8s-worker1",
              "controller",
              "ReplicaSet",
              "sealed-secrets-54d6d7dc89",
@@ -257,7 +257,7 @@ defmodule ServiceRadar.EventWriter.Processors.TrivyReportsIntegrationTest do
             "pod_ip" => "10.42.1.25",
             "host_ip" => "10.0.2.11",
             "device_uid" => "sr:trivy-node-1",
-            "node_name" => "agent-k8s-cp3-worker1"
+            "node_name" => "agent-lab-k8s-worker1"
           },
           "summary" => %{
             "criticalCount" => 0,
@@ -329,7 +329,7 @@ defmodule ServiceRadar.EventWriter.Processors.TrivyReportsIntegrationTest do
             "pod_ip" => "10.42.1.25",
             "host_ip" => "10.0.2.11",
             "device_uid" => "sr:trivy-node-1",
-            "node_name" => "agent-k8s-cp3-worker1"
+            "node_name" => "agent-lab-k8s-worker1"
           },
           "summary" => %{
             "criticalCount" => 0,

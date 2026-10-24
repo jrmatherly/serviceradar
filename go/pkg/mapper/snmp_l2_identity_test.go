@@ -22,8 +22,8 @@ func TestLookupKnownDeviceNameUsesPrimaryAndAliasIP(t *testing.T) {
 		Results: &DiscoveryResults{
 			Devices: []*DiscoveredDevice{
 				{
-					IP:       "152.117.116.178",
-					Hostname: "farm01",
+					IP:       "198.51.100.23",
+					Hostname: "edge01",
 					Metadata: map[string]string{"alt_ip:192.168.1.1": "1"},
 				},
 				{
@@ -38,7 +38,7 @@ func TestLookupKnownDeviceNameUsesPrimaryAndAliasIP(t *testing.T) {
 		t.Fatalf("expected sysName for primary IP, got %q", got)
 	}
 
-	if got := engine.lookupKnownDeviceName(job, "192.168.1.1"); got != "farm01" {
+	if got := engine.lookupKnownDeviceName(job, "192.168.1.1"); got != "edge01" {
 		t.Fatalf("expected hostname for alias IP, got %q", got)
 	}
 

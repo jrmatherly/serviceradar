@@ -43,7 +43,7 @@ defmodule ServiceRadar.Inventory.Sync.SourcePolicyCensusTest do
     end
 
     test "a burned-in vendor MAC from the census still anchors" do
-      for mac <- ["BC:24:11:F5:1C:82", "F4:92:BF:75:C7:2B", "D0:21:F9:DC:2E:8C"] do
+      for mac <- ["BC:24:11:F5:1C:82", "F0:9F:C2:1A:4B:85", "D0:21:F9:DC:2E:8C"] do
         assert SourcePolicy.include_mac_identifier?(update("passive-census", %{"mac" => mac})),
                "#{mac} is universally administered and keeps its identity weight"
       end

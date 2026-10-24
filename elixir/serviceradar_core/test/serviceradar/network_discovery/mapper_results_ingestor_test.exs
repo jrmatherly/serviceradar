@@ -303,8 +303,8 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
           "source" => "snmp",
           "discovery_id" => "abc",
           "unifi_api_urls" => "https://192.168.10.1/proxy/network/integration/v1",
-          "unifi_api_names" => "tonka01",
-          "controller_name" => "tonka01"
+          "unifi_api_names" => "hub01",
+          "controller_name" => "hub01"
         }
       }
 
@@ -425,16 +425,16 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
                 "evidence_class" => "inferred",
                 "confidence_tier" => "medium",
                 "source_endpoint" => %{
-                  "uid" => "mac-f492bf75c721",
-                  "device_id" => "mac-f492bf75c721",
-                  "ip" => "152.117.116.178",
+                  "uid" => "mac-f09fc21a4b7c",
+                  "device_id" => "mac-f09fc21a4b7c",
+                  "ip" => "198.51.100.23",
                   "if_name" => "eth0"
                 },
                 "target_endpoint" => %{
-                  "uid" => "chassis-0cea1432d277",
-                  "device_id" => "sr:tonka01",
+                  "uid" => "chassis-0ca1b2c3d4e7",
+                  "device_id" => "sr:hub01",
                   "ip" => "192.168.10.1",
-                  "mac" => "0c:ea:14:32:d2:77",
+                  "mac" => "0c:a1:b2:c3:d4:e7",
                   "port_id" => "eth4"
                 }
               })
@@ -442,15 +442,15 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
         })
 
       assert result.protocol == "snmp-l2"
-      assert result.local_device_id == "mac-f492bf75c721"
+      assert result.local_device_id == "mac-f09fc21a4b7c"
       assert result.local_if_name == "eth0"
-      assert result.neighbor_device_id == "sr:tonka01"
+      assert result.neighbor_device_id == "sr:hub01"
       assert result.neighbor_mgmt_addr == "192.168.10.1"
       assert result.neighbor_port_id == "eth4"
       assert result.metadata["observation_contract_version"] == "mapper.topology_observation.v2"
       assert result.metadata["observation_source_adapter"] == "snmp.v1"
-      assert result.metadata["source_local_uid"] == "mac-f492bf75c721"
-      assert result.metadata["source_target_uid"] == "chassis-0cea1432d277"
+      assert result.metadata["source_local_uid"] == "mac-f09fc21a4b7c"
+      assert result.metadata["source_target_uid"] == "chassis-0ca1b2c3d4e7"
       assert result.metadata["confidence_tier"] == "medium"
       assert result.metadata["evidence_class"] == "inferred-segment"
     end
@@ -593,7 +593,7 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
     test "suppresses low-confidence public SNMP ARP/FDB sightings without neighbor name" do
       record = %{
         protocol: "SNMP-L2",
-        neighbor_mgmt_addr: "204.209.51.58",
+        neighbor_mgmt_addr: "192.0.2.9",
         neighbor_system_name: nil,
         metadata: %{
           "source" => "snmp-arp-fdb",
@@ -621,7 +621,7 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
     test "does not suppress when neighbor system name is present" do
       record = %{
         protocol: "SNMP-L2",
-        neighbor_mgmt_addr: "204.209.51.58",
+        neighbor_mgmt_addr: "192.0.2.9",
         neighbor_system_name: "wan-uplink",
         metadata: %{
           "source" => "snmp-arp-fdb",
@@ -674,9 +674,9 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
       ]
 
       index = %{
-        uid_to_uid: %{"sr:farm01" => "sr:farm01"},
+        uid_to_uid: %{"sr:edge01" => "sr:edge01"},
         ip_to_uid: %{
-          "192.168.1.1" => "sr:farm01",
+          "192.168.1.1" => "sr:edge01",
           "192.168.1.87" => "sr:uswagg"
         },
         name_to_uid: %{},
@@ -686,11 +686,11 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
       [resolved, unresolved_neighbor] =
         MapperResultsIngestor.resolve_topology_records(records, index)
 
-      assert resolved.local_device_id == "sr:farm01"
+      assert resolved.local_device_id == "sr:edge01"
       assert resolved.neighbor_device_id == "sr:uswagg"
       assert resolved.metadata["source_local_uid"] == "default:192.168.1.1"
       assert resolved.metadata["source_target_uid"] == nil
-      assert unresolved_neighbor.local_device_id == "sr:farm01"
+      assert unresolved_neighbor.local_device_id == "sr:edge01"
       assert unresolved_neighbor.neighbor_device_id == nil
       assert unresolved_neighbor.metadata["source_local_uid"] == "default:192.168.1.1"
     end
@@ -698,7 +698,7 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
     test "resolves neighbor from system name and chassis id when mgmt ip is missing" do
       records = [
         %{
-          local_device_id: "sr:farm01",
+          local_device_id: "sr:edge01",
           local_device_ip: "192.168.1.1",
           neighbor_device_id: nil,
           neighbor_mgmt_addr: nil,
@@ -706,7 +706,7 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
           neighbor_chassis_id: nil
         },
         %{
-          local_device_id: "sr:farm01",
+          local_device_id: "sr:edge01",
           local_device_ip: "192.168.1.1",
           neighbor_device_id: nil,
           neighbor_mgmt_addr: nil,
@@ -716,8 +716,8 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
       ]
 
       index = %{
-        uid_to_uid: %{"sr:farm01" => "sr:farm01", "sr:uswagg" => "sr:uswagg"},
-        ip_to_uid: %{"192.168.1.1" => "sr:farm01"},
+        uid_to_uid: %{"sr:edge01" => "sr:edge01", "sr:uswagg" => "sr:uswagg"},
+        ip_to_uid: %{"192.168.1.1" => "sr:edge01"},
         name_to_uid: %{"uswaggregation" => "sr:uswagg"},
         mac_to_uid: %{"AABBCCDDEEFF" => "sr:uswagg"}
       }
@@ -729,12 +729,12 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
     end
 
     test "prefers chassis MAC over a conflicting neighbor IP" do
-      # Farm Catalyst FDB can report vJunos' chassis MAC on the same port
+      # Edge Catalyst FDB can report vJunos' chassis MAC on the same port
       # whose ARP table still has a dead MikroTik's IP. IP-first resolution
       # glued those into one neighbor and later into one device.
       records = [
         %{
-          local_device_id: "sr:farm01-switch",
+          local_device_id: "sr:edge01-switch",
           local_device_ip: "192.168.1.1",
           neighbor_device_id: nil,
           neighbor_mgmt_addr: "192.168.6.167",
@@ -749,12 +749,12 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
 
       index = %{
         uid_to_uid: %{
-          "sr:farm01-switch" => "sr:farm01-switch",
+          "sr:edge01-switch" => "sr:edge01-switch",
           "sr:vjuniper" => "sr:vjuniper",
           "sr:mikrotik" => "sr:mikrotik"
         },
         ip_to_uid: %{
-          "192.168.1.1" => "sr:farm01-switch",
+          "192.168.1.1" => "sr:edge01-switch",
           "192.168.6.167" => "sr:mikrotik"
         },
         name_to_uid: %{},
@@ -763,14 +763,14 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
 
       [resolved] = MapperResultsIngestor.resolve_topology_records(records, index)
 
-      assert resolved.local_device_id == "sr:farm01-switch"
+      assert resolved.local_device_id == "sr:edge01-switch"
       assert resolved.neighbor_device_id == "sr:vjuniper"
     end
 
     test "does not fall back to IP when a weak L2 sighting carries an unknown chassis MAC" do
       records = [
         %{
-          local_device_id: "sr:farm01-switch",
+          local_device_id: "sr:edge01-switch",
           local_device_ip: "192.168.1.1",
           neighbor_device_id: nil,
           neighbor_mgmt_addr: "192.168.6.167",
@@ -784,9 +784,9 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
       ]
 
       index = %{
-        uid_to_uid: %{"sr:farm01-switch" => "sr:farm01-switch", "sr:mikrotik" => "sr:mikrotik"},
+        uid_to_uid: %{"sr:edge01-switch" => "sr:edge01-switch", "sr:mikrotik" => "sr:mikrotik"},
         ip_to_uid: %{
-          "192.168.1.1" => "sr:farm01-switch",
+          "192.168.1.1" => "sr:edge01-switch",
           "192.168.6.167" => "sr:mikrotik"
         },
         name_to_uid: %{},
@@ -795,7 +795,7 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
 
       [resolved] = MapperResultsIngestor.resolve_topology_records(records, index)
 
-      assert resolved.local_device_id == "sr:farm01-switch"
+      assert resolved.local_device_id == "sr:edge01-switch"
       assert resolved.neighbor_device_id == nil
     end
 
@@ -854,7 +854,7 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
     test "treats default-prefixed neighbor ids as unresolved when canonical device cannot be found" do
       records = [
         %{
-          local_device_id: "sr:tonka01",
+          local_device_id: "sr:hub01",
           local_device_ip: "192.168.10.1",
           neighbor_device_id: "default:192.168.10.96",
           neighbor_mgmt_addr: "192.168.10.96",
@@ -865,14 +865,14 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
       ]
 
       index = %{
-        uid_to_uid: %{"sr:tonka01" => "sr:tonka01"},
-        ip_to_uid: %{"192.168.10.1" => "sr:tonka01"},
+        uid_to_uid: %{"sr:hub01" => "sr:hub01"},
+        ip_to_uid: %{"192.168.10.1" => "sr:hub01"},
         name_to_uid: %{},
         mac_to_uid: %{}
       }
 
       [resolved] = MapperResultsIngestor.resolve_topology_records(records, index)
-      assert resolved.local_device_id == "sr:tonka01"
+      assert resolved.local_device_id == "sr:hub01"
       assert resolved.neighbor_device_id == nil
       assert resolved.metadata["source_target_uid"] == "default:192.168.10.96"
     end
@@ -880,7 +880,7 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
     test "treats sentinel neighbor ids as unresolved" do
       records = [
         %{
-          local_device_id: "sr:tonka01",
+          local_device_id: "sr:hub01",
           local_device_ip: "192.168.10.1",
           neighbor_device_id: "nil",
           neighbor_mgmt_addr: nil,
@@ -891,14 +891,14 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
       ]
 
       index = %{
-        uid_to_uid: %{"sr:tonka01" => "sr:tonka01"},
-        ip_to_uid: %{"192.168.10.1" => "sr:tonka01"},
+        uid_to_uid: %{"sr:hub01" => "sr:hub01"},
+        ip_to_uid: %{"192.168.10.1" => "sr:hub01"},
         name_to_uid: %{},
         mac_to_uid: %{}
       }
 
       [resolved] = MapperResultsIngestor.resolve_topology_records(records, index)
-      assert resolved.local_device_id == "sr:tonka01"
+      assert resolved.local_device_id == "sr:hub01"
       assert resolved.neighbor_device_id == nil
       assert resolved.metadata["source_target_uid"] == nil
     end
@@ -947,7 +947,7 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
       index = %{
         uid_to_uid: %{"default:192.168.10.1" => "nil"},
         ip_to_uid: %{
-          "192.168.10.1" => "sr:tonka01",
+          "192.168.10.1" => "sr:hub01",
           "192.168.10.154" => "sr:aruba-10-154"
         },
         name_to_uid: %{},
@@ -955,7 +955,7 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
       }
 
       [resolved] = MapperResultsIngestor.resolve_topology_records(records, index)
-      assert resolved.local_device_id == "sr:tonka01"
+      assert resolved.local_device_id == "sr:hub01"
       assert resolved.neighbor_device_id == "sr:aruba-10-154"
       assert resolved.metadata["source_local_uid"] == "default:192.168.10.1"
     end
@@ -963,7 +963,7 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
     test "preserves canonical sr neighbor ids even when they are not indexed" do
       records = [
         %{
-          local_device_id: "sr:tonka01",
+          local_device_id: "sr:hub01",
           local_device_ip: "192.168.10.1",
           neighbor_device_id: "sr:endpoint-10-96",
           neighbor_mgmt_addr: "192.168.10.96",
@@ -974,21 +974,21 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
       ]
 
       index = %{
-        uid_to_uid: %{"sr:tonka01" => "sr:tonka01"},
-        ip_to_uid: %{"192.168.10.1" => "sr:tonka01"},
+        uid_to_uid: %{"sr:hub01" => "sr:hub01"},
+        ip_to_uid: %{"192.168.10.1" => "sr:hub01"},
         name_to_uid: %{},
         mac_to_uid: %{}
       }
 
       [resolved] = MapperResultsIngestor.resolve_topology_records(records, index)
-      assert resolved.local_device_id == "sr:tonka01"
+      assert resolved.local_device_id == "sr:hub01"
       assert resolved.neighbor_device_id == "sr:endpoint-10-96"
     end
 
     test "preserves explicit canonical device ids ahead of conflicting ip matches" do
       records = [
         %{
-          local_device_id: "sr:tonka01",
+          local_device_id: "sr:hub01",
           local_device_ip: "192.168.10.1",
           neighbor_device_id: "sr:aruba-10-154",
           neighbor_mgmt_addr: "192.168.10.154",
@@ -1009,14 +1009,14 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
       }
 
       [resolved] = MapperResultsIngestor.resolve_topology_records(records, index)
-      assert resolved.local_device_id == "sr:tonka01"
+      assert resolved.local_device_id == "sr:hub01"
       assert resolved.neighbor_device_id == "sr:aruba-10-154"
     end
 
     test "reconciles previously unresolved endpoints after canonical identity becomes available" do
       records = [
         %{
-          local_device_id: "sr:tonka01",
+          local_device_id: "sr:hub01",
           local_device_ip: "192.168.10.1",
           neighbor_device_id: "default:192.168.10.154",
           neighbor_mgmt_addr: "192.168.10.154",
@@ -1027,21 +1027,21 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
       ]
 
       unresolved_index = %{
-        uid_to_uid: %{"sr:tonka01" => "sr:tonka01"},
-        ip_to_uid: %{"192.168.10.1" => "sr:tonka01"},
+        uid_to_uid: %{"sr:hub01" => "sr:hub01"},
+        ip_to_uid: %{"192.168.10.1" => "sr:hub01"},
         name_to_uid: %{},
         mac_to_uid: %{}
       }
 
       [unresolved] = MapperResultsIngestor.resolve_topology_records(records, unresolved_index)
-      assert unresolved.local_device_id == "sr:tonka01"
+      assert unresolved.local_device_id == "sr:hub01"
       assert unresolved.neighbor_device_id == nil
       assert unresolved.metadata["source_target_uid"] == "default:192.168.10.154"
 
       reconciled_index = %{
-        uid_to_uid: %{"sr:tonka01" => "sr:tonka01", "sr:aruba-10-154" => "sr:aruba-10-154"},
+        uid_to_uid: %{"sr:hub01" => "sr:hub01", "sr:aruba-10-154" => "sr:aruba-10-154"},
         ip_to_uid: %{
-          "192.168.10.1" => "sr:tonka01",
+          "192.168.10.1" => "sr:hub01",
           "192.168.10.154" => "sr:aruba-10-154"
         },
         name_to_uid: %{"aruba-24g-02" => "sr:aruba-10-154"},
@@ -1049,7 +1049,7 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
       }
 
       [reconciled] = MapperResultsIngestor.resolve_topology_records(records, reconciled_index)
-      assert reconciled.local_device_id == "sr:tonka01"
+      assert reconciled.local_device_id == "sr:hub01"
       assert reconciled.neighbor_device_id == "sr:aruba-10-154"
       assert reconciled.metadata["source_target_uid"] == "default:192.168.10.154"
     end
@@ -1155,7 +1155,7 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
   end
 
   describe "infer_wireguard_tunnel_links/3" do
-    test "infers farm01 to tonka01 wireguard edge from matching tunnel interface name" do
+    test "infers edge01 to hub01 wireguard edge from matching tunnel interface name" do
       now = DateTime.truncate(DateTime.utc_now(), :second)
 
       records = [
@@ -1165,7 +1165,7 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
           gateway_id: "gw-1",
           partition: "default",
           protocol: "SNMP-L2",
-          local_device_id: "sr:farm01",
+          local_device_id: "sr:edge01",
           local_device_ip: "192.168.2.1",
           neighbor_device_id: "sr:uswagg",
           neighbor_mgmt_addr: "192.168.1.87"
@@ -1174,14 +1174,14 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
 
       interfaces = [
         %{
-          device_id: "sr:farm01",
+          device_id: "sr:edge01",
           timestamp: now,
           if_name: "wgsts1000",
           if_descr: "wgsts1000",
           ip_addresses: ["192.168.0.0"]
         },
         %{
-          device_id: "sr:tonka01",
+          device_id: "sr:hub01",
           timestamp: now,
           if_name: "wgsts1000",
           if_descr: "wgsts1000",
@@ -1191,18 +1191,18 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
 
       devices = [
         %{
-          uid: "sr:farm01",
+          uid: "sr:edge01",
           ip: "192.168.2.1",
-          name: "farm01",
-          hostname: "farm01",
+          name: "edge01",
+          hostname: "edge01",
           type: "router",
           type_id: 12
         },
         %{
-          uid: "sr:tonka01",
+          uid: "sr:hub01",
           ip: "192.168.10.1",
-          name: "tonka01",
-          hostname: "tonka01",
+          name: "hub01",
+          hostname: "hub01",
           type: "router",
           type_id: 12
         }
@@ -1212,8 +1212,8 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
         MapperResultsIngestor.infer_wireguard_tunnel_links(records, interfaces, devices)
 
       assert inferred.protocol == "wireguard-derived"
-      assert inferred.local_device_id == "sr:farm01"
-      assert inferred.neighbor_device_id == "sr:tonka01"
+      assert inferred.local_device_id == "sr:edge01"
+      assert inferred.neighbor_device_id == "sr:hub01"
       assert inferred.local_if_name == "wgsts1000"
       assert inferred.metadata["source"] == "wireguard-derived"
       assert inferred.metadata["evidence_class"] == "direct-logical"
@@ -1230,23 +1230,23 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
           gateway_id: "gw-1",
           partition: "default",
           protocol: "wireguard",
-          local_device_id: "sr:farm01",
+          local_device_id: "sr:edge01",
           local_device_ip: "192.168.2.1",
-          neighbor_device_id: "sr:tonka01",
+          neighbor_device_id: "sr:hub01",
           neighbor_mgmt_addr: "192.168.10.1"
         }
       ]
 
       interfaces = [
         %{
-          device_id: "sr:farm01",
+          device_id: "sr:edge01",
           timestamp: now,
           if_name: "wgsts1000",
           if_descr: nil,
           ip_addresses: ["192.168.0.0"]
         },
         %{
-          device_id: "sr:tonka01",
+          device_id: "sr:hub01",
           timestamp: now,
           if_name: "wgsts1000",
           if_descr: nil,
@@ -1256,18 +1256,18 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
 
       devices = [
         %{
-          uid: "sr:farm01",
+          uid: "sr:edge01",
           ip: "192.168.2.1",
-          name: "farm01",
-          hostname: "farm01",
+          name: "edge01",
+          hostname: "edge01",
           type: "router",
           type_id: 12
         },
         %{
-          uid: "sr:tonka01",
+          uid: "sr:hub01",
           ip: "192.168.10.1",
-          name: "tonka01",
-          hostname: "tonka01",
+          name: "hub01",
+          hostname: "hub01",
           type: "router",
           type_id: 12
         }
@@ -1396,12 +1396,12 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
 
   describe "valid_alias_ip?/1" do
     test "accepts routable addresses of both families" do
-      # Captured from a production router's ipAddressTable walk.
+      # Invented addresses in the shapes an ipAddressTable walk returns.
       for ip <- [
-            "152.117.116.178",
+            "198.51.100.23",
             "192.168.1.1",
-            "2001:470:c0b5:1::1",
-            "fd2f:420a:24b1:1:f692:bfff:fe75:c72a"
+            "2001:db8:5:1::1",
+            "fd6b:1c93:7e42:1:f29f:c2ff:fe1a:4b84"
           ] do
         assert MapperResultsIngestor.valid_alias_ip?(ip), "expected #{ip} to be aliasable"
       end
@@ -1421,7 +1421,7 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
       # over-merge.
       for ip <- [
             "fe80::1",
-            "fe80::f692:bfff:fe75:c72a",
+            "fe80::f29f:c2ff:fe1a:4b84",
             "febf::1",
             "169.254.1.1"
           ] do
@@ -1458,7 +1458,7 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
       assert MapperResultsIngestor.alias_ips_for_role(
                "router",
                "192.168.1.1",
-               ["fe80::1", "fe80::f692:bfff:fe75:c72a", "febf::1", "10.0.0.1"]
+               ["fe80::1", "fe80::f29f:c2ff:fe1a:4b84", "febf::1", "10.0.0.1"]
              ) == ["192.168.1.1", "10.0.0.1"]
     end
 

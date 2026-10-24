@@ -42,7 +42,7 @@ defmodule ServiceRadar.Inventory.Sync.InterfacesUpsertFieldsTest do
           "name" => "eth0",
           "description" => "uplink",
           "alias" => "wan",
-          "mac_address" => "F4:92:BF:75:C7:21",
+          "mac_address" => "F0:9F:C2:1A:4B:7C",
           "type" => "ethernetCsmacd",
           "ip_addresses" => ["10.0.0.5"]
         }

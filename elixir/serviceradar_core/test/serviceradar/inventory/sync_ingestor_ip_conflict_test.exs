@@ -690,7 +690,7 @@ defmodule ServiceRadar.Inventory.SyncIngestorIpConflictTest do
       # so this is that something.
       addresses = [
         "8.8.8.8",
-        "152.117.116.178",
+        "198.51.100.23",
         "10.0.0.5",
         "192.168.1.1",
         "172.16.0.1",
@@ -703,8 +703,8 @@ defmodule ServiceRadar.Inventory.SyncIngestorIpConflictTest do
         "2001:4860:4860::8888",
         "::1",
         "::",
-        "fd2f:420a:24b1:1:f692:bfff:fe75:c72a",
-        "fe80::f692:bfff:fe75:c72b",
+        "fd6b:1c93:7e42:1:f29f:c2ff:fe1a:4b84",
+        "fe80::f29f:c2ff:fe1a:4b2b",
         "fe90::1",
         "febf::1",
         "fec0::1",
@@ -753,7 +753,7 @@ defmodule ServiceRadar.Inventory.SyncIngestorIpConflictTest do
       # link-local, and before the rank guard they replaced the primary.
       assert :ok =
                SyncIngestor.ingest_updates(
-                 [mac_update(mac, "fe80::f692:bfff:fe75:c72b")],
+                 [mac_update(mac, "fe80::f29f:c2ff:fe1a:4b2b")],
                  actor: actor
                )
 
@@ -805,7 +805,7 @@ defmodule ServiceRadar.Inventory.SyncIngestorIpConflictTest do
 
       assert :ok =
                SyncIngestor.ingest_updates(
-                 [mac_update(mac, "fd2f:420a:24b1:1:f692:bfff:fe75:c7ef")],
+                 [mac_update(mac, "fd6b:1c93:7e42:1:f29f:c2ff:fe1a:4bef")],
                  actor: actor
                )
 
@@ -815,7 +815,7 @@ defmodule ServiceRadar.Inventory.SyncIngestorIpConflictTest do
 
     test "a routable address promotes a link-local primary", %{actor: actor} do
       mac = unique_universal_mac()
-      link_local = "fe80::f692:bfff:fe75:c7ab"
+      link_local = "fe80::f29f:c2ff:fe1a:4bab"
       routable = unused_private_ip()
 
       assert :ok = SyncIngestor.ingest_updates([mac_update(mac, link_local)], actor: actor)
@@ -834,19 +834,19 @@ defmodule ServiceRadar.Inventory.SyncIngestorIpConflictTest do
 
       assert :ok =
                SyncIngestor.ingest_updates(
-                 [mac_update(mac, "fe80::f692:bfff:fe75:c7cd")],
+                 [mac_update(mac, "fe80::f29f:c2ff:fe1a:4bcd")],
                  actor: actor
                )
 
       assert :ok =
                SyncIngestor.ingest_updates(
-                 [mac_update(mac, "fe80::f692:bfff:fe75:c7ce")],
+                 [mac_update(mac, "fe80::f29f:c2ff:fe1a:4bce")],
                  actor: actor
                )
 
       assert device_ip_for_mac(mac, actor) in [
-               "fe80::f692:bfff:fe75:c7cd",
-               "fe80::f692:bfff:fe75:c7ce"
+               "fe80::f29f:c2ff:fe1a:4bcd",
+               "fe80::f29f:c2ff:fe1a:4bce"
              ]
     end
   end

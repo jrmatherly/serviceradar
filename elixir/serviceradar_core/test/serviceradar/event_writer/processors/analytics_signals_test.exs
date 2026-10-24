@@ -406,23 +406,23 @@ defmodule ServiceRadar.EventWriter.Processors.AnalyticsSignalsTest do
         "class_uid" => 2004,
         "time" => 1_812_456_000_000,
         "severity_id" => 4,
-        "device_uid" => "agent-dusk01",
-        "agent_id" => "agent-dusk01",
+        "device_uid" => "agent-alpha01",
+        "agent_id" => "agent-alpha01",
         "anomaly" => %{
-          "series_key" => "v2:class=snmp:identity=agent-dusk01:if_index=6",
+          "series_key" => "v2:class=snmp:identity=agent-alpha01:if_index=6",
           "metric_class" => "snmp",
           "state" => "anomaly_open"
         },
         "source_identity" => %{
-          "agent_id" => "agent-dusk01",
-          "host_id" => "dusk01"
+          "agent_id" => "agent-alpha01",
+          "host_id" => "alpha01"
         }
       }
 
       assert AnalyticsSignals.parse_message(%{
                data: Jason.encode!(payload),
                metadata: %{
-                 subject: "signals.analytics.predictions.snmp.agent-dusk01.6",
+                 subject: "signals.analytics.predictions.snmp.agent-alpha01.6",
                  received_at: DateTime.utc_now()
                }
              }) == nil
@@ -458,8 +458,8 @@ defmodule ServiceRadar.EventWriter.Processors.AnalyticsSignalsTest do
         "class_uid" => 2004,
         "time" => 1_812_456_000_000,
         "severity_id" => 4,
-        "device_uid" => "agent-dusk01",
-        "agent_id" => "agent-dusk01",
+        "device_uid" => "agent-alpha01",
+        "agent_id" => "agent-alpha01",
         "target_device_ip" => target_ip,
         "anomaly" => %{
           "series_key" => "snmp:#{target_ip}:7",
@@ -493,11 +493,11 @@ defmodule ServiceRadar.EventWriter.Processors.AnalyticsSignalsTest do
     test "accepts canonical SNMP target device identity without target IP" do
       seed_snmp_metric_resolution(
         %{
-          device_uid: "sr:farm01",
+          device_uid: "sr:edge01",
           metric_name: "ifHCInOctets",
           if_index: 6
         },
-        "sr:farm01"
+        "sr:edge01"
       )
 
       payload = %{
@@ -507,20 +507,20 @@ defmodule ServiceRadar.EventWriter.Processors.AnalyticsSignalsTest do
         "class_uid" => 2004,
         "time" => 1_812_456_000_000,
         "severity_id" => 4,
-        "device_uid" => "sr:farm01",
-        "agent_id" => "agent-dusk01",
+        "device_uid" => "sr:edge01",
+        "agent_id" => "agent-alpha01",
         "anomaly" => %{
-          "series_key" => "v2:class=snmp.interface:identity=sr:farm01:if_index=6",
+          "series_key" => "v2:class=snmp.interface:identity=sr:edge01:if_index=6",
           "metric_class" => "snmp.interface",
           "metric_name" => "ifHCInOctets",
           "state" => "anomaly_open"
         },
         "source_identity" => %{
-          "series_key" => "v2:class=snmp.interface:identity=sr:farm01:if_index=6",
+          "series_key" => "v2:class=snmp.interface:identity=sr:edge01:if_index=6",
           "metric_class" => "snmp.interface",
           "metric_name" => "ifHCInOctets",
-          "device_id" => "sr:farm01",
-          "agent_id" => "agent-dusk01",
+          "device_id" => "sr:edge01",
+          "agent_id" => "agent-alpha01",
           "tags" => %{"if_index" => "6"}
         }
       }
@@ -529,25 +529,25 @@ defmodule ServiceRadar.EventWriter.Processors.AnalyticsSignalsTest do
         AnalyticsSignals.parse_message(%{
           data: Jason.encode!(payload),
           metadata: %{
-            subject: "signals.analytics.predictions.snmp.sr-farm01.6",
+            subject: "signals.analytics.predictions.snmp.sr-edge01.6",
             received_at: DateTime.utc_now()
           }
         })
 
-      assert row.device["uid"] == "sr:farm01"
-      assert row.metadata["service_radar"]["device_uid"] == "sr:farm01"
-      assert row.metadata["service_radar"]["device_id"] == "sr:farm01"
+      assert row.device["uid"] == "sr:edge01"
+      assert row.metadata["service_radar"]["device_uid"] == "sr:edge01"
+      assert row.metadata["service_radar"]["device_id"] == "sr:edge01"
       assert row.metadata["service_radar"]["metric_name"] == "ifHCInOctets"
       assert row.metadata["service_radar"]["if_index"] == 6
-      assert row.metadata["finding_info"]["dimensions"]["device_uid"] == "sr:farm01"
-      assert row.metadata["finding_info"]["dimensions"]["device_id"] == "sr:farm01"
+      assert row.metadata["finding_info"]["dimensions"]["device_uid"] == "sr:edge01"
+      assert row.metadata["finding_info"]["dimensions"]["device_id"] == "sr:edge01"
       assert row.metadata["finding_info"]["dimensions"]["metric_name"] == "ifHCInOctets"
       assert row.metadata["finding_info"]["dimensions"]["if_index"] == 6
     end
 
     test "SNMP anomaly metadata exposes the metric tuple even when metric series key differs" do
       target_ip = "10.0.0.30"
-      target_device_uid = "sr:farm01"
+      target_device_uid = "sr:edge01"
 
       seed_snmp_metric_resolution(
         %{
@@ -566,7 +566,7 @@ defmodule ServiceRadar.EventWriter.Processors.AnalyticsSignalsTest do
         "series_key" => "metric:#{target_device_uid}:ifHCOutOctets:4"
       }
 
-      anomaly_series_key = "edge:v2:agent-dusk01:#{target_ip}:ifHCOutOctets:4"
+      anomaly_series_key = "edge:v2:agent-alpha01:#{target_ip}:ifHCOutOctets:4"
 
       payload = %{
         "event_id" => "snmp-metric-tuple",
@@ -575,8 +575,8 @@ defmodule ServiceRadar.EventWriter.Processors.AnalyticsSignalsTest do
         "class_uid" => 2004,
         "time" => 1_812_456_000_000,
         "severity_id" => 5,
-        "device_uid" => "agent-dusk01",
-        "agent_id" => "agent-dusk01",
+        "device_uid" => "agent-alpha01",
+        "agent_id" => "agent-alpha01",
         "target_device_ip" => target_ip,
         "anomaly" => %{
           "series_key" => anomaly_series_key,

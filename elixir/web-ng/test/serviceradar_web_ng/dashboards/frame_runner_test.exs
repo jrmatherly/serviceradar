@@ -64,7 +64,7 @@ defmodule ServiceRadarWebNG.Dashboards.FrameRunnerTest do
              "dst_endpoint" => %{"ip" => "192.0.2.20"},
              "raw_data" =>
                Jason.encode!(%{
-                 "output_fields" => %{"k8s.node.name" => "k8s-cp3-worker1"},
+                 "output_fields" => %{"k8s.node.name" => "lab-k8s-worker1"},
                  "correlation" => %{"host_ip" => "10.0.2.11"}
                })
            }
@@ -79,8 +79,8 @@ defmodule ServiceRadarWebNG.Dashboards.FrameRunnerTest do
            %{
              "id" => "falco-1",
              "raw_data" => %{
-               "custom_fields" => %{"serviceradar.agent_id" => "agent-k8s-cp3-worker1"},
-               "templated_fields" => %{"k8s.node.name" => "k8s-cp3-worker1"}
+               "custom_fields" => %{"serviceradar.agent_id" => "agent-lab-k8s-worker1"},
+               "templated_fields" => %{"k8s.node.name" => "lab-k8s-worker1"}
              }
            }
          ]
@@ -111,7 +111,7 @@ defmodule ServiceRadarWebNG.Dashboards.FrameRunnerTest do
   defmodule FakeDeviceResolver do
     @moduledoc false
 
-    def resolve(%{hostname: "k8s-cp3-worker1", ip: "10.0.2.11"}) do
+    def resolve(%{hostname: "lab-k8s-worker1", ip: "10.0.2.11"}) do
       "sr:9a6211a0-46d9-4986-988d-01e14d886e40"
     end
 
@@ -465,7 +465,7 @@ defmodule ServiceRadarWebNG.Dashboards.FrameRunnerTest do
     ]
 
     resolver = fn
-      %{agent_id: "agent-k8s-cp3-worker1", hostname: "k8s-cp3-worker1"} ->
+      %{agent_id: "agent-lab-k8s-worker1", hostname: "lab-k8s-worker1"} ->
         "sr:falco-node"
 
       _candidate ->

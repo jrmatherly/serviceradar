@@ -27,16 +27,16 @@ defmodule ServiceRadar.Inventory.Remediation.ProxmoxUnfuseTest do
 
   test "dry run detects and plans the split; earliest cluster survives", %{actor: actor} do
     seed = System.unique_integer([:positive])
-    farm_v2 = "proxmox:v2:farm#{seed}:vm:113"
-    tonka_v2 = "proxmox:v2:tonka#{seed}:vm:117"
-    farm_mac = "AA" <> String.pad_leading(Integer.to_string(seed, 16), 10, "0")
-    tonka_mac = "BB" <> String.pad_leading(Integer.to_string(seed, 16), 10, "0")
+    edge_v2 = "proxmox:v2:edge#{seed}:vm:113"
+    hub_v2 = "proxmox:v2:hub#{seed}:vm:117"
+    edge_mac = "AA" <> String.pad_leading(Integer.to_string(seed, 16), 10, "0")
+    hub_mac = "BB" <> String.pad_leading(Integer.to_string(seed, 16), 10, "0")
 
-    {:ok, fused} = create_device(actor, %{hostname: "k8s-cp3-worker1"})
-    {:ok, _} = seed_identifier(actor, fused.uid, :integration_id, farm_v2, "proxmox-farm")
-    {:ok, _} = seed_identifier(actor, fused.uid, :integration_id, tonka_v2, "proxmox-tonka")
-    {:ok, _} = seed_identifier(actor, fused.uid, :mac, farm_mac, "proxmox-farm")
-    {:ok, _} = seed_identifier(actor, fused.uid, :mac, tonka_mac, "proxmox-tonka")
+    {:ok, fused} = create_device(actor, %{hostname: "lab-k8s-worker1"})
+    {:ok, _} = seed_identifier(actor, fused.uid, :integration_id, edge_v2, "proxmox-edge")
+    {:ok, _} = seed_identifier(actor, fused.uid, :integration_id, hub_v2, "proxmox-hub")
+    {:ok, _} = seed_identifier(actor, fused.uid, :mac, edge_mac, "proxmox-edge")
+    {:ok, _} = seed_identifier(actor, fused.uid, :mac, hub_mac, "proxmox-hub")
 
     report = ProxmoxUnfuse.run(:dry_run, [], nil, actor)
 
@@ -46,15 +46,15 @@ defmodule ServiceRadar.Inventory.Remediation.ProxmoxUnfuseTest do
     plan =
       Enum.find(report.detected_split_plan, &(&1.device_uid == fused.uid))
 
-    assert plan.survivor_cluster == "farm#{seed}"
+    assert plan.survivor_cluster == "edge#{seed}"
     assert plan.new_device_count == 1
     assert plan.execution_eligible == false
 
     [split] = plan.new_devices
-    assert split.cluster == "tonka#{seed}"
-    assert split.v2_values == [tonka_v2]
+    assert split.cluster == "hub#{seed}"
+    assert split.v2_values == [hub_v2]
     assert split.identifiers == 2
-    assert [%{value: ^tonka_mac, source_id: "proxmox-tonka"}] = split.macs
+    assert [%{value: ^hub_mac, source_id: "proxmox-hub"}] = split.macs
   end
 
   # Single-cluster devices never reach the planner (detection requires a
@@ -69,7 +69,7 @@ defmodule ServiceRadar.Inventory.Remediation.ProxmoxUnfuseTest do
         actor,
         shared.uid,
         :integration_id,
-        "proxmox:v2:farm#{seed}:vm:114",
+        "proxmox:v2:edge#{seed}:vm:114",
         "shared-src"
       )
 
@@ -78,7 +78,7 @@ defmodule ServiceRadar.Inventory.Remediation.ProxmoxUnfuseTest do
         actor,
         shared.uid,
         :integration_id,
-        "proxmox:v2:tonka#{seed}:vm:114",
+        "proxmox:v2:hub#{seed}:vm:114",
         "shared-src"
       )
 

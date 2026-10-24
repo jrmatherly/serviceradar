@@ -34,8 +34,8 @@
 - [x] 3.3 Two independent guards: the mapper's existing `primary_identity_interface?/1` (no
   loopback/virtual/bridge/tunnel) and a refusal of locally-administered addresses -- 14 of 67
   interface MACs on the measured deployment.
-- [ ] 3.4 Handle the U/L-flipped duplicate: `F692BF75C721` is the locally-administered form of
-  `F492BF75C721` (EUI-64 derived). It must not register as a second distinct NIC.
+- [ ] 3.4 Handle the U/L-flipped duplicate: `F29FC21A4B7C` is the locally-administered form of
+  `F09FC21A4B7C` (EUI-64 derived). It must not register as a second distinct NIC.
 
 ## 4. Primary-address preference (#3905)
 
@@ -49,7 +49,7 @@
 
 ## 4b. BLOCKING FINDING (2026-08-25): the path this unblocks is unreachable from bulk ingest
 
-Verified on farm01 after deploying the veto narrowing:
+Verified on edge01 after deploying the veto narrowing:
 
 - `AliasGuard.distinct_mac_conflict?(A, B)` now returns **false** -- the narrowing works, confirmed
   by calling it in a production pod against the real chassis pair.
@@ -60,7 +60,7 @@ ONLY from `identity/resolver.ex:79` and `:85`. `BatchResolver` -- which is what 
 uses -- references `AliasGuard` **zero** times. Every bulk source (census, sweep, mDNS, netprobe,
 armis) resolves through `BatchResolver`, so none of them can reach the alias merge.
 
-Confirmed empirically rather than inferred: `platform.merge_audit` on farm01 holds 23 rows, ALL
+Confirmed empirically rather than inferred: `platform.merge_audit` on edge01 holds 23 rows, ALL
 `identifier_backfill` from `identity_reconciler` (the duplicate sweep), and **0** with reason
 `ip_alias_conflict`. The alias merge has never run in this deployment's history.
 
@@ -80,7 +80,7 @@ MACs are not.
 ## 5. Verify against the real data
 
 - [ ] 5.1 Re-run 1.1 and 1.2 and confirm both now fail to reproduce.
-- [ ] 5.2 On farm01, confirm the chassis pair merges — and gate on the ARTEFACT: query
+- [ ] 5.2 On edge01, confirm the chassis pair merges — and gate on the ARTEFACT: query
   `platform.merge_audit` for a new row joining them, and confirm the run postdates the rollout.
 - [ ] 5.3 Confirm the link-local count falls. Baseline measured 2026-08-24: **18** devices with an
   `fe80:` primary, **7** with a ULA, out of **126** live; **10 of the 18** already hold an IPv4

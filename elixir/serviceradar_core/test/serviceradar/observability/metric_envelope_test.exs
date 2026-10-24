@@ -62,14 +62,14 @@ defmodule ServiceRadar.Observability.MetricEnvelopeTest do
 
       resolver = fn ips ->
         assert ips == ["10.0.2.13"]
-        %{"10.0.2.13" => "sr:k8s-cp3-worker3"}
+        %{"10.0.2.13" => "sr:lab-k8s-worker3"}
       end
 
       {:ok, [row], 1} =
         MetricEnvelope.decode_rows_count(payload, device_resolver: resolver)
 
       assert row.target_device_ip == "10.0.2.13"
-      assert row.device_id == "sr:k8s-cp3-worker3"
+      assert row.device_id == "sr:lab-k8s-worker3"
     end
   end
 

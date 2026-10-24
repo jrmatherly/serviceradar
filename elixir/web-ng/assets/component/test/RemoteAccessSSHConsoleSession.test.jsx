@@ -29,7 +29,7 @@ const SESSION_DATA = {
   ticket: "srra_probe_ticket",
   outcome: "nil",
   close_reason: null,
-  agent_id: "agent-dusk01",
+  agent_id: "agent-alpha01",
   gateway_id: null,
   approval_id: null,
   device_uid: "sr:5bf1b6f6-0e7c-43ac-b883-a13447199d85",
@@ -151,7 +151,7 @@ describe("RemoteAccessSSHConsole session transition", () => {
     // hooks", prod: minified React error #300).
     expect(clickError).toBeNull()
     expect(windowErrors).toEqual([])
-    expect(container.textContent).toContain("pve02:22 via agent-dusk01")
+    expect(container.textContent).toContain("pve02:22 via agent-alpha01")
     expect(container.textContent).toContain("Files")
 
     // Brand chrome regression (sr-4375): the session shell aligns with the
@@ -291,7 +291,7 @@ describe("RemoteAccessSSHConsole session transition", () => {
       await new Promise((resolve) => setTimeout(resolve, 500))
     })
 
-    expect(container.textContent).toContain("pve02:22 via agent-dusk01")
+    expect(container.textContent).toContain("pve02:22 via agent-alpha01")
 
     // sr-4400: the console chrome offers a visible Disconnect control so the
     // operator is not limited to typing logout/Ctrl-D inside the terminal.
@@ -313,7 +313,7 @@ describe("RemoteAccessSSHConsole session transition", () => {
     expect(JSON.parse(closeCall[1].body).reason).toBe("operator_requested")
 
     // The terminal unmounts and the connection form returns.
-    expect(container.textContent).not.toContain("pve02:22 via agent-dusk01")
+    expect(container.textContent).not.toContain("pve02:22 via agent-alpha01")
     const reconnectButton = [...container.querySelectorAll("button")].find((candidate) =>
       (candidate.textContent || "").includes("Connect with SSO")
     )

@@ -98,29 +98,29 @@ defmodule ServiceRadar.Inventory.IdentityReconcilerMacValidationTest do
       ids =
         IdentityReconciler.extract_strong_identifiers(%{
           device_id: nil,
-          ip: "152.117.116.178",
-          mac: "f4:92:bf:75:c7:21",
+          ip: "198.51.100.23",
+          mac: "f0:9f:c2:1a:4b:7c",
           partition: "default",
-          metadata: %{"alt_mac:f692bf75c721" => "1"}
+          metadata: %{"alt_mac:f29fc21a4b7c" => "1"}
         })
 
-      assert ids.mac == "F492BF75C721"
-      assert ids.macs == ["F492BF75C721", "F692BF75C721"]
+      assert ids.mac == "F09FC21A4B7C"
+      assert ids.macs == ["F09FC21A4B7C", "F29FC21A4B7C"]
     end
 
     test "bulk identifier extraction looks up the hardware MAC sibling" do
       updates = [
         Normalize.normalize_update(%{
           "ip" => "192.168.1.1",
-          "mac" => "f6:92:bf:75:c7:21",
+          "mac" => "f2:9f:c2:1a:4b:7c",
           "source" => "mapper",
           "metadata" => %{"identity_mac_kind" => "primary"}
         })
       ]
 
       extracted = Lookups.extract_all_identifiers(updates)
-      assert {:mac, "F692BF75C721", "default"} in extracted
-      assert {:mac, "F492BF75C721", "default"} in extracted
+      assert {:mac, "F29FC21A4B7C", "default"} in extracted
+      assert {:mac, "F09FC21A4B7C", "default"} in extracted
     end
 
     test "consumes the metadata mac_addresses list emitted by the agent" do

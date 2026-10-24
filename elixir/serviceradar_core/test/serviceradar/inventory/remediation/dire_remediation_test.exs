@@ -190,28 +190,28 @@ defmodule ServiceRadar.Inventory.Remediation.DireRemediationTest do
   test "stale-agent-devices: reaps unavailable churn agents without deleting canonical devices",
        %{actor: actor} do
     seed = test_seed()
-    stale_exact = "agent-dusk-test-exact-#{seed}"
-    stale_prefix = "agent-dusk01-test-#{seed}"
-    active_agent = "agent-dusk01-current-#{seed}"
+    stale_exact = "agent-alpha-test-exact-#{seed}"
+    stale_prefix = "agent-alpha01-test-#{seed}"
+    active_agent = "agent-alpha01-current-#{seed}"
     protected_agent = "agent-protected-current-#{seed}"
 
     {:ok, canonical} =
       create_device(actor, %{
-        hostname: "dusk01-current-#{seed}",
+        hostname: "alpha01-current-#{seed}",
         agent_id: active_agent,
         discovery_sources: ["agent", "sweep"]
       })
 
     {:ok, stale_owned} =
       create_device(actor, %{
-        hostname: "dusk-stale-#{seed}",
+        hostname: "alpha-stale-#{seed}",
         agent_id: stale_prefix,
         discovery_sources: ["sysmon", "agent", "sweep"]
       })
 
     {:ok, protected_device} =
       create_device(actor, %{
-        hostname: "dusk-protected-#{seed}",
+        hostname: "alpha-protected-#{seed}",
         agent_id: stale_exact,
         discovery_sources: ["agent"]
       })
@@ -231,7 +231,7 @@ defmodule ServiceRadar.Inventory.Remediation.DireRemediationTest do
       steps: ["stale-agent-devices"],
       actor: actor,
       stale_agent_uids: [stale_exact],
-      stale_agent_prefixes: ["agent-dusk01-test-"],
+      stale_agent_prefixes: ["agent-alpha01-test-"],
       stale_agent_before: ~U[2026-05-01 00:00:00Z]
     ]
 
@@ -280,6 +280,29 @@ defmodule ServiceRadar.Inventory.Remediation.DireRemediationTest do
     assert second.stale_agents == 0
     assert second.stale_devices == 0
     assert second.would_delete_identifiers == 0
+  end
+
+  test "stale-agent-devices: skips and reaps nothing when no agent ids or prefixes are given",
+       %{actor: actor} do
+    seed = test_seed()
+    stale = "agent-noargs-stale-#{seed}"
+    {:ok, device} = create_device(actor, %{hostname: "noargs-stale-#{seed}", agent_id: stale})
+    {:ok, _} = create_agent(actor, stale, %{device_uid: device.uid})
+    make_stale_agent!(stale)
+
+    opts = [steps: ["stale-agent-devices"], actor: actor]
+
+    assert {:ok, %{reports: %{"stale-agent-devices" => %{skipped: true, stale_agents: 0}}}} =
+             DireRemediation.run(opts)
+
+    assert {:ok, %{reports: %{"stale-agent-devices" => %{skipped: true}}}} =
+             DireRemediation.run([
+               {:mode, :execute},
+               {:manifest_path, manifest_path("stale_agents_noargs")} | opts
+             ])
+
+    assert {:ok, _} = Agent.get_by_uid(stale, actor: actor)
+    assert {:ok, %Device{deleted_at: nil}} = Device.get_by_uid(device.uid, false, actor: actor)
   end
 
   test "agent-links: rebuilds per-host devices from ocsf_agents ground truth",
@@ -554,24 +577,24 @@ defmodule ServiceRadar.Inventory.Remediation.DireRemediationTest do
     # The multi-cluster reality: two DIFFERENT physical hosts named `pve02` in
     # separate Proxmox clusters (distinct host refs, no shared MAC). Merging
     # them would fuse distinct hardware — must never happen.
-    {:ok, farm_pve02} =
+    {:ok, edge_pve02} =
       create_device(actor, %{
         hostname: hostname,
         discovery_sources: ["sweep"],
         metadata: %{
           "proxmox_candidate" => true,
-          "integration_id" => "proxmox:hypervisor:farm01:pve02"
+          "integration_id" => "proxmox:hypervisor:edge01:pve02"
         },
         last_seen_time: ~U[2026-05-09 02:21:03Z]
       })
 
-    {:ok, tonka_pve02} =
+    {:ok, hub_pve02} =
       create_device(actor, %{
         hostname: hostname,
         discovery_sources: ["sweep"],
         metadata: %{
           "proxmox_candidate" => true,
-          "integration_id" => "proxmox:hypervisor:tonka01:pve02"
+          "integration_id" => "proxmox:hypervisor:hub01:pve02"
         },
         last_seen_time: DateTime.utc_now()
       })
@@ -605,8 +628,8 @@ defmodule ServiceRadar.Inventory.Remediation.DireRemediationTest do
     assert {:ok, %{reports: %{"proxmox-dups" => dry}}} =
              DireRemediation.run(steps: ["proxmox-dups"], actor: actor)
 
-    refute Enum.any?(dry.merge_plan, &(&1.from in [farm_pve02.uid, tonka_pve02.uid]))
-    refute Enum.any?(dry.merge_plan, &(&1.to in [farm_pve02.uid, tonka_pve02.uid]))
+    refute Enum.any?(dry.merge_plan, &(&1.from in [edge_pve02.uid, hub_pve02.uid]))
+    refute Enum.any?(dry.merge_plan, &(&1.to in [edge_pve02.uid, hub_pve02.uid]))
     refute Enum.any?(dry.merge_plan, &(&1.from in [shared_a.uid, shared_b.uid]))
     refute Enum.any?(dry.merge_plan, &(&1.to in [shared_a.uid, shared_b.uid]))
     assert dry.skipped_unrelated >= 4
@@ -621,10 +644,10 @@ defmodule ServiceRadar.Inventory.Remediation.DireRemediationTest do
              )
 
     assert {:ok, %Device{deleted_at: nil}} =
-             Device.get_by_uid(farm_pve02.uid, false, actor: actor)
+             Device.get_by_uid(edge_pve02.uid, false, actor: actor)
 
     assert {:ok, %Device{deleted_at: nil}} =
-             Device.get_by_uid(tonka_pve02.uid, false, actor: actor)
+             Device.get_by_uid(hub_pve02.uid, false, actor: actor)
 
     assert {:ok, %Device{deleted_at: nil}} =
              Device.get_by_uid(shared_a.uid, false, actor: actor)

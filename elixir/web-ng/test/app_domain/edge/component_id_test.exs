@@ -11,10 +11,10 @@ defmodule ServiceRadarWebNG.Edge.ComponentIDTest do
   end
 
   test "preserves an existing component-type prefix" do
-    assert ComponentID.generate("agent-dusk", "agent") == "agent-dusk"
+    assert ComponentID.generate("agent-alpha", "agent") == "agent-alpha"
   end
 
   test "normalizes mixed-case labels before checking the prefix" do
-    assert ComponentID.generate("Agent Dusk", :agent) == "agent-dusk"
+    assert ComponentID.generate("Agent Alpha", :agent) == "agent-alpha"
   end
 end

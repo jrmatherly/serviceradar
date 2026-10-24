@@ -148,7 +148,7 @@ Capacity runway findings SHALL be emitted by default only for monotone consumabl
 Finding surfaces SHALL render decoded series identity (partition, metric class, metric family, device identity, interface index, tags) rather than raw hex-encoded series keys. Metric-context charts SHALL render the finding-time marker when it falls within the fetched window and SHALL state explicitly when it does not. Capacity surfaces SHALL label the projected crossing time as a projection, never as an observation time.
 
 #### Scenario: Finding modal shows decoded identity
-- **GIVEN** an anomaly finding whose series key encodes class=sysmon, family=cpu, identity=k8s-cp2-worker1, tag core_id=20
+- **GIVEN** an anomaly finding whose series key encodes class=sysmon, family=cpu, identity=dev-k8s-worker1, tag core_id=20
 - **WHEN** the operator opens the finding modal
 - **THEN** the modal displays the decoded device, metric, and core label instead of hex segments
 

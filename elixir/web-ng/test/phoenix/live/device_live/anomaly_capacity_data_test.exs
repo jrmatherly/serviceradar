@@ -230,7 +230,7 @@ defmodule ServiceRadarWebNGWeb.DeviceLive.AnomalyCapacityDataTest do
         String.contains?(query, ~s|service_radar_device_uid:"sr-device-1"|) ->
           {:ok, %{"results" => []}}
 
-        String.contains?(query, ~s|service_radar_device_uid:"k8s-cp3-worker1"|) ->
+        String.contains?(query, ~s|service_radar_device_uid:"lab-k8s-worker1"|) ->
           {:ok,
            %{
              "results" => [
@@ -246,7 +246,7 @@ defmodule ServiceRadarWebNGWeb.DeviceLive.AnomalyCapacityDataTest do
              ]
            }}
 
-        String.contains?(query, ~s|service_radar_device_uid:"agent-k8s-cp3-worker1"|) or
+        String.contains?(query, ~s|service_radar_device_uid:"agent-lab-k8s-worker1"|) or
             String.contains?(query, "agent_id:") ->
           {:ok,
            %{
@@ -730,8 +730,8 @@ defmodule ServiceRadarWebNGWeb.DeviceLive.AnomalyCapacityDataTest do
         HostAliasSRQL,
         %{
           device_uid: "sr-device-1",
-          agent_id: "agent-k8s-cp3-worker1",
-          host_id: "k8s-cp3-worker1"
+          agent_id: "agent-lab-k8s-worker1",
+          host_id: "lab-k8s-worker1"
         },
         nil,
         anomaly_severity: "high"
@@ -753,9 +753,9 @@ defmodule ServiceRadarWebNGWeb.DeviceLive.AnomalyCapacityDataTest do
              &String.contains?(&1, ~s|service_radar_device_uid:"sr-device-1"|)
            )
 
-    refute Enum.any?(anomaly_queries, &String.contains?(&1, ~s|service_radar_device_uid:"k8s-cp3-worker1"|))
+    refute Enum.any?(anomaly_queries, &String.contains?(&1, ~s|service_radar_device_uid:"lab-k8s-worker1"|))
 
-    refute Enum.any?(anomaly_queries, &String.contains?(&1, ~s|service_radar_device_uid:"agent-k8s-cp3-worker1"|))
+    refute Enum.any?(anomaly_queries, &String.contains?(&1, ~s|service_radar_device_uid:"agent-lab-k8s-worker1"|))
     refute Enum.any?(anomaly_queries, &String.contains?(&1, "agent_id:"))
   end
 

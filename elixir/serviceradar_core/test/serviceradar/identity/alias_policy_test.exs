@@ -12,10 +12,10 @@ defmodule ServiceRadar.Identity.AliasPolicyTest do
   describe "valid_alias_ip?/1" do
     test "accepts routable addresses of both families" do
       for ip <- [
-            "152.117.116.178",
+            "198.51.100.23",
             "192.168.1.1",
-            "2001:470:c0b5:1::1",
-            "fd2f:420a:24b1:1:f692:bfff:fe75:c72a",
+            "2001:db8:5:1::1",
+            "fd6b:1c93:7e42:1:f29f:c2ff:fe1a:4b84",
             "fc00::1"
           ] do
         assert AliasPolicy.valid_alias_ip?(ip), "expected #{ip} to be aliasable"
@@ -33,7 +33,7 @@ defmodule ServiceRadar.Identity.AliasPolicyTest do
       # 0xFE80 would let fe81:: through, and unique-local fd00::/8 sits directly
       # below the range while global unicast 2000::/3 sits far above -- both must
       # stay aliasable.
-      for ip <- ["fe80::1", "fe80::f692:bfff:fe75:c72a", "fe81::1", "feb0::1", "febf::1"] do
+      for ip <- ["fe80::1", "fe80::f29f:c2ff:fe1a:4b84", "fe81::1", "feb0::1", "febf::1"] do
         refute AliasPolicy.valid_alias_ip?(ip), "expected #{ip} to be rejected as link-local"
       end
 

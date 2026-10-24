@@ -6,6 +6,9 @@ defmodule ServiceRadar.Inventory.Remediation.StaleAgentDevices do
   their device identity residue. Devices directly owned by a stale agent are
   soft-deleted only when no active agent links to that device. Shared canonical
   devices are preserved; stale `agent_id` identifiers on them are removed.
+
+  Targets come only from `:stale_agent_uids` and `:stale_agent_prefixes`; with
+  neither the step reports itself skipped and touches nothing.
   """
 
   alias ServiceRadar.Inventory.Device
@@ -15,14 +18,30 @@ defmodule ServiceRadar.Inventory.Remediation.StaleAgentDevices do
   require Logger
 
   @step "stale-agent-devices"
-  @default_agent_uids ["agent-dusk", "agent-agent-dusk"]
-  @default_agent_prefixes ["agent-dusk-", "agent-agent-dusk-", "agent-dusk01-"]
   @default_before ~U[2026-05-01 00:00:00Z]
   @active_statuses ["connected", "connecting", "degraded"]
 
   @doc false
   def run(mode, opts, manifest, actor) do
-    stale_agent_uids = stale_agent_uids(opts)
+    exact = Keyword.get(opts, :stale_agent_uids, [])
+    prefixes = Keyword.get(opts, :stale_agent_prefixes, [])
+
+    if exact == [] and prefixes == [] do
+      %{
+        skipped: true,
+        reason: "no stale_agent_uids or stale_agent_prefixes given",
+        stale_agents: 0,
+        stale_agent_uids: [],
+        stale_devices: 0,
+        stale_device_uids: []
+      }
+    else
+      run_targets(mode, exact, prefixes, opts, manifest, actor)
+    end
+  end
+
+  defp run_targets(mode, exact, prefixes, opts, manifest, actor) do
+    stale_agent_uids = stale_agent_uids(exact, prefixes, opts)
     stale_device_uids = stale_device_uids(stale_agent_uids)
 
     base = %{
@@ -54,9 +73,7 @@ defmodule ServiceRadar.Inventory.Remediation.StaleAgentDevices do
     end
   end
 
-  defp stale_agent_uids(opts) do
-    exact = Keyword.get(opts, :stale_agent_uids, @default_agent_uids)
-    prefixes = Keyword.get(opts, :stale_agent_prefixes, @default_agent_prefixes)
+  defp stale_agent_uids(exact, prefixes, opts) do
     before = Keyword.get(opts, :stale_agent_before, @default_before)
     like_patterns = Enum.map(prefixes, &(&1 <> "%"))
 

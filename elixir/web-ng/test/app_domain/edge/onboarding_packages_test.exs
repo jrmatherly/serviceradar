@@ -62,13 +62,13 @@ defmodule ServiceRadarWebNG.Edge.OnboardingPackagesTest do
 
     test "normalizes repeated component-type prefixes in component_id", _context do
       attrs = %{
-        label: "agent-dusk",
+        label: "agent-alpha",
         component_type: :agent,
-        component_id: "agent-agent-dusk"
+        component_id: "agent-agent-alpha"
       }
 
       assert {:ok, result} = OnboardingPackages.create(attrs, actor: @actor)
-      assert result.package.component_id == "agent-dusk"
+      assert result.package.component_id == "agent-alpha"
     end
 
     test "uses partition_id as the canonical partition field", _context do

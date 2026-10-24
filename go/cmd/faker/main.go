@@ -517,7 +517,7 @@ func (c *Config) applyDefaults() {
 	c.Simulation.IPShuffle.AllowExpansion = false
 	c.Simulation.IPShuffle.PoolHeadroomPercent = 0
 	c.Simulation.BGP.Enabled = false
-	c.Simulation.BGP.Seed = 40_164_200
+	c.Simulation.BGP.Seed = 73_911_046
 	c.Simulation.BGP.PublishInterval = "15s"
 	c.Simulation.BGP.OutageInterval = "2m"
 	c.Simulation.BGP.OutageDurationMin = "20s"
@@ -527,9 +527,9 @@ func (c *Config) applyDefaults() {
 	c.Simulation.BGP.GobgpBinary = "gobgpd"
 	c.Simulation.BGP.GobgpCLIBinary = "gobgp"
 	c.Simulation.BGP.BMPCollectorAddress = "127.0.0.1:11019"
-	c.Simulation.BGP.RouterID = "204.209.51.59"
+	c.Simulation.BGP.RouterID = "192.0.2.10"
 	c.Simulation.BGP.MaxPrefixesPerTick = 3
-	c.Simulation.BGP.LocalASN = 401_642
+	c.Simulation.BGP.LocalASN = 65_010
 	c.Simulation.BGP.Peers = defaultBGPPeers()
 	c.Simulation.BGP.AdvertisedPrefixes = []string{
 		"198.51.100.0/24",

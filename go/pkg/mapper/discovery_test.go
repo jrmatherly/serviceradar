@@ -568,10 +568,10 @@ func TestAddOrUpdateDeviceToResultsCanonicalizesSameIPIdentity(t *testing.T) {
 	engine := &DiscoveryEngine{logger: logger.NewTestLogger()}
 
 	existing := &DiscoveredDevice{
-		DeviceID: "mac-f492bf75c721",
-		IP:       "152.117.116.178",
-		MAC:      "f4:92:bf:75:c7:21",
-		Hostname: "farm01",
+		DeviceID: "mac-f09fc21a4b7c",
+		IP:       "198.51.100.23",
+		MAC:      "f0:9f:c2:1a:4b:7c",
+		Hostname: "edge01",
 		Metadata: map[string]string{"source": "unifi-api"},
 	}
 
@@ -588,19 +588,19 @@ func TestAddOrUpdateDeviceToResultsCanonicalizesSameIPIdentity(t *testing.T) {
 	}
 
 	incomingSNMP := &DiscoveredDevice{
-		DeviceID: "mac-f692bf75c721",
-		IP:       "152.117.116.178",
-		MAC:      "f6:92:bf:75:c7:21",
-		Hostname: "farm01",
+		DeviceID: "mac-f29fc21a4b7c",
+		IP:       "198.51.100.23",
+		MAC:      "f2:9f:c2:1a:4b:7c",
+		Hostname: "edge01",
 		Metadata: map[string]string{"source": "snmp"},
 	}
 
 	engine.addOrUpdateDeviceToResults(job, incomingSNMP)
 
 	require.Len(t, job.Results.Devices, 1)
-	assert.Equal(t, "mac-f492bf75c721", job.Results.Devices[0].DeviceID)
-	assert.Equal(t, "f4:92:bf:75:c7:21", job.Results.Devices[0].MAC)
-	assert.Equal(t, "1", job.Results.Devices[0].Metadata["alt_mac:f692bf75c721"])
+	assert.Equal(t, "mac-f09fc21a4b7c", job.Results.Devices[0].DeviceID)
+	assert.Equal(t, "f0:9f:c2:1a:4b:7c", job.Results.Devices[0].MAC)
+	assert.Equal(t, "1", job.Results.Devices[0].Metadata["alt_mac:f29fc21a4b7c"])
 }
 
 func TestAddOrUpdateDeviceToResultsDoesNotMixDistinctHardwareAtSameIP(t *testing.T) {
@@ -944,7 +944,7 @@ func TestMaybeExportDebugBundle(t *testing.T) {
 				{LocalDeviceID: "mac-a", LocalDeviceIP: "192.168.1.10", NeighborMgmtAddr: "192.168.1.1"},
 			},
 			Contract: DiscoveryContract{
-				AgentID: "agent-dusk",
+				AgentID: "agent-alpha",
 			},
 		},
 	}
@@ -1023,9 +1023,9 @@ func TestAttachTopologyObservationV2(t *testing.T) {
 		LocalIfIndex:       23,
 		LocalIfName:        "eth4",
 		NeighborMgmtAddr:   "192.168.10.154",
-		NeighborChassisID:  "0c:ea:14:32:d2:77",
+		NeighborChassisID:  "0c:a1:b2:c3:d4:e7",
 		NeighborPortID:     "eth4",
-		NeighborSystemName: "tonka01",
+		NeighborSystemName: "hub01",
 		Metadata: map[string]string{
 			"discovery_id":           "job-1",
 			"source":                 "snmp-lldp",
@@ -1049,7 +1049,7 @@ func TestAttachTopologyObservationV2(t *testing.T) {
 	var parsed TopologyObservationV2
 	require.NoError(t, json.Unmarshal([]byte(link.Metadata["observation_v2_json"]), &parsed))
 	assert.Equal(t, "mac-001122334455", parsed.SourceEndpoint.UID)
-	assert.Equal(t, "0c:ea:14:32:d2:77", parsed.TargetEndpoint.UID)
+	assert.Equal(t, "0c:a1:b2:c3:d4:e7", parsed.TargetEndpoint.UID)
 }
 
 func TestAttachTopologyObservationV2FallsBackToNeighborDeviceID(t *testing.T) {

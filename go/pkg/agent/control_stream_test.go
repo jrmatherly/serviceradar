@@ -590,7 +590,7 @@ func TestSendControlHello_IncludesRuntimeMetadata(t *testing.T) {
 	loop := &PushLoop{
 		server: &Server{
 			config: &ServerConfig{
-				AgentID:     "agent-dusk",
+				AgentID:     "agent-alpha",
 				Partition:   defaultSweepGroupID,
 				GatewayAddr: "gateway.demo:50051",
 			},
@@ -610,8 +610,8 @@ func TestSendControlHello_IncludesRuntimeMetadata(t *testing.T) {
 	if hello == nil {
 		t.Fatal("expected first control stream message to be hello")
 	}
-	if hello.GetAgentId() != "agent-dusk" {
-		t.Fatalf("hello.AgentId = %q, want %q", hello.GetAgentId(), "agent-dusk")
+	if hello.GetAgentId() != "agent-alpha" {
+		t.Fatalf("hello.AgentId = %q, want %q", hello.GetAgentId(), "agent-alpha")
 	}
 	if hello.GetPartition() != defaultSweepGroupID {
 		t.Fatalf("hello.Partition = %q, want %q", hello.GetPartition(), defaultSweepGroupID)

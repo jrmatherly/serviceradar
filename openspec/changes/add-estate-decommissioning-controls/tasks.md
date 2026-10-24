@@ -2,14 +2,14 @@
 
 ## 0. PRIORITY: endpoint clustering produces no summaries on qualifying anchors
 
-Observed on `demo` 2026-08-27. Nothing renders beneath `aruba-24g-02` or `tonka01` even
+Observed on `demo` 2026-08-27. Nothing renders beneath `aruba-24g-02` or `hub01` even
 though the attachment data is complete and qualifying:
 
 ```
 aruba-24g-02 (192.168.10.154)
   attached endpoints        : 10
   resolved to live devices  : 10   (unresolved: 0)
-  infrastructure-typed      :  2   (tonka01, MikroTik)
+  infrastructure-typed      :  2   (hub01, MikroTik)
   endpoint-like             :  8   >= @endpoint_cluster_min_members (3)
   clusters produced         :  0
 ```
@@ -33,13 +33,13 @@ Pipeline stats for the same run: `final_attachment: 17`, `pair_attachment: 24`,
 
 RESOLVED on 2026-08-27: this is NOT an identity or IP-reuse problem, and the sweep is not
 fabricating results. `MikroTik` (192.168.6.167) is genuinely powered off -- unreachable from
-the operator's workstation AND from dusk01, the host running the reporting agent. The agent
+the operator's workstation AND from alpha01, the host running the reporting agent. The agent
 reports it correctly. Two defects then discard that answer:
 
 ```
 device 192.168.6.167  is_available: TRUE   last_seen_time: 06:19:46  modified: 06:19:47
                       availability_source_agent_id: (empty)
-agent-dusk01          06:19:30  is_available: FALSE   <- correct, and ignored
+agent-alpha01          06:19:30  is_available: FALSE   <- correct, and ignored
 agent-sr-test-pve04   05:05:37  is_available: TRUE    <- 77 min stale, never expired
 ```
 
@@ -77,7 +77,7 @@ agent-sr-test-pve04   05:05:37  is_available: TRUE    <- 77 min stale, never exp
 - [ ] 1.4 Authorize the event (LiveView iron law: authorize in every `handle_event`).
 - [ ] 1.5 Record actor and timestamp; keep the row queryable for audit.
 - [ ] 1.6 Make the Edge Ops package dialog stop reading as a removal path. Deleting a
-      `delivered` package revokes nothing -- verified on `agent-dusk01`, which stayed
+      `delivered` package revokes nothing -- verified on `agent-alpha01`, which stayed
       `Connected` and acked config 22s after its package was deleted.
 - [ ] 1.7 Handle the already-offline case: revoke without failing on the absent session.
 
@@ -140,7 +140,7 @@ agent-sr-test-pve04   05:05:37  is_available: TRUE    <- 77 min stale, never exp
       `deleted_reason: "merged"`, but nothing re-points or removes the canonical edges that
       reference the retired uid. Measured on demo 2026-08-27: `pve02` had BOTH a live uid
       (`sr:5bf1b6f6...`, 9 edges) and a merged tombstone (`sr:9792202c...`, 7 edges) in
-      `CANONICAL_TOPOLOGY`, and their peer sets were IDENTICAL (tonka01, aruba-24g-02,
+      `CANONICAL_TOPOLOGY`, and their peer sets were IDENTICAL (hub01, aruba-24g-02,
       EDGE-1 under two IPs). So the graph draws the same host twice, and the tombstone half
       is indistinguishable from a departed-estate ghost by the deleted_at test. These edges
       are still being refreshed (last observed within the hour), so deleting them is

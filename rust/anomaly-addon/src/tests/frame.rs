@@ -207,8 +207,8 @@ async fn snmp_points_without_target_identity_are_not_scored_on_the_agent_series(
     let scoring_health = Arc::new(Mutex::new(ScoringHealth::default()));
     let batch = MetricBatch {
         resource: Some(MetricResource {
-            agent_id: "agent-dusk01".to_string(),
-            host_id: "dusk01".to_string(),
+            agent_id: "agent-alpha01".to_string(),
+            host_id: "alpha01".to_string(),
             partition: "demo".to_string(),
             ..Default::default()
         }),
@@ -330,9 +330,9 @@ async fn snmp_points_with_canonical_polled_device_are_scored_without_target_ip()
     let scoring_health = Arc::new(Mutex::new(ScoringHealth::default()));
     let batch = MetricBatch {
         resource: Some(MetricResource {
-            agent_id: "agent-dusk01".to_string(),
-            host_id: "dusk01".to_string(),
-            device_id: "sr:farm01".to_string(),
+            agent_id: "agent-alpha01".to_string(),
+            host_id: "alpha01".to_string(),
+            device_id: "sr:edge01".to_string(),
             partition: "demo".to_string(),
             ..Default::default()
         }),

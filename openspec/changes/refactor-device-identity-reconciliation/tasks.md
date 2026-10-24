@@ -42,7 +42,7 @@
 
 - [x] 4.1 Write remediation migration: extract first-MAC fallback for blob-only devices, delete all comma/malformed `mac` identifier rows (~12.16M rows, ~10 GB), with full audit manifest.
 - [x] 4.2 Remove test debris: 21 test-artifact `ocsf_agents` rows, `agent-reip-*` devices, `k8s-pod-a/b`, and their identifiers.
-- [x] 4.3 Unmerge the worker-agent chimera (`sr:fe464cc5`): recreate/untombstone per-host devices for cp2-worker1..3/cp3-worker1..2, re-point each agent's `device_uid` and `agent_id` identifier, fix `agent-dusk01`→tonka01 mislink and k8s-agent's identifier on the FAKER device, clear poisoned `device_alias_states` (10.0.2.8–.12), fix `ip='agent'` literal.
+- [x] 4.3 Unmerge the worker-agent chimera (`sr:fe464cc5`): recreate/untombstone per-host devices for dev-k8s-worker1..3/lab-k8s-worker1..2, re-point each agent's `device_uid` and `agent_id` identifier, fix `agent-alpha01`→hub01 mislink and k8s-agent's identifier on the FAKER device, clear poisoned `device_alias_states` (10.0.2.8–.12), fix `ip='agent'` literal.
 - [x] 4.4 Collapse intra-Proxmox duplicates via legacy integration_id mapping (traefik ×3, 15+ hosts ×2).
 - [ ] 4.5 (live ops, after 4.1-4.4 executed in demo) `VACUUM FULL` + reindex `platform.device_identifiers`; tune autovacuum for the table; record before/after sizes.
 - [ ] 4.6 (live, after remediation run) Verify in demo: every connected agent has its own device with the bolt in /devices; device_identifiers < 1M rows and stable.

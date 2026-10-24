@@ -892,7 +892,7 @@ faker:
       poolHeadroomPercent: 0
     bgp:
       enabled: false
-      seed: 40164200
+      seed: 73911046
       publishInterval: "15s"
       outageInterval: "2m"
       outageDurationMin: "20s"
@@ -902,116 +902,116 @@ faker:
       gobgpBinary: "gobgpd"
       gobgpCliBinary: "gobgp"
       bmpCollectorAddress: "serviceradar-bmp-collector:11019"
-      routerId: "204.209.51.59"
+      routerId: "192.0.2.10"
       maxPrefixesPerTick: 3
-      localAsn: 401642
+      localAsn: 65010
       advertisedPrefixes:
         - "198.51.100.0/24"
         - "2001:db8::/48"
       peers:
-        - name: "k8s-cp1-control"
-          ip: "10.0.2.2"
-          peer_asn: 401642
-          description: "k8s-cp1-control"
-        - name: "k8s-cp2-control"
-          ip: "10.0.2.3"
-          peer_asn: 401642
-          description: "k8s-cp2-control"
-        - name: "k8s-cp3-control"
-          ip: "10.0.2.4"
-          peer_asn: 401642
-          description: "k8s-cp3-control"
-        - name: "k8s-cp1-worker1"
-          ip: "10.0.2.5"
-          peer_asn: 401642
-          description: "k8s-cp1-worker1"
-        - name: "k8s-cp1-worker2"
-          ip: "10.0.2.6"
-          peer_asn: 401642
-          description: "k8s-cp1-worker2"
-        - name: "k8s-cp1-worker3"
-          ip: "10.0.2.7"
-          peer_asn: 401642
-          description: "k8s-cp1-worker3"
-        - name: "k8s-cp2-worker1"
-          ip: "10.0.2.8"
-          peer_asn: 401642
-          description: "k8s-cp2-worker1"
-        - name: "k8s-cp2-worker2"
-          ip: "10.0.2.9"
-          peer_asn: 401642
-          description: "k8s-cp2-worker2"
-        - name: "k8s-cp2-worker3"
-          ip: "10.0.2.10"
-          peer_asn: 401642
-          description: "k8s-cp2-worker3"
-        - name: "k8s-cp3-worker1"
-          ip: "10.0.2.11"
-          peer_asn: 401642
-          description: "k8s-cp3-worker1"
-        - name: "k8s-cp3-worker2"
-          ip: "10.0.2.12"
-          peer_asn: 401642
-          description: "k8s-cp3-worker2"
-        - name: "k8s-cp3-worker3"
-          ip: "10.0.2.13"
-          peer_asn: 401642
-          description: "k8s-cp3-worker3"
+        - name: "ops-k8s-control"
+          ip: "192.0.2.42"
+          peer_asn: 65010
+          description: "ops-k8s-control"
+        - name: "dev-k8s-control"
+          ip: "192.0.2.43"
+          peer_asn: 65010
+          description: "dev-k8s-control"
+        - name: "lab-k8s-control"
+          ip: "192.0.2.44"
+          peer_asn: 65010
+          description: "lab-k8s-control"
+        - name: "ops-k8s-worker1"
+          ip: "192.0.2.45"
+          peer_asn: 65010
+          description: "ops-k8s-worker1"
+        - name: "ops-k8s-worker2"
+          ip: "192.0.2.46"
+          peer_asn: 65010
+          description: "ops-k8s-worker2"
+        - name: "ops-k8s-worker3"
+          ip: "192.0.2.47"
+          peer_asn: 65010
+          description: "ops-k8s-worker3"
+        - name: "dev-k8s-worker1"
+          ip: "192.0.2.48"
+          peer_asn: 65010
+          description: "dev-k8s-worker1"
+        - name: "dev-k8s-worker2"
+          ip: "192.0.2.49"
+          peer_asn: 65010
+          description: "dev-k8s-worker2"
+        - name: "dev-k8s-worker3"
+          ip: "192.0.2.50"
+          peer_asn: 65010
+          description: "dev-k8s-worker3"
+        - name: "lab-k8s-worker1"
+          ip: "192.0.2.51"
+          peer_asn: 65010
+          description: "lab-k8s-worker1"
+        - name: "lab-k8s-worker2"
+          ip: "192.0.2.52"
+          peer_asn: 65010
+          description: "lab-k8s-worker2"
+        - name: "lab-k8s-worker3"
+          ip: "192.0.2.53"
+          peer_asn: 65010
+          description: "lab-k8s-worker3"
         - name: "isp-ipv4"
-          ip: "204.209.51.58"
-          peer_asn: 10242
+          ip: "192.0.2.9"
+          peer_asn: 64500
           description: "ISP-IPv4"
-        - name: "k8s-cp1-control-ipv6"
+        - name: "ops-k8s-control-ipv6"
           ip: "2001:db8:0:ff::2"
-          peer_asn: 401642
-          description: "k8s-cp1-control-ipv6"
-        - name: "k8s-cp2-control-ipv6"
+          peer_asn: 65010
+          description: "ops-k8s-control-ipv6"
+        - name: "dev-k8s-control-ipv6"
           ip: "2001:db8:0:ff::3"
-          peer_asn: 401642
-          description: "k8s-cp2-control-ipv6"
-        - name: "k8s-cp3-control-ipv6"
+          peer_asn: 65010
+          description: "dev-k8s-control-ipv6"
+        - name: "lab-k8s-control-ipv6"
           ip: "2001:db8:0:ff::4"
-          peer_asn: 401642
-          description: "k8s-cp3-control-ipv6"
-        - name: "k8s-cp1-worker1-ipv6"
+          peer_asn: 65010
+          description: "lab-k8s-control-ipv6"
+        - name: "ops-k8s-worker1-ipv6"
           ip: "2001:db8:0:ff::5"
-          peer_asn: 401642
-          description: "k8s-cp1-worker1-ipv6"
-        - name: "k8s-cp1-worker2-ipv6"
+          peer_asn: 65010
+          description: "ops-k8s-worker1-ipv6"
+        - name: "ops-k8s-worker2-ipv6"
           ip: "2001:db8:0:ff::6"
-          peer_asn: 401642
-          description: "k8s-cp1-worker2-ipv6"
-        - name: "k8s-cp1-worker3-ipv6"
+          peer_asn: 65010
+          description: "ops-k8s-worker2-ipv6"
+        - name: "ops-k8s-worker3-ipv6"
           ip: "2001:db8:0:ff::7"
-          peer_asn: 401642
-          description: "k8s-cp1-worker3-ipv6"
-        - name: "k8s-cp2-worker1-ipv6"
+          peer_asn: 65010
+          description: "ops-k8s-worker3-ipv6"
+        - name: "dev-k8s-worker1-ipv6"
           ip: "2001:db8:0:ff::8"
-          peer_asn: 401642
-          description: "k8s-cp2-worker1-ipv6"
-        - name: "k8s-cp2-worker2-ipv6"
+          peer_asn: 65010
+          description: "dev-k8s-worker1-ipv6"
+        - name: "dev-k8s-worker2-ipv6"
           ip: "2001:db8:0:ff::9"
-          peer_asn: 401642
-          description: "k8s-cp2-worker2-ipv6"
-        - name: "k8s-cp2-worker3-ipv6"
+          peer_asn: 65010
+          description: "dev-k8s-worker2-ipv6"
+        - name: "dev-k8s-worker3-ipv6"
           ip: "2001:db8:0:ff::10"
-          peer_asn: 401642
-          description: "k8s-cp2-worker3-ipv6"
-        - name: "k8s-cp3-worker1-ipv6"
+          peer_asn: 65010
+          description: "dev-k8s-worker3-ipv6"
+        - name: "lab-k8s-worker1-ipv6"
           ip: "2001:db8:0:ff::11"
-          peer_asn: 401642
-          description: "k8s-cp3-worker1-ipv6"
-        - name: "k8s-cp3-worker2-ipv6"
+          peer_asn: 65010
+          description: "lab-k8s-worker1-ipv6"
+        - name: "lab-k8s-worker2-ipv6"
           ip: "2001:db8:0:ff::12"
-          peer_asn: 401642
-          description: "k8s-cp3-worker2-ipv6"
-        - name: "k8s-cp3-worker3-ipv6"
+          peer_asn: 65010
+          description: "lab-k8s-worker2-ipv6"
+        - name: "lab-k8s-worker3-ipv6"
           ip: "2001:db8:0:ff::13"
-          peer_asn: 401642
-          description: "k8s-cp3-worker3-ipv6"
+          peer_asn: 65010
+          description: "lab-k8s-worker3-ipv6"
         - name: "isp-ipv6"
-          ip: "2605:8400:ff:142::"
-          peer_asn: 10242
+          ip: "2001:db8:ff:9::"
+          peer_asn: 64500
           description: "ISP-IPv6"
 gobgp:
   enabled: false
@@ -1023,8 +1023,8 @@ gobgp:
     host: "0.0.0.0"
     port: 50051
   bgp:
-    localAsn: 401642
-    routerId: "204.209.51.59"
+    localAsn: 65010
+    routerId: "192.0.2.10"
     listenPort: 179
   bmp:
     address: "serviceradar-bmp-collector"

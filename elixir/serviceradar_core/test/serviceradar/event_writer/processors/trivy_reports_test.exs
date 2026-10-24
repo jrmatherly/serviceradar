@@ -118,7 +118,7 @@ defmodule ServiceRadar.EventWriter.Processors.TrivyReportsTest do
         "observed_at" => "2026-03-03T18:40:00Z",
         "summary" => %{"highCount" => 1},
         "correlation" => %{
-          "agent_id" => "agent-k8s-cp3-worker1",
+          "agent_id" => "agent-lab-k8s-worker1",
           "device_uid" => "sr:7cf3224f-273e-4ef3-94b2-53145589a3bc",
           "resource_kind" => "Pod",
           "resource_name" => "nginx-123",
@@ -149,7 +149,7 @@ defmodule ServiceRadar.EventWriter.Processors.TrivyReportsTest do
                "sr:7cf3224f-273e-4ef3-94b2-53145589a3bc"
 
       assert row.metadata["service_radar"]["device_hostname"] == "worker-1"
-      assert row.metadata["service_radar"]["agent_id"] == "agent-k8s-cp3-worker1"
+      assert row.metadata["service_radar"]["agent_id"] == "agent-lab-k8s-worker1"
       assert row.device[:uid] == "sr:7cf3224f-273e-4ef3-94b2-53145589a3bc"
       assert row.device[:hostname] == "worker-1"
     end
@@ -203,7 +203,7 @@ defmodule ServiceRadar.EventWriter.Processors.TrivyReportsTest do
         "observed_at" => "2026-03-03T18:40:00Z",
         "summary" => %{"criticalCount" => 1},
         "correlation" => %{
-          "agent_id" => "agent-k8s-cp3-worker1",
+          "agent_id" => "agent-lab-k8s-worker1",
           "device_uid" => "sr:7cf3224f-273e-4ef3-94b2-53145589a3bc",
           "resource_kind" => "Pod",
           "resource_name" => "nginx-123",

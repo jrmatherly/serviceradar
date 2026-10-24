@@ -63,7 +63,7 @@ renovation closes.
   - BuildBuddy and Forgejo secret-store contents (delete the CA PEM)
 - Operational impact:
   - Must land before 2026-08-24 or refresh the stored PEM as a stay of execution.
-  - `srql-fixture-2` is `ImagePullBackOff` on `k8s-cp3-worker3`; fix placement before TLS
+  - `srql-fixture-2` is `ImagePullBackOff` on `lab-k8s-worker3`; fix placement before TLS
     cutover so the cluster is not a single replica during reload.
   - Tightens the fixture CA contract introduced in
     `route-bazel-cache-through-shared-edge` without rewriting that cache-routing spec.

@@ -19,8 +19,8 @@ defmodule ServiceRadar.Inventory.Sync.MacVendor do
   A locally administered address belongs to whoever the software chose to
   imitate. Docker, VMs, overlay networks and MAC-randomising phones all use
   them, and the prefix that results can collide with a real registration.
-  The collision is concrete: `F692BF0A1B2C` is the locally administered form
-  of a Ubiquiti-registered `F492BF` address, differing only in bit 1 of the
+  The collision is concrete: `F29FC20A1B2C` is the locally administered form
+  of a Ubiquiti-registered `F09FC2` address, differing only in bit 1 of the
   first octet. Devices really do derive randomised addresses from their
   own hardware address, so a prefix lookup without the bit test produces a
   confident and wrong vendor.

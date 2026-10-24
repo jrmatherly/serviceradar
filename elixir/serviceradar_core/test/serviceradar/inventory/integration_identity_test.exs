@@ -3,10 +3,10 @@ defmodule ServiceRadar.Inventory.IntegrationIdentityTest do
 
   alias ServiceRadar.Inventory.IntegrationIdentity
 
-  @farm_integration_id "11111111-1111-4111-8111-111111111111"
-  @farm_controller_id "22222222-2222-4222-8222-222222222222"
-  @tonka_integration_id "33333333-3333-4333-8333-333333333333"
-  @tonka_controller_id "44444444-4444-4444-8444-444444444444"
+  @edge_integration_id "11111111-1111-4111-8111-111111111111"
+  @edge_controller_id "22222222-2222-4222-8222-222222222222"
+  @hub_integration_id "33333333-3333-4333-8333-333333333333"
+  @hub_controller_id "44444444-4444-4444-8444-444444444444"
 
   @tag :scoped_identity_contract
   test "scoped device identities normalize source boundaries and retain native IDs" do
@@ -27,24 +27,24 @@ defmodule ServiceRadar.Inventory.IntegrationIdentityTest do
     test "renders and parses canonical cluster, node, and guest refs" do
       assert {:ok, cluster} =
                IntegrationIdentity.proxmox_v3_fields(
-                 @farm_integration_id,
-                 @farm_controller_id,
-                 "cluster/farm 01",
+                 @edge_integration_id,
+                 @edge_controller_id,
+                 "cluster/edge 01",
                  :cluster,
-                 "cluster/farm 01"
+                 "cluster/edge 01"
                )
 
       assert cluster.provider_instance_ref ==
-               "proxmox:v3:#{@farm_integration_id}:#{@farm_controller_id}:cluster%2Ffarm%2001"
+               "proxmox:v3:#{@edge_integration_id}:#{@edge_controller_id}:cluster%2Fedge%2001"
 
       assert cluster.provider_ref ==
-               "#{cluster.provider_instance_ref}:cluster:cluster%2Ffarm%2001"
+               "#{cluster.provider_instance_ref}:cluster:cluster%2Fedge%2001"
 
       assert {:ok, node} =
                IntegrationIdentity.proxmox_v3_fields(
-                 @farm_integration_id,
-                 @farm_controller_id,
-                 "cluster/farm 01",
+                 @edge_integration_id,
+                 @edge_controller_id,
+                 "cluster/edge 01",
                  :node,
                  "pve:a"
                )
@@ -55,9 +55,9 @@ defmodule ServiceRadar.Inventory.IntegrationIdentityTest do
 
       assert {:ok, guest} =
                IntegrationIdentity.proxmox_v3_fields(
-                 @farm_integration_id,
-                 @farm_controller_id,
-                 "cluster/farm 01",
+                 @edge_integration_id,
+                 @edge_controller_id,
+                 "cluster/edge 01",
                  :vm,
                  "00100"
                )
@@ -68,48 +68,48 @@ defmodule ServiceRadar.Inventory.IntegrationIdentityTest do
     end
 
     test "keeps identical native identifiers distinct across integration/controller scopes" do
-      assert {:ok, farm} =
+      assert {:ok, edge} =
                IntegrationIdentity.proxmox_v3_fields(
-                 @farm_integration_id,
-                 @farm_controller_id,
+                 @edge_integration_id,
+                 @edge_controller_id,
                  "lab",
                  :qemu,
                  155
                )
 
-      assert {:ok, tonka} =
+      assert {:ok, hub} =
                IntegrationIdentity.proxmox_v3_fields(
-                 @tonka_integration_id,
-                 @tonka_controller_id,
+                 @hub_integration_id,
+                 @hub_controller_id,
                  "lab",
                  :qemu,
                  155
                )
 
-      refute farm.provider_instance_ref == tonka.provider_instance_ref
-      refute farm.provider_ref == tonka.provider_ref
-      assert farm.native_cluster_id == tonka.native_cluster_id
-      assert farm.native_object_id == tonka.native_object_id
+      refute edge.provider_instance_ref == hub.provider_instance_ref
+      refute edge.provider_ref == hub.provider_ref
+      assert edge.native_cluster_id == hub.native_cluster_id
+      assert edge.native_object_id == hub.native_object_id
     end
 
     test "rejects malformed, noncanonical, and mismatched structured refs" do
       assert {:error, :invalid_uuid} =
                IntegrationIdentity.proxmox_v3_fields(
-                 "farm01",
-                 @farm_controller_id,
+                 "edge01",
+                 @edge_controller_id,
                  "lab",
                  :node,
                  "pve01"
                )
 
       refute IntegrationIdentity.v3?(
-               "proxmox:v3:#{@farm_integration_id}:#{@farm_controller_id}:lab:node:pve%30%31"
+               "proxmox:v3:#{@edge_integration_id}:#{@edge_controller_id}:lab:node:pve%30%31"
              )
 
       assert {:ok, identity} =
                IntegrationIdentity.proxmox_v3_fields(
-                 @farm_integration_id,
-                 @farm_controller_id,
+                 @edge_integration_id,
+                 @edge_controller_id,
                  "lab",
                  :node,
                  "pve01"
@@ -132,9 +132,9 @@ defmodule ServiceRadar.Inventory.IntegrationIdentityTest do
     test "returns v2 and older refs only as lookup candidates" do
       assert {:ok, identity} =
                IntegrationIdentity.proxmox_v3_fields(
-                 @farm_integration_id,
-                 @farm_controller_id,
-                 "cluster/farm01",
+                 @edge_integration_id,
+                 @edge_controller_id,
+                 "cluster/edge01",
                  :qemu,
                  132
                )
@@ -142,27 +142,27 @@ defmodule ServiceRadar.Inventory.IntegrationIdentityTest do
       candidates =
         IntegrationIdentity.legacy_candidates(identity.provider_ref, %{
           node: "pve01",
-          name: "dusk01",
+          name: "alpha01",
           guest_type: "qemu"
         })
 
-      assert "proxmox:v2:farm01:vm:132" in candidates
+      assert "proxmox:v2:edge01:vm:132" in candidates
       refute "proxmox:guest:pve01:qemu:132" in candidates
-      # bare guest names never bridge: dusk01 may name a different cluster's VM
-      refute "proxmox:vm:dusk01" in candidates
+      # bare guest names never bridge: alpha01 may name a different cluster's VM
+      refute "proxmox:vm:alpha01" in candidates
       refute identity.provider_ref in candidates
     end
   end
 
   describe "proxmox_node_id/2" do
     test "mints the versioned cluster-scoped node id" do
-      assert IntegrationIdentity.proxmox_node_id("farm01", "pve01") ==
-               "proxmox:v2:farm01:node:pve01"
+      assert IntegrationIdentity.proxmox_node_id("edge01", "pve01") ==
+               "proxmox:v2:edge01:node:pve01"
     end
 
     test "normalizes segments so case/format churn cannot rotate the id" do
-      assert IntegrationIdentity.proxmox_node_id(" Farm01 ", "PVE01") ==
-               "proxmox:v2:farm01:node:pve01"
+      assert IntegrationIdentity.proxmox_node_id(" Edge01 ", "PVE01") ==
+               "proxmox:v2:edge01:node:pve01"
 
       assert IntegrationIdentity.proxmox_node_id("lab cluster", "node:a") ==
                "proxmox:v2:lab-cluster:node:node-a"
@@ -170,55 +170,55 @@ defmodule ServiceRadar.Inventory.IntegrationIdentityTest do
 
     test "returns nil when either segment is missing" do
       assert IntegrationIdentity.proxmox_node_id(nil, "pve01") == nil
-      assert IntegrationIdentity.proxmox_node_id("farm01", nil) == nil
+      assert IntegrationIdentity.proxmox_node_id("edge01", nil) == nil
       assert IntegrationIdentity.proxmox_node_id("  ", "pve01") == nil
-      assert IntegrationIdentity.proxmox_node_id("farm01", "") == nil
+      assert IntegrationIdentity.proxmox_node_id("edge01", "") == nil
     end
   end
 
   describe "proxmox_guest_id/3" do
     test "mints vmid-keyed guest ids for qemu and lxc" do
-      assert IntegrationIdentity.proxmox_guest_id("farm01", "qemu", 132) ==
-               "proxmox:v2:farm01:vm:132"
+      assert IntegrationIdentity.proxmox_guest_id("edge01", "qemu", 132) ==
+               "proxmox:v2:edge01:vm:132"
 
-      assert IntegrationIdentity.proxmox_guest_id("farm01", "lxc", 201) ==
-               "proxmox:v2:farm01:lxc:201"
+      assert IntegrationIdentity.proxmox_guest_id("edge01", "lxc", 201) ==
+               "proxmox:v2:edge01:lxc:201"
     end
 
     test "accepts already-normalized kinds and string vmids" do
-      assert IntegrationIdentity.proxmox_guest_id("farm01", "vm", "132") ==
-               "proxmox:v2:farm01:vm:132"
+      assert IntegrationIdentity.proxmox_guest_id("edge01", "vm", "132") ==
+               "proxmox:v2:edge01:vm:132"
 
-      assert IntegrationIdentity.proxmox_guest_id("farm01", "container", 201) ==
-               "proxmox:v2:farm01:lxc:201"
+      assert IntegrationIdentity.proxmox_guest_id("edge01", "container", 201) ==
+               "proxmox:v2:edge01:lxc:201"
     end
 
     test "returns nil when cluster, kind, or vmid are unusable" do
       assert IntegrationIdentity.proxmox_guest_id(nil, "qemu", 132) == nil
-      assert IntegrationIdentity.proxmox_guest_id("farm01", nil, 132) == nil
-      assert IntegrationIdentity.proxmox_guest_id("farm01", "qemu", nil) == nil
-      assert IntegrationIdentity.proxmox_guest_id("farm01", "qemu", "abc") == nil
-      assert IntegrationIdentity.proxmox_guest_id("farm01", "qemu", -1) == nil
+      assert IntegrationIdentity.proxmox_guest_id("edge01", nil, 132) == nil
+      assert IntegrationIdentity.proxmox_guest_id("edge01", "qemu", nil) == nil
+      assert IntegrationIdentity.proxmox_guest_id("edge01", "qemu", "abc") == nil
+      assert IntegrationIdentity.proxmox_guest_id("edge01", "qemu", -1) == nil
     end
   end
 
   describe "v2?/1 and parse_v2/1" do
     test "recognizes v2 ids" do
-      assert IntegrationIdentity.v2?("proxmox:v2:farm01:vm:132")
-      refute IntegrationIdentity.v2?("proxmox:vm:dusk01")
+      assert IntegrationIdentity.v2?("proxmox:v2:edge01:vm:132")
+      refute IntegrationIdentity.v2?("proxmox:vm:alpha01")
       refute IntegrationIdentity.v2?(nil)
       refute IntegrationIdentity.v2?(132)
     end
 
     test "parses v2 ids into components" do
-      assert {:ok, %{provider: "proxmox", cluster: "farm01", kind: "vm", ref: "132"}} =
-               IntegrationIdentity.parse_v2("proxmox:v2:farm01:vm:132")
+      assert {:ok, %{provider: "proxmox", cluster: "edge01", kind: "vm", ref: "132"}} =
+               IntegrationIdentity.parse_v2("proxmox:v2:edge01:vm:132")
 
-      assert {:ok, %{cluster: "farm01", kind: "node", ref: "pve01"}} =
-               IntegrationIdentity.parse_v2("proxmox:v2:farm01:node:pve01")
+      assert {:ok, %{cluster: "edge01", kind: "node", ref: "pve01"}} =
+               IntegrationIdentity.parse_v2("proxmox:v2:edge01:node:pve01")
 
-      assert :error = IntegrationIdentity.parse_v2("proxmox:v2:farm01:vm")
-      assert :error = IntegrationIdentity.parse_v2("proxmox:vm:dusk01")
+      assert :error = IntegrationIdentity.parse_v2("proxmox:v2:edge01:vm")
+      assert :error = IntegrationIdentity.parse_v2("proxmox:vm:alpha01")
       assert :error = IntegrationIdentity.parse_v2(nil)
     end
   end
@@ -247,11 +247,11 @@ defmodule ServiceRadar.Inventory.IntegrationIdentityTest do
     # continues through the v2 id, the exact provider ref, host NIC MACs, and
     # the IP/hostname adopt/merge rules.
     test "emits no bare-name bridges" do
-      assert IntegrationIdentity.legacy_candidates("proxmox:v2:farm01:node:pve01", %{
+      assert IntegrationIdentity.legacy_candidates("proxmox:v2:edge01:node:pve01", %{
                name: "pve01"
              }) == []
 
-      assert IntegrationIdentity.legacy_candidates("proxmox:v2:farm01:node:pve01", %{
+      assert IntegrationIdentity.legacy_candidates("proxmox:v2:edge01:node:pve01", %{
                name: "pve01.example.com"
              }) == []
     end
@@ -259,21 +259,21 @@ defmodule ServiceRadar.Inventory.IntegrationIdentityTest do
     test "v3 node refs still bridge to their v2 id" do
       assert {:ok, identity} =
                IntegrationIdentity.proxmox_v3_fields(
-                 @farm_integration_id,
-                 @farm_controller_id,
-                 "cluster/farm01",
+                 @edge_integration_id,
+                 @edge_controller_id,
+                 "cluster/edge01",
                  :node,
                  "pve01"
                )
 
       candidates = IntegrationIdentity.legacy_candidates(identity.provider_ref, %{})
-      assert candidates == ["proxmox:v2:farm01:node:pve01"]
+      assert candidates == ["proxmox:v2:edge01:node:pve01"]
     end
   end
 
   describe "ambiguous_name_keyed?/1" do
     test "flags the bare-name legacy family" do
-      assert IntegrationIdentity.ambiguous_name_keyed?("proxmox:vm:k8s-cp3-worker1")
+      assert IntegrationIdentity.ambiguous_name_keyed?("proxmox:vm:lab-k8s-worker1")
       assert IntegrationIdentity.ambiguous_name_keyed?("proxmox:container:traefik")
       assert IntegrationIdentity.ambiguous_name_keyed?("proxmox:hypervisor:pve01")
       assert IntegrationIdentity.ambiguous_name_keyed?("proxmox:node:pve01")
@@ -304,20 +304,20 @@ defmodule ServiceRadar.Inventory.IntegrationIdentityTest do
     end
 
     test "matches case-insensitively with surrounding whitespace" do
-      assert IntegrationIdentity.ambiguous_name_keyed?("  PROXMOX:VM:K8S-CP3-Worker1  ")
+      assert IntegrationIdentity.ambiguous_name_keyed?("  PROXMOX:VM:LAB-K8S-Worker1  ")
     end
   end
 
   describe "legacy_candidates/2 edge cases" do
     test "returns no candidates for non-v2 or missing ids" do
-      assert IntegrationIdentity.legacy_candidates("proxmox:vm:dusk01", %{name: "dusk01"}) == []
-      assert IntegrationIdentity.legacy_candidates(nil, %{name: "dusk01"}) == []
+      assert IntegrationIdentity.legacy_candidates("proxmox:vm:alpha01", %{name: "alpha01"}) == []
+      assert IntegrationIdentity.legacy_candidates(nil, %{name: "alpha01"}) == []
       assert IntegrationIdentity.legacy_candidates("proxmox:v2:bad", %{}) == []
     end
 
     test "deduplicates and drops blank values" do
       candidates =
-        IntegrationIdentity.legacy_candidates("proxmox:v2:farm01:vm:132", %{
+        IntegrationIdentity.legacy_candidates("proxmox:v2:edge01:vm:132", %{
           name: "  ",
           node: "pve01",
           guest_type: "qemu"
@@ -332,21 +332,21 @@ defmodule ServiceRadar.Inventory.IntegrationIdentityTest do
   describe "lookup_values/1" do
     test "returns the canonical id first and legacy bridges last" do
       assert IntegrationIdentity.lookup_values(%{
-               integration_id: "proxmox:v2:farm01:vm:132",
-               legacy_integration_ids: ["proxmox:vm:dusk01", "proxmox:vm:qemu/132"]
+               integration_id: "proxmox:v2:edge01:vm:132",
+               legacy_integration_ids: ["proxmox:vm:alpha01", "proxmox:vm:qemu/132"]
              }) == [
-               "proxmox:v2:farm01:vm:132",
-               "proxmox:vm:dusk01",
+               "proxmox:v2:edge01:vm:132",
+               "proxmox:vm:alpha01",
                "proxmox:vm:qemu/132"
              ]
     end
 
     test "accepts string keys, list primaries, and deduplicates" do
       assert IntegrationIdentity.lookup_values(%{
-               "integration_id" => ["proxmox:v2:farm01:vm:132", "proxmox:guest:pve01:qemu:132"],
+               "integration_id" => ["proxmox:v2:edge01:vm:132", "proxmox:guest:pve01:qemu:132"],
                "legacy_integration_ids" => ["proxmox:guest:pve01:qemu:132", "", nil]
              }) == [
-               "proxmox:v2:farm01:vm:132",
+               "proxmox:v2:edge01:vm:132",
                "proxmox:guest:pve01:qemu:132"
              ]
     end

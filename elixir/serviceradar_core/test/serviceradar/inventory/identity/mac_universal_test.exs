@@ -17,11 +17,11 @@ defmodule ServiceRadar.Inventory.Identity.MacUniversalTest do
     end
 
     test "drops locally-administered MACs (2nd hex char has the 0x02 bit)" do
-      assert Mac.universal_macs(["02EA1432D278", "F692BF75C722"]) == MapSet.new()
+      assert Mac.universal_macs(["02A1B2C3D4E5", "F29FC21A4B7D"]) == MapSet.new()
     end
 
     test "normalizes comma blobs to atomic MACs before filtering" do
-      assert Mac.universal_macs(["001AA0B94040,02EA1432D278,00:14:22:F4:2A:2A"]) ==
+      assert Mac.universal_macs(["001AA0B94040,02A1B2C3D4E5,00:14:22:F4:2A:2A"]) ==
                MapSet.new(["001AA0B94040", "001422F42A2A"])
     end
 
@@ -68,17 +68,17 @@ defmodule ServiceRadar.Inventory.Identity.MacUniversalTest do
 
   describe "hardware_mac_sibling/1" do
     test "flips IEEE bit 1 of the first octet" do
-      assert Mac.hardware_mac_sibling("F492BF75C721") == "F692BF75C721"
-      assert Mac.hardware_mac_sibling("f6:92:bf:75:c7:21") == "F492BF75C721"
+      assert Mac.hardware_mac_sibling("F09FC21A4B7C") == "F29FC21A4B7C"
+      assert Mac.hardware_mac_sibling("f2:9f:c2:1a:4b:7c") == "F09FC21A4B7C"
       assert Mac.hardware_mac_sibling("not-a-mac") == nil
     end
   end
 
   describe "lookup_macs_with_siblings/1" do
     test "adds the UAA/LAA pair for lookup without dropping the observed MAC" do
-      assert Mac.lookup_macs_with_siblings(["f6:92:bf:75:c7:21"]) == [
-               "F692BF75C721",
-               "F492BF75C721"
+      assert Mac.lookup_macs_with_siblings(["f2:9f:c2:1a:4b:7c"]) == [
+               "F29FC21A4B7C",
+               "F09FC21A4B7C"
              ]
     end
   end
