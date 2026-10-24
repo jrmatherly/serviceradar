@@ -244,7 +244,7 @@ defmodule ServiceRadar.Inventory.SyncIngestorVendorTypeTest do
           "ip_forwarding" => 1
         },
         "bridge" => %{
-          "bridge_base_mac" => "F4:92:BF:75:C7:2B",
+          "bridge_base_mac" => "F0:9F:C2:1A:4B:85",
           "bridge_port_count" => 8,
           "stp_forwarding_port_count" => 6
         }
@@ -258,7 +258,7 @@ defmodule ServiceRadar.Inventory.SyncIngestorVendorTypeTest do
     assert device.type == "Router"
     assert device.metadata["sys_object_id"] == ".1.3.6.1.4.1.8072.3.2.10"
     assert device.metadata["ip_forwarding"] == "1"
-    assert device.metadata["bridge_base_mac"] == "F4:92:BF:75:C7:2B"
+    assert device.metadata["bridge_base_mac"] == "F0:9F:C2:1A:4B:85"
     assert device.metadata["snmp_name"] == "farm01"
     assert device.metadata["snmp_owner"] == "Network Operations"
     assert device.metadata["snmp_location"] == "HQ"

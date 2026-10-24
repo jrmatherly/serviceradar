@@ -49,7 +49,7 @@ defmodule ServiceRadar.NetworkDiscovery.MapperGraphIngestionTest do
         "sr:dev-ap",
         "sr:dev-dist",
         "sr:aruba",
-        "sr:tonka",
+        "sr:hub",
         "sr:zz-mikrotik",
         "sr:dev-1/eth0",
         "sr:dev-1/eth2",
@@ -64,7 +64,7 @@ defmodule ServiceRadar.NetworkDiscovery.MapperGraphIngestionTest do
         "sr:dev-ap/wifi0",
         "sr:dev-dist/xe-0/0/1",
         "sr:aruba/23",
-        "sr:tonka/eth4",
+        "sr:hub/eth4",
         "sr:zz-mikrotik/ether1"
       ] ++ sparse_payload_ids() ++ synthetic_topology_ids()
     )
@@ -632,7 +632,7 @@ defmodule ServiceRadar.NetworkDiscovery.MapperGraphIngestionTest do
     assert fresh_result["count"] == 1
   end
 
-  test "synthetic topology replay projects expected farm01 and tonka01 connectivity" do
+  test "synthetic topology replay projects expected edge01 and hub01 connectivity" do
     now = DateTime.truncate(DateTime.utc_now(), :microsecond)
     fixture = synthetic_topology_fixture(now)
     payload = Jason.encode!(fixture.links)
@@ -648,8 +648,8 @@ defmodule ServiceRadar.NetworkDiscovery.MapperGraphIngestionTest do
 
     Enum.each(
       [
-        {"sr:farm01", "sr:uswagg"},
-        {"sr:tonka01", "sr:aruba-10-154"}
+        {"sr:edge01", "sr:uswagg"},
+        {"sr:hub01", "sr:aruba-10-154"}
       ],
       fn {from_id, to_id} ->
         [result] =
@@ -674,7 +674,7 @@ defmodule ServiceRadar.NetworkDiscovery.MapperGraphIngestionTest do
   # Required validation because Ash's :string defaults cast the ingestor's ""
   # sentinel back to nil, and one rejected record aborted the whole payload.
   # These payload shapes mirror what go/pkg/mapper actually emits
-  # (snmp_l2_query.go, ubnt_topology.go, and the core wireguard deriver).
+  # (snmp_l2_query.go, ubnt_topology.go, and the hub wireguard deriver).
   test "ingest_topology persists SNMP-L2 ARP+FDB attachment records without a neighbor port id" do
     now = DateTime.truncate(DateTime.utc_now(), :microsecond)
     purge_topology_rows(["sr:it-fdb-switch"])
@@ -995,7 +995,7 @@ defmodule ServiceRadar.NetworkDiscovery.MapperGraphIngestionTest do
     TopologyGraph.upsert_links([
       %{
         local_device_id: "sr:aruba",
-        neighbor_device_id: "sr:tonka",
+        neighbor_device_id: "sr:hub",
         local_if_name: "23",
         local_if_index: 23,
         neighbor_port_id: "eth4",
@@ -1017,7 +1017,7 @@ defmodule ServiceRadar.NetworkDiscovery.MapperGraphIngestionTest do
       },
       %{
         local_device_id: "sr:aruba",
-        neighbor_device_id: "sr:tonka",
+        neighbor_device_id: "sr:hub",
         local_if_name: "23",
         local_if_index: 23,
         neighbor_port_id: "eth4",
@@ -1036,8 +1036,8 @@ defmodule ServiceRadar.NetworkDiscovery.MapperGraphIngestionTest do
     results =
       cypher_rows("""
       MATCH (a:Device)-[r:CANONICAL_TOPOLOGY]->(b:Device)
-      WHERE (a.id = 'sr:aruba' AND b.id IN ['sr:tonka', 'sr:zz-mikrotik'])
-         OR (b.id = 'sr:aruba' AND a.id IN ['sr:tonka', 'sr:zz-mikrotik'])
+      WHERE (a.id = 'sr:aruba' AND b.id IN ['sr:hub', 'sr:zz-mikrotik'])
+         OR (b.id = 'sr:aruba' AND a.id IN ['sr:hub', 'sr:zz-mikrotik'])
       RETURN {
         neighbor: CASE WHEN a.id = 'sr:aruba' THEN b.id ELSE a.id END,
         relation_type: r.relation_type,
@@ -1046,10 +1046,10 @@ defmodule ServiceRadar.NetworkDiscovery.MapperGraphIngestionTest do
       } AS result
       """)
 
-    assert results |> Enum.map(& &1["neighbor"]) |> Enum.sort() == ["sr:tonka", "sr:zz-mikrotik"]
+    assert results |> Enum.map(& &1["neighbor"]) |> Enum.sort() == ["sr:hub", "sr:zz-mikrotik"]
 
     assert Enum.any?(results, fn row ->
-             row["neighbor"] == "sr:tonka" and row["relation_type"] == "CONNECTS_TO" and
+             row["neighbor"] == "sr:hub" and row["relation_type"] == "CONNECTS_TO" and
                row["evidence_class"] == "direct-physical"
            end)
 
@@ -1240,9 +1240,9 @@ defmodule ServiceRadar.NetworkDiscovery.MapperGraphIngestionTest do
   defp synthetic_topology_fixture(now) do
     links = [
       synthetic_link(
-        "sr:farm01",
+        "sr:edge01",
         "sr:uswagg",
-        "lan-core",
+        "lan-hub",
         "port-1",
         "198.18.1.1",
         "198.18.1.87",
@@ -1340,7 +1340,7 @@ defmodule ServiceRadar.NetworkDiscovery.MapperGraphIngestionTest do
         now
       ),
       synthetic_link(
-        "sr:tonka01",
+        "sr:hub01",
         "sr:aruba-10-154",
         "lan10",
         "uplink",
@@ -1382,8 +1382,8 @@ defmodule ServiceRadar.NetworkDiscovery.MapperGraphIngestionTest do
        ) do
     %{
       "protocol" => "LLDP",
-      "agent_id" => "agent-dusk",
-      "gateway_id" => "agent-dusk",
+      "agent_id" => "agent-alpha",
+      "gateway_id" => "agent-alpha",
       "partition" => "default",
       "local_device_id" => local_id,
       "local_device_ip" => local_ip,

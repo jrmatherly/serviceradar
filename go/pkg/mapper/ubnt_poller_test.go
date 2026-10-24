@@ -1696,12 +1696,12 @@ func TestCreateDiscoveredDeviceAliasesControllerHostForGateway(t *testing.T) {
 
 	device := &UniFiDevice{
 		ID:        "62cdf205-fe09-3ceb-9e57-950b6e956104",
-		IPAddress: "152.117.116.178",
-		Name:      "farm01",
-		MAC:       "f4:92:bf:75:c7:21",
+		IPAddress: "198.51.100.178",
+		Name:      "edge01",
+		MAC:       "f0:9f:c2:1a:4b:7c",
 	}
 	apiConfig := UniFiAPIConfig{
-		Name:    "farm01",
+		Name:    "edge01",
 		BaseURL: "https://192.168.1.1/proxy/network/integration/v1",
 	}
 	site := UniFiSite{ID: "site1", Name: "Default"}
@@ -1711,7 +1711,7 @@ func TestCreateDiscoveredDeviceAliasesControllerHostForGateway(t *testing.T) {
 		createDiscoveredDevice(job, device, apiConfig, site)
 
 	require.NotNil(t, result)
-	assert.Equal(t, "152.117.116.178", result.IP)
+	assert.Equal(t, "198.51.100.178", result.IP)
 	assert.Equal(t, "1", result.Metadata["alt_ip:192.168.1.1"])
 	assert.Contains(t, result.Metadata, "ip_alias:192.168.1.1")
 }
@@ -1720,14 +1720,14 @@ func TestAddOrUpdateDeviceAttachesSNMPSeedToUniFiGatewayAlias(t *testing.T) {
 	t.Parallel()
 
 	existing := &DiscoveredDevice{
-		DeviceID: "mac-f492bf75c721",
-		IP:       "152.117.116.178",
-		MAC:      "f4:92:bf:75:c7:21",
-		Hostname: "farm01",
+		DeviceID: "mac-f09fc21a4b7c",
+		IP:       "198.51.100.178",
+		MAC:      "f0:9f:c2:1a:4b:7c",
+		Hostname: "edge01",
 		Metadata: map[string]string{
 			"source":               "unifi-api",
 			"controller_url":       "https://192.168.1.1/proxy/network/integration/v1",
-			"controller_name":      "farm01",
+			"controller_name":      "edge01",
 			"alt_ip:192.168.1.1":   "1",
 			"ip_alias:192.168.1.1": "",
 		},
@@ -1746,10 +1746,10 @@ func TestAddOrUpdateDeviceAttachesSNMPSeedToUniFiGatewayAlias(t *testing.T) {
 	}
 
 	incomingSNMP := &DiscoveredDevice{
-		DeviceID: "mac-f692bf75c721",
+		DeviceID: "mac-f29fc21a4b7c",
 		IP:       "192.168.1.1",
-		MAC:      "f6:92:bf:75:c7:21",
-		Hostname: "farm01",
+		MAC:      "f2:9f:c2:1a:4b:7c",
+		Hostname: "edge01",
 		Metadata: map[string]string{"source": "snmp"},
 	}
 
@@ -1757,9 +1757,9 @@ func TestAddOrUpdateDeviceAttachesSNMPSeedToUniFiGatewayAlias(t *testing.T) {
 		addOrUpdateDeviceToResults(job, incomingSNMP)
 
 	require.Len(t, job.Results.Devices, 1)
-	assert.Equal(t, "mac-f492bf75c721", job.Results.Devices[0].DeviceID)
-	assert.Equal(t, "f4:92:bf:75:c7:21", job.Results.Devices[0].MAC)
-	assert.Equal(t, "1", job.Results.Devices[0].Metadata["alt_mac:f692bf75c721"])
+	assert.Equal(t, "mac-f09fc21a4b7c", job.Results.Devices[0].DeviceID)
+	assert.Equal(t, "f0:9f:c2:1a:4b:7c", job.Results.Devices[0].MAC)
+	assert.Equal(t, "1", job.Results.Devices[0].Metadata["alt_mac:f29fc21a4b7c"])
 	assert.Equal(t, "1", job.Results.Devices[0].Metadata["alt_ip:192.168.1.1"])
 }
 

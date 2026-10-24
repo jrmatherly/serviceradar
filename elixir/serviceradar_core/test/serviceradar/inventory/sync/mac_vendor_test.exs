@@ -12,12 +12,12 @@ defmodule ServiceRadar.Inventory.Sync.MacVendorTest do
 
   describe "locally administered addresses are never looked up" do
     test "a randomised MAC yields no prefix even when its prefix is registered" do
-      # F692BF is the locally administered form of Ubiquiti's registered
-      # F492BF -- they differ only in bit 1 of the first octet, and farm01 has
+      # F29FC2 is the locally administered form of Ubiquiti's registered
+      # F09FC2 -- they differ only in bit 1 of the first octet, and edge01 has
       # exactly this pair today. A lookup without the bit test returns
       # "Ubiquiti Inc" for a device that merely imitated the address.
-      assert MacVendor.prefix_for("F492BF75C72B") != []
-      assert MacVendor.prefix_for("F692BF75C721") == []
+      assert MacVendor.prefix_for("F09FC21A4B85") != []
+      assert MacVendor.prefix_for("F29FC21A4B7C") == []
     end
 
     test "the whole locally-administered boundary is refused" do
@@ -36,8 +36,8 @@ defmodule ServiceRadar.Inventory.Sync.MacVendorTest do
     test "resolve refuses a randomised MAC even if the lookup happens to hold its prefix" do
       # Belt and braces: prefix_for gates, but resolve must not be usable as a
       # way around it.
-      lookup = %{0xF692BF => "Should Never Be Used"}
-      assert MacVendor.resolve("F692BF75C721", lookup) == nil
+      lookup = %{0xF29FC2 => "Should Never Be Used"}
+      assert MacVendor.resolve("F29FC21A4B7C", lookup) == nil
     end
   end
 
@@ -148,35 +148,35 @@ defmodule ServiceRadar.Inventory.Sync.MacVendorTest do
     @printable "ff82a43f-6e90-47c8-a126-0a75a1d234d9"
 
     test "a raw 16-byte uuid is normalized to printable form and stays encodable" do
-      metadata = MacVendor.put_provenance(%{}, {"Example Corp", "F492BF"}, @raw_uuid)
+      metadata = MacVendor.put_provenance(%{}, {"Example Corp", "F09FC2"}, @raw_uuid)
 
       assert metadata["mac_vendor_oui_snapshot_id"] == @printable
       assert {:ok, _json} = Jason.encode(metadata)
     end
 
     test "an already-printable uuid is preserved" do
-      metadata = MacVendor.put_provenance(%{}, {"Example Corp", "F492BF"}, @printable)
+      metadata = MacVendor.put_provenance(%{}, {"Example Corp", "F09FC2"}, @printable)
 
       assert metadata["mac_vendor_oui_snapshot_id"] == @printable
       assert {:ok, _json} = Jason.encode(metadata)
     end
 
     test "a printable non-uuid id is preserved, since the hazard is unencodable bytes" do
-      metadata = MacVendor.put_provenance(%{}, {"Example Corp", "F492BF"}, "snap-1")
+      metadata = MacVendor.put_provenance(%{}, {"Example Corp", "F09FC2"}, "snap-1")
 
       assert metadata["mac_vendor_oui_snapshot_id"] == "snap-1"
       assert {:ok, _json} = Jason.encode(metadata)
     end
 
     test "an unencodable binary that is not a uuid is dropped rather than persisted" do
-      metadata = MacVendor.put_provenance(%{}, {"Example Corp", "F492BF"}, <<255, 254, 253>>)
+      metadata = MacVendor.put_provenance(%{}, {"Example Corp", "F09FC2"}, <<255, 254, 253>>)
 
       refute Map.has_key?(metadata, "mac_vendor_oui_snapshot_id")
       assert {:ok, _json} = Jason.encode(metadata)
     end
 
     test "nil snapshot id is omitted" do
-      metadata = MacVendor.put_provenance(%{}, {"Example Corp", "F492BF"}, nil)
+      metadata = MacVendor.put_provenance(%{}, {"Example Corp", "F09FC2"}, nil)
 
       refute Map.has_key?(metadata, "mac_vendor_oui_snapshot_id")
     end

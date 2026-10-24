@@ -5,7 +5,7 @@ The shared SRQL fixture is a two-instance CNPG cluster in `srql-fixtures`. Statu
 
 - Operator-managed secrets `srql-fixture-ca`, `srql-fixture-server`, `srql-fixture-replication`
 - All three expire `2026-08-31 18:15:31 +0000 UTC` (issued 2026-06-02; 90-day CNPG default)
-- `Ready=False`, `1/2` instances: `srql-fixture-2` is `ImagePullBackOff` on `k8s-cp3-worker3`
+- `Ready=False`, `1/2` instances: `srql-fixture-2` is `ImagePullBackOff` on `lab-k8s-worker3`
 - Server SANs cover `srql-fixture-{r,ro,rw}` at every cluster-local suffix plus
   `srql-fixture.serviceradar.cloud`. No IP SANs.
 - `pg_hba` is `hostssl ... scram-sha-256` (password + TLS, no client cert required)
@@ -138,7 +138,7 @@ must not receive them.
 
 `srql-fixture-2` cannot pull
 `registry.carverauto.dev/serviceradar/serviceradar-cnpg:18.4.0-sr4@sha256:59e442dec59fac3149e3a3c49ba0cc2987bfb052bca1a0ea8c01b4bb31427d1d`
-on `k8s-cp3-worker3` (the same node the BB fleets already exclude). Reloading TLS on a 1/2
+on `lab-k8s-worker3` (the same node the BB fleets already exclude). Reloading TLS on a 1/2
 Not Ready cluster is an unnecessary outage risk. Add affinity/tolerations so both instances
 land on nodes that can pull Harbor, and wait for `Ready=True` before switching
 `serverCASecret` / `serverTLSSecret`.

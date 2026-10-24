@@ -33,19 +33,19 @@ func TestParseInetAddressIndexDecodesRealRouterOIDs(t *testing.T) {
 		want   string
 		ok     bool
 	}{
-		{"ipv4 wan", "1.4.152.117.116.178", "152.117.116.178", true},
+		{"ipv4 wan", "1.4.198.51.100.178", "198.51.100.178", true},
 		{"ipv4 lan gateway", "1.4.192.168.1.1", "192.168.1.1", true},
 		{"ipv4 loopback is decoded, filtered downstream", "1.4.127.0.0.1", "127.0.0.1", true},
 		{
 			"ipv6 global unicast",
-			"2.16.32.1.4.112.192.181.0.1.0.0.0.0.0.0.0.1",
-			"2001:470:c0b5:1::1",
+			"2.16.32.1.13.184.192.181.0.1.0.0.0.0.0.0.0.1",
+			"2001:db8:c0b5:1::1",
 			true,
 		},
 		{
 			"ipv6 unique local",
-			"2.16.253.47.66.10.36.177.0.1.246.146.191.255.254.117.199.42",
-			"fd2f:420a:24b1:1:f692:bfff:fe75:c72a",
+			"2.16.253.47.66.10.36.177.0.1.242.159.194.255.254.26.75.132",
+			"fd2f:420a:24b1:1:f29f:c2ff:fe1a:4b84",
 			true,
 		},
 		{
@@ -85,16 +85,16 @@ func TestParseInetAddressIndexDecodesRealRouterOIDs(t *testing.T) {
 // a wrong IPv4 address from an IPv6 row. This is why the new table needs its own
 // parser rather than reusing extractIPFromOID.
 func TestExtractIPFromOIDCannotDecodeIPv6Rows(t *testing.T) {
-	const ipv6Row = ".1.3.6.1.2.1.4.34.1.3.2.16.32.1.4.112.192.181.0.1.0.0.0.0.0.0.0.1"
+	const ipv6Row = ".1.3.6.1.2.1.4.34.1.3.2.16.32.1.13.184.192.181.0.1.0.0.0.0.0.0.0.1"
 
 	legacy, ok := extractIPFromOID(ipv6Row)
-	if ok && legacy == "2001:470:c0b5:1::1" {
+	if ok && legacy == "2001:db8:c0b5:1::1" {
 		t.Fatal("extractIPFromOID unexpectedly decoded an IPv6 row; the dedicated parser would be redundant")
 	}
 
 	parsed, parsedOK := parseInetAddressIndex(strings.Split(
 		strings.TrimPrefix(strings.TrimPrefix(ipv6Row, oidIPAddressIfIndex), "."), "."))
-	if !parsedOK || parsed != "2001:470:c0b5:1::1" {
+	if !parsedOK || parsed != "2001:db8:c0b5:1::1" {
 		t.Fatalf("parseInetAddressIndex failed on the row the legacy helper cannot read: %q ok=%v", parsed, parsedOK)
 	}
 }

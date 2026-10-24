@@ -59,7 +59,7 @@ Because ServiceRadar agents are already installed directly on the worker nodes i
 
 The collector must discover the CRI endpoint instead of assuming the default containerd socket. Demo k3s workers expose the runtime at `/run/k3s/containerd/containerd.sock`, while many standard kubeadm/containerd nodes use `/run/containerd/containerd.sock` or `/var/run/containerd/containerd.sock`; CRI-O commonly uses `/var/run/crio/crio.sock`. Endpoint selection should prefer an explicit config value, then known runtime config files, then a bounded list of common socket paths.
 
-Live validation on `k8s-cp3-worker3` showed that node-local `crictl` can resolve:
+Live validation on `lab-k8s-worker3` showed that node-local `crictl` can resolve:
 - pod sandbox ID -> namespace, pod name, pod UID, pod labels, pod annotation keys, and sandbox cgroup path
 - container ID -> container name, image reference, pod labels, pod UID, runtime PID, and container cgroup path
 

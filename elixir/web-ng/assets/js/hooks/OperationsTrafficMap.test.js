@@ -202,7 +202,7 @@ describe("OperationsTrafficMap netflow links", () => {
           topology_to: [-90, 30],
           bytes: 70,
           attributed_flow_count: 3,
-          attribution_agent_id: "agent-k8s-cp3-worker1",
+          attribution_agent_id: "agent-lab-k8s-worker1",
           attribution_comm: "gobgpd",
           attribution_pid: 45246,
           attribution_pod_namespace: "demo",
@@ -216,7 +216,7 @@ describe("OperationsTrafficMap netflow links", () => {
 
     expect(link).toMatchObject({
       attributedFlowCount: 3,
-      attributionAgentId: "agent-k8s-cp3-worker1",
+      attributionAgentId: "agent-lab-k8s-worker1",
       attributionComm: "gobgpd",
       attributionPid: 45246,
       attributionPodNamespace: "demo",
@@ -289,7 +289,7 @@ describe("OperationsTrafficMap flow detail links", () => {
         packets: "50",
         flowCount: "1",
         attributedFlowCount: "1",
-        attributionAgentId: "agent-k8s-cp3-worker3",
+        attributionAgentId: "agent-lab-k8s-worker3",
         attributionComm: "cosign",
         attributionPid: "2663619",
       },

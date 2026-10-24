@@ -41,8 +41,8 @@ here", not "this address IS here".
 anchors, because iOS/Android per-SSID rotation would otherwise mint a device per rotation. That rule
 applies unchanged to interface MACs.
 
-It matters here concretely: the motivating device's identifiers include `F692BF75C721` at `medium`
-confidence -- the U/L-flipped form of `F492BF75C721`, almost certainly derived from an EUI-64 IPv6
+It matters here concretely: the motivating device's identifiers include `F29FC21A4B7C` at `medium`
+confidence -- the U/L-flipped form of `F09FC21A4B7C`, almost certainly derived from an EUI-64 IPv6
 address. A locally-administered form of a universal MAC must not anchor, and must not be treated as
 a second distinct NIC.
 

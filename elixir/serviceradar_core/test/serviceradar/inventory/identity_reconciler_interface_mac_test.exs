@@ -29,12 +29,12 @@ defmodule ServiceRadar.Inventory.IdentityReconcilerInterfaceMacTest do
   end
 
   test "interface MAC registration does not include polling agent's ID", %{actor: actor} do
-    # Setup: agent-dusk (polling agent) and tonka01 (polled device) are separate devices
-    {:ok, agent_device} = create_device(actor, "agent-dusk-host", "192.168.2.22")
-    {:ok, polled_device} = create_device(actor, "tonka01", "192.168.10.1")
+    # Setup: agent-alpha (polling agent) and hub01 (polled device) are separate devices
+    {:ok, agent_device} = create_device(actor, "agent-alpha-host", "192.168.2.22")
+    {:ok, polled_device} = create_device(actor, "hub01", "192.168.10.1")
 
     # Register agent_id identifier for the agent's device
-    assert {:ok, _} = register_identifier(actor, agent_device.uid, :agent_id, "agent-dusk")
+    assert {:ok, _} = register_identifier(actor, agent_device.uid, :agent_id, "agent-alpha")
 
     # Simulate what mapper now does: register interface MAC with agent_id: nil
     # This is the fix — previously agent_id was passed as the polling agent's ID

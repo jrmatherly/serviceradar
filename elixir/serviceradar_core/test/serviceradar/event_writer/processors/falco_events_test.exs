@@ -57,7 +57,7 @@ defmodule ServiceRadar.EventWriter.Processors.FalcoEventsTest do
         "rule_url" => "https://falco.org/docs/reference/rules/default-rules/",
         "source" => "syscall",
         "tags" => ["container", "k8s", "network"],
-        "hostname" => "k8s-cp2-worker2"
+        "hostname" => "dev-k8s-worker2"
       }
 
       message = %{data: Jason.encode!(payload), metadata: %{subject: "falco.warning.contact_k8s"}}
@@ -86,7 +86,7 @@ defmodule ServiceRadar.EventWriter.Processors.FalcoEventsTest do
       assert row.metadata["version"] == "1.9.0-dev"
       assert row.metadata["product"]["name"] == "Falco"
       assert row.metadata["service_radar"]["source_type"] == "falco"
-      assert row.metadata["service_radar"]["device_hostname"] == "k8s-cp2-worker2"
+      assert row.metadata["service_radar"]["device_hostname"] == "dev-k8s-worker2"
       assert row.metadata["service_radar"]["container_id"] == "ec56370f8d11"
 
       diagnostics = row.metadata["security_signal"]["diagnostics"]
@@ -99,7 +99,7 @@ defmodule ServiceRadar.EventWriter.Processors.FalcoEventsTest do
                "https://falco.org/docs/reference/rules/default-rules/"
              ]
 
-      assert diagnostics["host"]["name"] == "k8s-cp2-worker2"
+      assert diagnostics["host"]["name"] == "dev-k8s-worker2"
       assert diagnostics["process"]["name"] == "python"
       assert diagnostics["process"]["command"] == "python /app/sidecar.py"
       assert diagnostics["process"]["cwd"] == "/app"
@@ -119,8 +119,8 @@ defmodule ServiceRadar.EventWriter.Processors.FalcoEventsTest do
       assert diagnostics["attribution"]["status"] == "partial"
       assert diagnostics["attribution"]["missing"] == ["kubernetes.namespace"]
 
-      assert row.device[:uid] == "k8s-cp2-worker2"
-      assert row.device[:hostname] == "k8s-cp2-worker2"
+      assert row.device[:uid] == "dev-k8s-worker2"
+      assert row.device[:hostname] == "dev-k8s-worker2"
       assert row.unmapped["uuid"] == payload["uuid"]
       assert %DateTime{} = row.time
       assert is_binary(row.raw_data)
@@ -152,7 +152,7 @@ defmodule ServiceRadar.EventWriter.Processors.FalcoEventsTest do
         "time" => "2026-03-03T05:56:49.684779242Z",
         "output_fields" => %{
           "container.id" => "container-1",
-          "k8s.node.name" => "agent-k8s-cp3-worker1",
+          "k8s.node.name" => "agent-lab-k8s-worker1",
           "k8s.pod.name" => "falco-test-pod"
         }
       }
@@ -161,24 +161,24 @@ defmodule ServiceRadar.EventWriter.Processors.FalcoEventsTest do
 
       row = FalcoEvents.parse_message(message)
 
-      assert row.metadata["service_radar"]["device_hostname"] == "agent-k8s-cp3-worker1"
-      assert row.metadata["service_radar"]["node_name"] == "agent-k8s-cp3-worker1"
-      assert row.device[:uid] == "agent-k8s-cp3-worker1"
-      assert row.device[:hostname] == "agent-k8s-cp3-worker1"
+      assert row.metadata["service_radar"]["device_hostname"] == "agent-lab-k8s-worker1"
+      assert row.metadata["service_radar"]["node_name"] == "agent-lab-k8s-worker1"
+      assert row.device[:uid] == "agent-lab-k8s-worker1"
+      assert row.device[:hostname] == "agent-lab-k8s-worker1"
       assert row.metadata["security_signal"]["diagnostics"]["attribution"]["status"] == "partial"
     end
 
     test "preserves explicit canonical device uid while keeping Falco host metadata" do
       payload = %{
         "device_uid" => "sr:f19b8510-1419-45d3-8622-9d20fbb9af31",
-        "hostname" => "k8s-cp3-worker1",
+        "hostname" => "lab-k8s-worker1",
         "output" => "Falco event with ServiceRadar device correlation",
         "priority" => "Warning",
         "rule" => "Correlated Falco Rule",
         "time" => "2026-03-03T05:56:49.684779242Z",
         "output_fields" => %{
-          "serviceradar.agent_id" => "agent-k8s-cp3-worker1",
-          "k8s.node.name" => "k8s-cp3-worker1",
+          "serviceradar.agent_id" => "agent-lab-k8s-worker1",
+          "k8s.node.name" => "lab-k8s-worker1",
           "k8s.pod.name" => "falco-test-pod"
         }
       }
@@ -190,25 +190,25 @@ defmodule ServiceRadar.EventWriter.Processors.FalcoEventsTest do
       assert row.metadata["service_radar"]["device_uid"] ==
                "sr:f19b8510-1419-45d3-8622-9d20fbb9af31"
 
-      assert row.metadata["service_radar"]["device_hostname"] == "k8s-cp3-worker1"
-      assert row.metadata["service_radar"]["agent_id"] == "agent-k8s-cp3-worker1"
+      assert row.metadata["service_radar"]["device_hostname"] == "lab-k8s-worker1"
+      assert row.metadata["service_radar"]["agent_id"] == "agent-lab-k8s-worker1"
       assert row.device[:uid] == "sr:f19b8510-1419-45d3-8622-9d20fbb9af31"
-      assert row.device[:hostname] == "k8s-cp3-worker1"
+      assert row.device[:hostname] == "lab-k8s-worker1"
     end
 
     test "accepts ServiceRadar correlation fields injected by Falcosidekick custom fields" do
       payload = %{
         "custom_fields" => %{
-          "serviceradar.agent_id" => "agent-k8s-cp3-worker1",
+          "serviceradar.agent_id" => "agent-lab-k8s-worker1",
           "serviceradar.device_uid" => "sr:9a6211a0-46d9-4986-988d-01e14d886e40"
         },
-        "hostname" => "k8s-cp3-worker1",
+        "hostname" => "lab-k8s-worker1",
         "output" => "Falco event with Sidekick custom fields",
         "priority" => "Warning",
         "rule" => "Sidekick Correlated Rule",
         "time" => "2026-03-03T05:56:49.684779242Z",
         "output_fields" => %{
-          "k8s.node.name" => "k8s-cp3-worker1"
+          "k8s.node.name" => "lab-k8s-worker1"
         }
       }
 
@@ -216,7 +216,7 @@ defmodule ServiceRadar.EventWriter.Processors.FalcoEventsTest do
 
       row = FalcoEvents.parse_message(message)
 
-      assert row.metadata["service_radar"]["agent_id"] == "agent-k8s-cp3-worker1"
+      assert row.metadata["service_radar"]["agent_id"] == "agent-lab-k8s-worker1"
 
       assert row.metadata["service_radar"]["device_uid"] ==
                "sr:9a6211a0-46d9-4986-988d-01e14d886e40"
@@ -225,7 +225,7 @@ defmodule ServiceRadar.EventWriter.Processors.FalcoEventsTest do
                "sr:9a6211a0-46d9-4986-988d-01e14d886e40"
 
       assert row.device[:uid] == "sr:9a6211a0-46d9-4986-988d-01e14d886e40"
-      assert row.device[:hostname] == "k8s-cp3-worker1"
+      assert row.device[:hostname] == "lab-k8s-worker1"
     end
 
     test "uses normalized body when Zen-compacted payload omits output" do

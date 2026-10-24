@@ -1347,11 +1347,11 @@ defmodule ServiceRadarWebNGWeb.DeviceLiveTest do
       %{
         uid: uid,
         type_id: 12,
-        hostname: "farm01",
+        hostname: "edge01",
         ip: "192.168.1.1",
         owner: %{"name" => "Network Operations"},
         metadata: %{
-          "sys_name" => "farm01",
+          "sys_name" => "edge01",
           "sys_location" => "MDF Rack A",
           "sys_descr" => "Ubiquiti UniFi UDM-Pro 4.4.6 Linux 4.19.152 al324",
           "sys_contact" => "Network Operations"
@@ -1366,7 +1366,7 @@ defmodule ServiceRadarWebNGWeb.DeviceLiveTest do
     html = render_until(view, "CPU", 10_000)
 
     assert html =~ "SNMP Name"
-    assert html =~ "farm01"
+    assert html =~ "edge01"
     assert html =~ "SNMP Owner"
     assert html =~ "Network Operations"
     assert html =~ "SNMP Location"
@@ -1384,11 +1384,11 @@ defmodule ServiceRadarWebNGWeb.DeviceLiveTest do
       %{
         uid: uid,
         type_id: 12,
-        hostname: "farm01",
+        hostname: "edge01",
         ip: "192.168.1.1",
         metadata: %{
-          "snmp_name" => "farm01-snmp",
-          "sys_name" => "farm01-sys",
+          "snmp_name" => "edge01-snmp",
+          "sys_name" => "edge01-sys",
           "snmp_owner" => "NOC Team",
           "snmp_location" => "Datacenter B",
           "snmp_description" => "Ubiquiti UniFi UDM-Pro-Max 4.4.6"
@@ -1400,7 +1400,7 @@ defmodule ServiceRadarWebNGWeb.DeviceLiveTest do
     ])
 
     {:ok, view, _html} = live(conn, ~p"/devices/#{uid}")
-    html = render_until(view, "farm01-snmp", 10_000)
+    html = render_until(view, "edge01-snmp", 10_000)
 
     # The page also carries an "All metadata" card that deliberately lists every raw
     # key (sys_name included), so judge the alias preference inside the SNMP card.
@@ -1411,11 +1411,11 @@ defmodule ServiceRadarWebNGWeb.DeviceLiveTest do
       |> String.split(~s(<h3 class="text-sm font-semibold">Status</h3>), parts: 2)
       |> List.first()
 
-    assert snmp_panel =~ "farm01-snmp"
+    assert snmp_panel =~ "edge01-snmp"
     assert snmp_panel =~ "NOC Team"
     assert snmp_panel =~ "Datacenter B"
     assert snmp_panel =~ "UDM-Pro-Max 4.4.6"
-    refute snmp_panel =~ "farm01-sys"
+    refute snmp_panel =~ "edge01-sys"
   end
 
   @tag :web_ng_shared_fixture_db
@@ -1451,16 +1451,16 @@ defmodule ServiceRadarWebNGWeb.DeviceLiveTest do
     metadata = %{
       "integration_type" => "armis",
       "source_device_id" => "42",
-      "sync_service_id" => "agent-dusk01",
-      "controller_name" => "Dusk UniFi",
+      "sync_service_id" => "agent-alpha01",
+      "controller_name" => "Alpha UniFi",
       "controller_url" => "https://unifi.example.local",
-      "unifi_api_names" => "tonka01",
+      "unifi_api_names" => "hub01",
       "unifi_api_urls" => "https://192.168.10.1/proxy/network/integration/v1",
       "mikrotik_api_names" => "edge-mikrotik",
       "mikrotik_api_urls" => "http://192.168.6.167/rest",
       "proxmox_candidate_probe_enabled" => true,
       "sys_name" => "aruba-24g-02",
-      "sys_location" => "Minnetonka, MN",
+      "sys_location" => "Springfield, IL",
       "sys_contact" => "support@example.test",
       "sys_object_id" => ".1.3.6.1.4.1.11.2.3.7.11.153",
       "uptime" => 168_519_247,
@@ -1507,7 +1507,7 @@ defmodule ServiceRadarWebNGWeb.DeviceLiveTest do
     ])
 
     {:ok, view, _html} = live(conn, ~p"/devices/#{uid}")
-    html = render_until(view, "Dusk UniFi", 10_000)
+    html = render_until(view, "Alpha UniFi", 10_000)
 
     curated_html =
       render_component(&VisibilityComponents.metadata_summary_section/1,
@@ -1519,13 +1519,13 @@ defmodule ServiceRadarWebNGWeb.DeviceLiveTest do
     assert html =~ "Armis"
     assert html =~ "NetBox"
     assert html =~ "SNMP"
-    assert html =~ "Dusk UniFi"
+    assert html =~ "Alpha UniFi"
     assert html =~ "gateway"
     assert html =~ "Tablet"
     refute curated_html =~ "Proxmox"
     refute curated_html =~ "Candidate probe"
     assert html =~ "aruba-24g-02"
-    assert html =~ "Minnetonka, MN"
+    assert html =~ "Springfield, IL"
     assert html =~ ".1.3.6.1.4.1.11.2.3.7.11.153"
     assert html =~ "19d 12h"
     assert html =~ "All OT Boundaries"
@@ -1541,7 +1541,7 @@ defmodule ServiceRadarWebNGWeb.DeviceLiveTest do
     refute curated_html =~ "Additional metadata keys"
     refute curated_html =~ "Other Metadata"
     refute curated_html =~ "MikroTik"
-    refute curated_html =~ "tonka01"
+    refute curated_html =~ "hub01"
     refute curated_html =~ "edge-mikrotik"
     refute curated_html =~ "10.0.0.1"
     refute curated_html =~ "192.168.10.1"
@@ -1658,7 +1658,7 @@ defmodule ServiceRadarWebNGWeb.DeviceLiveTest do
         device_row: %{
           "metadata" => %{
             "source" => "snmp",
-            "sys_name" => "tonka01",
+            "sys_name" => "hub01",
             "proxmox_candidate_probe_enabled" => "true"
           }
         }
@@ -3722,7 +3722,7 @@ defmodule ServiceRadarWebNGWeb.DeviceLiveTest do
         sweep_results: %{
           results: [
             %{
-              execution: %{agent_id: "agent-dusk01"},
+              execution: %{agent_id: "agent-alpha01"},
               status: :available,
               inserted_at: ~U[2026-05-17 06:42:00Z],
               response_time_ms: 11,
@@ -3734,7 +3734,7 @@ defmodule ServiceRadarWebNGWeb.DeviceLiveTest do
       )
 
     assert html =~ "Source: recent sweep history"
-    assert html =~ "agent-dusk01"
+    assert html =~ "agent-alpha01"
     assert html =~ "Available"
     assert html =~ "ICMP ok"
     refute html =~ "No per-agent sweep availability has been recorded"

@@ -2,23 +2,23 @@
 
 ## Why
 
-Two defects on farm01 share one root: the system collects the evidence that would
+Two defects on edge01 share one root: the system collects the evidence that would
 identify a device correctly, then declines to use it for identity.
 
 ### 1. A router's own interfaces become separate devices
 
-`farm01` is one Ubiquiti chassis. Inventory holds it as two devices:
+`edge01` is one Ubiquiti chassis. Inventory holds it as two devices:
 
 | device | ip | mac | identifiers |
 | --- | --- | --- | --- |
-| `sr:dd250d1a...` | 152.117.116.178 | `f4:92:bf:75:c7:21` | `F492BF75C721` strong, `F692BF75C721` medium |
-| `sr:a6a7e25a...` | 192.168.1.1 | `f4:92:bf:75:c7:2b` | `F492BF75C72B` strong |
+| `sr:dd250d1a...` | 198.51.100.178 | `f0:9f:c2:1a:4b:7c` | `F09FC21A4B7C` strong, `F29FC21A4B7C` medium |
+| `sr:a6a7e25a...` | 192.168.1.1 | `f0:9f:c2:1a:4b:85` | `F09FC21A4B85` strong |
 
 The SNMP walk ALREADY knows both interfaces belong to that chassis:
 
 ```
-eth9  | f4:92:bf:75:c7:2a | idx 3 | {152.117.116.178, ...}
-eth10 | f4:92:bf:75:c7:2b | idx 5 | {}          <- the second device's exact MAC
+eth9  | f0:9f:c2:1a:4b:84 | idx 3 | {198.51.100.178, ...}
+eth10 | f0:9f:c2:1a:4b:85 | idx 5 | {}          <- the second device's exact MAC
 ```
 
 Two gaps follow:
@@ -38,7 +38,7 @@ identifier". An alias IS wired to merge: `AliasGuard.maybe_merge_ip_alias_device
 `ip_alias_conflict`. It did not fire here because it was VETOED --
 `distinct_strong_identity_conflict?/3` -> `distinct_mac_conflict?/3` (`alias_guard.ex:74`) finds the
 two MAC sets entirely disjoint, and `Mac.any_hardware_mac_siblings?/2` recognises only the U/L-bit
-flip (which is why `F692BF75C721` pairs with `F492BF75C721`, and why a third row legitimately
+flip (which is why `F29FC21A4B7C` pairs with `F09FC21A4B7C`, and why a third row legitimately
 collapsed into the router on 2026-08-12). `...C72B` gets no such pass.
 
 That veto is correct on the evidence available -- disjoint MACs are the network-agnostic tell that a
@@ -51,12 +51,12 @@ This is not a reconciler bug. The reconciler is starved of the one fact that wou
 
 ### 2. Non-routable addresses become the primary IP (GitHub #3905)
 
-Measured on farm01: **18** live devices have an `fe80:` link-local primary IP and **7** have a
+Measured on edge01: **18** live devices have an `fe80:` link-local primary IP and **7** have a
 ULA -- **25 of 126 live devices, 20%**. Of the 18 link-local ones, **10 already carry an IPv4
 alias**, so the routable address is already known and simply is not promoted.
 
 The same root shows up in gap 1: `eth10`'s only recorded address is
-`fe80::f692:bfff:fe75:c72b`. Address selection prefers whatever arrived over whatever is useful.
+`fe80::f29f:c2ff:fe1a:4b85`. Address selection prefers whatever arrived over whatever is useful.
 
 A link-local address is not an identity: it is not routable, it is not unique beyond a link, and
 it cannot be used to reach or correlate the device.

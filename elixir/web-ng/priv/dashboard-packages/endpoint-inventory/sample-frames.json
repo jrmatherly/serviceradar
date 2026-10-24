@@ -8,14 +8,14 @@
       {
         "scan_id": "scan-alpha",
         "device_uid": "sr:device-alpha",
-        "agent_id": "agent-k8s-cp3-worker1",
+        "agent_id": "agent-lab-k8s-worker1",
         "state": "completed",
         "coverage_state": "complete",
         "freshness": "fresh",
         "package_count": 456,
         "last_scan_at": "2026-06-10T14:42:00Z",
         "last_successful_scan_at": "2026-06-10T14:42:00Z",
-        "metadata": {"hostname": "k8s-cp3-worker1"}
+        "metadata": {"hostname": "lab-k8s-worker1"}
       },
       {
         "scan_id": "scan-beta",
@@ -81,7 +81,7 @@
     "results": [
       {
         "device_uid": "sr:device-alpha",
-        "agent_id": "agent-k8s-cp3-worker1",
+        "agent_id": "agent-lab-k8s-worker1",
         "package_manager": "deb",
         "name": "openssl",
         "version": "3.0.13",

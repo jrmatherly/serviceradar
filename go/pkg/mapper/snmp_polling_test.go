@@ -1799,7 +1799,7 @@ func TestBuildSNMPFingerprintFromDevice(t *testing.T) {
 		SysContact:    "mfreeman",
 		SysLocation:   "office",
 		IPForwarding:  1,
-		BridgeBaseMAC: "F4:92:BF:75:C7:2B",
+		BridgeBaseMAC: "F0:9F:C2:1A:4B:85",
 	}
 
 	fp := buildSNMPFingerprintFromDevice(device, map[string]string{"system.sys_name": "malformed"})
@@ -1808,7 +1808,7 @@ func TestBuildSNMPFingerprintFromDevice(t *testing.T) {
 	require.NotNil(t, fp.Bridge)
 	assert.Equal(t, "farm01", fp.System.SysName)
 	assert.Equal(t, int32(1), fp.System.IPForwarding)
-	assert.Equal(t, "F4:92:BF:75:C7:2B", fp.Bridge.BridgeBaseMAC)
+	assert.Equal(t, "F0:9F:C2:1A:4B:85", fp.Bridge.BridgeBaseMAC)
 	assert.Equal(t, "malformed", fp.ExtractionErrors["system.sys_name"])
 }
 

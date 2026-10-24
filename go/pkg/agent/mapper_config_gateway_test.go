@@ -47,7 +47,7 @@ func TestParseGatewayMapperConfigPreservesMikroTikEndpoints(t *testing.T) {
 			"workers": 10,
 			"mikrotik_apis": [
 				{
-					"name": "tonka01",
+					"name": "hub01",
 					"base_url": "http://192.168.6.167/rest",
 					"username": "serviceradar",
 					"password": "secret",
@@ -56,13 +56,13 @@ func TestParseGatewayMapperConfigPreservesMikroTikEndpoints(t *testing.T) {
 			],
 			"scheduled_jobs": [
 				{
-					"name": "tonka01",
+					"name": "hub01",
 					"type": "network",
 					"enabled": true,
 					"interval": "5m",
 					"discovery_mode": "snmp_api",
 					"options": {
-						"mikrotik_api_names": "tonka01"
+						"mikrotik_api_names": "hub01"
 					}
 				}
 			]
@@ -151,7 +151,7 @@ func TestParseGatewayMapperConfigPreservesProxmoxEndpoints(t *testing.T) {
 			"workers": 10,
 			"proxmox_apis": [
 				{
-					"name": "tonka01-pve",
+					"name": "hub01-pve",
 					"base_url": "https://192.168.2.22:8006",
 					"token_id": "svc@pve!codex",
 					"token_secret": "secret-token",
@@ -160,13 +160,13 @@ func TestParseGatewayMapperConfigPreservesProxmoxEndpoints(t *testing.T) {
 			],
 			"scheduled_jobs": [
 				{
-					"name": "tonka01",
+					"name": "hub01",
 					"type": "network",
 					"enabled": true,
 					"interval": "5m",
 					"discovery_mode": "snmp_api",
 					"options": {
-						"proxmox_api_names": "tonka01-pve"
+						"proxmox_api_names": "hub01-pve"
 					}
 				}
 			]
@@ -202,7 +202,7 @@ func TestBuildMapperEngineConfigIncludesMikroTikEndpoints(t *testing.T) {
 		Timeout: "45s",
 		MikroTikAPIs: []mapperMikroTikSpec{
 			{
-				Name:               "tonka01",
+				Name:               "hub01",
 				BaseURL:            "http://192.168.6.167/rest",
 				Username:           mapperTestUsername,
 				Password:           "secret",
@@ -211,20 +211,20 @@ func TestBuildMapperEngineConfigIncludesMikroTikEndpoints(t *testing.T) {
 		},
 		ScheduledJobs: []mapperJobSpec{
 			{
-				Name:          "tonka01",
+				Name:          "hub01",
 				Interval:      "5m",
 				Enabled:       true,
 				Type:          "network",
 				DiscoveryMode: "snmp_api",
 				Options: map[string]string{
-					"mikrotik_api_names": "tonka01",
+					"mikrotik_api_names": "hub01",
 				},
 			},
 		},
 	}
 
 	serverCfg := &ServerConfig{
-		AgentID:   "agent-dusk",
+		AgentID:   "agent-alpha",
 		Partition: "default",
 	}
 
@@ -249,7 +249,7 @@ func TestBuildMapperEngineConfigIncludesMikroTikEndpoints(t *testing.T) {
 		t.Fatalf("expected timeout to parse as 45s, got %s", engineCfg.Timeout)
 	}
 
-	if got := engineCfg.StreamConfig.AgentID; got != "agent-dusk" {
+	if got := engineCfg.StreamConfig.AgentID; got != "agent-alpha" {
 		t.Fatalf("expected stream agent_id to be propagated, got %q", got)
 	}
 }
@@ -260,7 +260,7 @@ func TestBuildMapperEngineConfigIncludesProxmoxEndpoints(t *testing.T) {
 		Timeout: "45s",
 		ProxmoxAPIs: []mapperProxmoxSpec{
 			{
-				Name:               "tonka01-pve",
+				Name:               "hub01-pve",
 				BaseURL:            "https://192.168.2.22:8006",
 				TokenID:            "svc@pve!codex",
 				TokenSecret:        "secret-token",
@@ -269,20 +269,20 @@ func TestBuildMapperEngineConfigIncludesProxmoxEndpoints(t *testing.T) {
 		},
 		ScheduledJobs: []mapperJobSpec{
 			{
-				Name:          "tonka01",
+				Name:          "hub01",
 				Interval:      "5m",
 				Enabled:       true,
 				Type:          "network",
 				DiscoveryMode: "snmp_api",
 				Options: map[string]string{
-					"proxmox_api_names": "tonka01-pve",
+					"proxmox_api_names": "hub01-pve",
 				},
 			},
 		},
 	}
 
 	serverCfg := &ServerConfig{
-		AgentID:   "agent-dusk",
+		AgentID:   "agent-alpha",
 		Partition: "default",
 	}
 
@@ -299,7 +299,7 @@ func TestBuildMapperEngineConfigIncludesProxmoxEndpoints(t *testing.T) {
 		t.Fatalf("expected Proxmox token_id to be preserved, got %q", got)
 	}
 
-	if got := engineCfg.ScheduledJobs[0].Options["proxmox_api_names"]; got != "tonka01-pve" {
+	if got := engineCfg.ScheduledJobs[0].Options["proxmox_api_names"]; got != "hub01-pve" {
 		t.Fatalf("expected proxmox_api_names selector to be preserved, got %q", got)
 	}
 }

@@ -47,7 +47,7 @@ func TestBuildEnvelopeIncludesOwnerAndSummary(t *testing.T) {
 		"trivy-operator.resource.name":      "nginx-pod-123",
 		"trivy-operator.resource.namespace": "demo",
 		"trivy-operator.container.name":     "nginx",
-		"serviceradar.agent_id":             "agent-k8s-cp3-worker1",
+		"serviceradar.agent_id":             "agent-lab-k8s-worker1",
 		"serviceradar.device_uid":           "sr:9a6211a0-46d9-4986-988d-01e14d886e40",
 	})
 	obj.SetUID(types.UID("uid-1"))
@@ -88,7 +88,7 @@ func TestBuildEnvelopeIncludesOwnerAndSummary(t *testing.T) {
 		t.Fatalf("expected correlation container_name=nginx, got %q", envelope.Correlation.ContainerName)
 	}
 
-	if envelope.Correlation.AgentID != "agent-k8s-cp3-worker1" {
+	if envelope.Correlation.AgentID != "agent-lab-k8s-worker1" {
 		t.Fatalf("expected correlation agent_id to be preserved, got %q", envelope.Correlation.AgentID)
 	}
 
@@ -110,7 +110,7 @@ func TestBuildEnvelopeKeepsServiceRadarOnlyCorrelation(t *testing.T) {
 
 	obj.SetName("cluster-report")
 	obj.SetLabels(map[string]string{
-		"serviceradar.agent_id":   "agent-k8s-cp3-worker1",
+		"serviceradar.agent_id":   "agent-lab-k8s-worker1",
 		"serviceradar.device_uid": "sr:9a6211a0-46d9-4986-988d-01e14d886e40",
 	})
 	obj.SetUID(types.UID("uid-service-radar-only"))
@@ -130,7 +130,7 @@ func TestBuildEnvelopeKeepsServiceRadarOnlyCorrelation(t *testing.T) {
 		t.Fatalf("expected ServiceRadar-only correlation to be captured")
 	}
 
-	if envelope.Correlation.AgentID != "agent-k8s-cp3-worker1" {
+	if envelope.Correlation.AgentID != "agent-lab-k8s-worker1" {
 		t.Fatalf("expected agent_id to be preserved, got %q", envelope.Correlation.AgentID)
 	}
 

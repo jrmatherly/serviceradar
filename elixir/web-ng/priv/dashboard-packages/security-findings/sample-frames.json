@@ -14,7 +14,7 @@
         "source": "trivy",
         "source_device_uid": "sr:device-alpha",
         "metadata": {"service_radar": {"source_type": "trivy", "device_uid": "sr:device-alpha"}},
-        "device": {"name": "k8s-cp3-worker1"}
+        "device": {"name": "lab-k8s-worker1"}
       },
       {
         "id": "7bd72cf4-8f72-4f0b-a30b-1f88783de002",
@@ -25,7 +25,7 @@
         "source": "falco",
         "source_device_uid": "sr:device-beta",
         "metadata": {"service_radar": {"source_type": "falco", "device_uid": "sr:device-beta"}},
-        "device": {"name": "k8s-cp3-worker2"}
+        "device": {"name": "lab-k8s-worker2"}
       },
       {
         "id": "7bd72cf4-8f72-4f0b-a30b-1f88783de003",

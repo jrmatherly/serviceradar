@@ -67,7 +67,7 @@ defmodule ServiceRadarWebNGWeb.SecurityDashboardRoutesTest do
     assert detail_html =~ "1.24.13"
     assert detail_html =~ "pkg:golang/stdlib@v1.24.6"
     assert detail_html =~ "bitnami/sealed-secrets-controller:0.32.2"
-    assert detail_html =~ "agent-k8s-cp3-worker1"
+    assert detail_html =~ "agent-lab-k8s-worker1"
     assert detail_html =~ "controller"
     assert detail_html =~ "ReplicaSet/sealed-secrets-54d6d7dc89"
     assert detail_html =~ "Raw report"
@@ -245,13 +245,13 @@ defmodule ServiceRadarWebNGWeb.SecurityDashboardRoutesTest do
           report_kind: "VulnerabilityReport",
           cluster_id: "demo",
           namespace: "sealed-secrets",
-          agent_id: "agent-k8s-cp3-worker1",
+          agent_id: "agent-lab-k8s-worker1",
           device_uid: "sr:trivy-node-1",
           resource_kind: "ReplicaSet",
           resource_name: "sealed-secrets-54d6d7dc89",
           resource_namespace: "sealed-secrets",
           host_ip: "10.42.3.25",
-          node_name: "agent-k8s-cp3-worker1",
+          node_name: "agent-lab-k8s-worker1",
           container_name: "controller",
           owner_kind: "ReplicaSet",
           owner_name: "sealed-secrets-54d6d7dc89",
@@ -286,7 +286,7 @@ defmodule ServiceRadarWebNGWeb.SecurityDashboardRoutesTest do
 
     diagnostics = %{
       "rule" => %{"name" => "Terminal shell in container", "priority" => "High"},
-      "host" => %{"name" => "agent-k8s-cp2-worker2"},
+      "host" => %{"name" => "agent-dev-k8s-worker2"},
       "process" => %{"name" => "bash", "command" => "/bin/bash", "executable" => "/bin/bash"},
       "user" => %{"name" => "root"},
       "container" => %{
@@ -317,12 +317,12 @@ defmodule ServiceRadarWebNGWeb.SecurityDashboardRoutesTest do
             "security_signal" => %{"diagnostics" => diagnostics},
             "service_radar" => %{
               "source_type" => "falco",
-              "device_hostname" => "agent-k8s-cp2-worker2"
+              "device_hostname" => "agent-dev-k8s-worker2"
             }
           },
           observables: [],
           actor: %{},
-          device: %{"name" => "agent-k8s-cp2-worker2"},
+          device: %{"name" => "agent-dev-k8s-worker2"},
           src_endpoint: %{},
           dst_endpoint: %{},
           log_provider: "falco",
@@ -365,7 +365,7 @@ defmodule ServiceRadarWebNGWeb.SecurityDashboardRoutesTest do
     defp falco_row do
       diagnostics = %{
         "rule" => %{"name" => "Terminal shell in container", "priority" => "High"},
-        "host" => %{"name" => "agent-k8s-cp2-worker2"},
+        "host" => %{"name" => "agent-dev-k8s-worker2"},
         "process" => %{"name" => "bash", "command" => "/bin/bash", "executable" => "/bin/bash"},
         "user" => %{"name" => "root"},
         "container" => %{
@@ -387,7 +387,7 @@ defmodule ServiceRadarWebNGWeb.SecurityDashboardRoutesTest do
         "message" => "Falco detected Terminal shell in container",
         "metadata" => %{
           "security_signal" => %{"diagnostics" => diagnostics},
-          "service_radar" => %{"source_type" => "falco", "device_hostname" => "agent-k8s-cp2-worker2"}
+          "service_radar" => %{"source_type" => "falco", "device_hostname" => "agent-dev-k8s-worker2"}
         },
         "raw_data" => %{"diagnostics" => diagnostics}
       }

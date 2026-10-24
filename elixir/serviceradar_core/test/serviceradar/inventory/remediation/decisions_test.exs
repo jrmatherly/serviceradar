@@ -102,7 +102,7 @@ defmodule ServiceRadar.Inventory.Remediation.DecisionsTest do
 
     test "never matches real agents" do
       refute Decisions.debris_agent?(
-               debris_agent(%{uid: "agent-k8s-cp2-worker1", device_uid: nil})
+               debris_agent(%{uid: "agent-dev-k8s-worker1", device_uid: nil})
              )
     end
 
@@ -118,45 +118,45 @@ defmodule ServiceRadar.Inventory.Remediation.DecisionsTest do
       assert Decisions.debris_device?(%{agent_id: "agent-reip-904", hostname: "k8s-pod-x"})
       assert Decisions.debris_device?(%{agent_id: nil, hostname: "k8s-pod-b"})
       assert Decisions.debris_device?(%{agent_id: nil, hostname: "K8S-POD-A"})
-      refute Decisions.debris_device?(%{agent_id: "agent-k8s-cp2-worker1", hostname: "worker1"})
+      refute Decisions.debris_device?(%{agent_id: "agent-dev-k8s-worker1", hostname: "worker1"})
       refute Decisions.debris_device?(%{agent_id: nil, hostname: nil})
     end
   end
 
   describe "hostname matching (agent-links)" do
     test "normalize_hostname/1 trims, lowercases, and rejects blanks" do
-      assert Decisions.normalize_hostname("  K8S-CP2-Worker1 ") == "k8s-cp2-worker1"
+      assert Decisions.normalize_hostname("  DEV-K8S-Worker1 ") == "dev-k8s-worker1"
       assert Decisions.normalize_hostname("") == nil
       assert Decisions.normalize_hostname("   ") == nil
       assert Decisions.normalize_hostname(nil) == nil
     end
 
     test "expected_hostname/1 prefers host over name" do
-      assert Decisions.expected_hostname(%{host: "Dusk01", name: "other"}) == "dusk01"
-      assert Decisions.expected_hostname(%{host: nil, name: "dusk01"}) == "dusk01"
+      assert Decisions.expected_hostname(%{host: "Alpha01", name: "other"}) == "alpha01"
+      assert Decisions.expected_hostname(%{host: nil, name: "alpha01"}) == "alpha01"
       assert Decisions.expected_hostname(%{host: "", name: nil}) == nil
     end
 
     test "device_matches_host?/2 requires live device with the expected hostname" do
-      live = %{hostname: "k8s-cp2-worker3", deleted_at: nil}
-      tombstone = %{hostname: "k8s-cp2-worker3", deleted_at: ~U[2026-06-04 21:41:01Z]}
+      live = %{hostname: "dev-k8s-worker3", deleted_at: nil}
+      tombstone = %{hostname: "dev-k8s-worker3", deleted_at: ~U[2026-06-04 21:41:01Z]}
 
-      assert Decisions.device_matches_host?(live, "k8s-cp2-worker3")
-      refute Decisions.device_matches_host?(live, "k8s-cp2-worker1")
-      refute Decisions.device_matches_host?(tombstone, "k8s-cp2-worker3")
-      refute Decisions.device_matches_host?(nil, "k8s-cp2-worker3")
+      assert Decisions.device_matches_host?(live, "dev-k8s-worker3")
+      refute Decisions.device_matches_host?(live, "dev-k8s-worker1")
+      refute Decisions.device_matches_host?(tombstone, "dev-k8s-worker3")
+      refute Decisions.device_matches_host?(nil, "dev-k8s-worker3")
       refute Decisions.device_matches_host?(live, nil)
     end
 
     test "choose_device_owner/2 picks the hostname-matching agent of a shared device" do
       agents = [
-        %{uid: "agent-k8s-cp2-worker2", host: "k8s-cp2-worker2"},
-        %{uid: "agent-k8s-cp2-worker3", host: "k8s-cp2-worker3"},
-        %{uid: "agent-k8s-cp2-worker1", host: "k8s-cp2-worker1"}
+        %{uid: "agent-dev-k8s-worker2", host: "dev-k8s-worker2"},
+        %{uid: "agent-dev-k8s-worker3", host: "dev-k8s-worker3"},
+        %{uid: "agent-dev-k8s-worker1", host: "dev-k8s-worker1"}
       ]
 
-      owner = Decisions.choose_device_owner(agents, "k8s-cp2-worker3")
-      assert owner.uid == "agent-k8s-cp2-worker3"
+      owner = Decisions.choose_device_owner(agents, "dev-k8s-worker3")
+      assert owner.uid == "agent-dev-k8s-worker3"
 
       assert Decisions.choose_device_owner(agents, "elsewhere") == nil
       assert Decisions.choose_device_owner(agents, nil) == nil
@@ -208,8 +208,8 @@ defmodule ServiceRadar.Inventory.Remediation.DecisionsTest do
 
   describe "same_physical_host?/2 (proxmox merge corroboration)" do
     test "corroborated by a shared vmid-scoped reference" do
-      a = dev([], ["proxmox:v2:farm01:node:pve02"])
-      b = dev([], ["proxmox:v2:farm01:node:pve02"])
+      a = dev([], ["proxmox:v2:edge01:node:pve02"])
+      b = dev([], ["proxmox:v2:edge01:node:pve02"])
       assert Decisions.same_physical_host?(a, b)
     end
 
@@ -220,8 +220,8 @@ defmodule ServiceRadar.Inventory.Remediation.DecisionsTest do
       b = dev([], ["proxmox:hypervisor:pve02"])
       refute Decisions.same_physical_host?(a, b)
 
-      c = dev([], ["proxmox:vm:k8s-cp3-worker1"])
-      d = dev([], ["proxmox:vm:k8s-cp3-worker1"])
+      c = dev([], ["proxmox:vm:lab-k8s-worker1"])
+      d = dev([], ["proxmox:vm:lab-k8s-worker1"])
       refute Decisions.same_physical_host?(c, d)
 
       e = dev([], ["proxmox:node:pve01"])
@@ -230,8 +230,8 @@ defmodule ServiceRadar.Inventory.Remediation.DecisionsTest do
     end
 
     test "an ambiguous token alongside a shared strong token still corroborates" do
-      a = dev([], ["proxmox:hypervisor:pve02", "proxmox:v2:farm01:node:pve02"])
-      b = dev([], ["proxmox:hypervisor:pve02", "proxmox:v2:farm01:node:pve02"])
+      a = dev([], ["proxmox:hypervisor:pve02", "proxmox:v2:edge01:node:pve02"])
+      b = dev([], ["proxmox:hypervisor:pve02", "proxmox:v2:edge01:node:pve02"])
       assert Decisions.same_physical_host?(a, b)
     end
 
@@ -248,9 +248,9 @@ defmodule ServiceRadar.Inventory.Remediation.DecisionsTest do
     end
 
     test "distinct cluster references are NOT the same host" do
-      farm = dev([], ["proxmox:hypervisor:farm01:pve02"])
-      tonka = dev([], ["proxmox:hypervisor:tonka01:pve02"])
-      refute Decisions.same_physical_host?(farm, tonka)
+      edge = dev([], ["proxmox:hypervisor:edge01:pve02"])
+      hub = dev([], ["proxmox:hypervisor:hub01:pve02"])
+      refute Decisions.same_physical_host?(edge, hub)
     end
 
     test "no shared identity at all is NOT the same host" do
@@ -264,26 +264,26 @@ defmodule ServiceRadar.Inventory.Remediation.DecisionsTest do
 
   describe "identity_components/1" do
     test "same-hostname rows from different clusters stay in separate components" do
-      farm = %{uid: "sr:farm-pve02", macs: MapSet.new(), host_refs: MapSet.new(["farm01:pve02"])}
-      tonka_a = %{uid: "sr:tonka-a", macs: MapSet.new(), host_refs: MapSet.new(["tonka01:pve02"])}
-      tonka_b = %{uid: "sr:tonka-b", macs: MapSet.new(), host_refs: MapSet.new(["tonka01:pve02"])}
+      edge = %{uid: "sr:edge-pve02", macs: MapSet.new(), host_refs: MapSet.new(["edge01:pve02"])}
+      hub_a = %{uid: "sr:hub-a", macs: MapSet.new(), host_refs: MapSet.new(["hub01:pve02"])}
+      hub_b = %{uid: "sr:hub-b", macs: MapSet.new(), host_refs: MapSet.new(["hub01:pve02"])}
 
-      components = Decisions.identity_components([farm, tonka_a, tonka_b])
+      components = Decisions.identity_components([edge, hub_a, hub_b])
 
-      # farm01/pve02 is its own singleton; the two tonka01/pve02 rows form one
+      # edge01/pve02 is its own singleton; the two hub01/pve02 rows form one
       # component and are the only pair eligible to merge.
       assert length(components) == 2
 
-      farm_component =
-        Enum.find(components, fn c -> Enum.any?(c, &(&1.uid == "sr:farm-pve02")) end)
+      edge_component =
+        Enum.find(components, fn c -> Enum.any?(c, &(&1.uid == "sr:edge-pve02")) end)
 
-      assert length(farm_component) == 1
+      assert length(edge_component) == 1
 
-      tonka_component =
-        Enum.find(components, fn c -> Enum.any?(c, &(&1.uid == "sr:tonka-a")) end)
+      hub_component =
+        Enum.find(components, fn c -> Enum.any?(c, &(&1.uid == "sr:hub-a")) end)
 
-      assert MapSet.new(Enum.map(tonka_component, & &1.uid)) ==
-               MapSet.new(["sr:tonka-a", "sr:tonka-b"])
+      assert MapSet.new(Enum.map(hub_component, & &1.uid)) ==
+               MapSet.new(["sr:hub-a", "sr:hub-b"])
     end
 
     test "identity-less rows each form their own singleton component" do
@@ -319,18 +319,18 @@ defmodule ServiceRadar.Inventory.Remediation.DecisionsTest do
       %{id: id, value: value, partition: "default", source_id: source_id}
     end
 
-    @farm_v2 "proxmox:v2:farm01:vm:113"
-    @tonka_v2 "proxmox:v2:tonka:vm:117"
-    @farm_source "proxmox-farm01"
-    @tonka_source "proxmox-tonka"
-    @farm_seen ~U[2026-05-01 00:00:00Z]
-    @tonka_seen ~U[2026-06-01 00:00:00Z]
+    @edge_v2 "proxmox:v2:edge01:vm:113"
+    @hub_v2 "proxmox:v2:hub:vm:117"
+    @edge_source "proxmox-edge01"
+    @hub_source "proxmox-hub"
+    @edge_seen ~U[2026-05-01 00:00:00Z]
+    @hub_seen ~U[2026-06-01 00:00:00Z]
 
     defp fused_rows do
       {[
-         v2_row(1, @farm_v2, @farm_source, @farm_seen),
-         v2_row(2, @tonka_v2, @tonka_source, @tonka_seen)
-       ], [mac_row(10, "BC241176DF7E", @farm_source), mac_row(11, "BC2411AABBCC", @tonka_source)]}
+         v2_row(1, @edge_v2, @edge_source, @edge_seen),
+         v2_row(2, @hub_v2, @hub_source, @hub_seen)
+       ], [mac_row(10, "BC241176DF7E", @edge_source), mac_row(11, "BC2411AABBCC", @hub_source)]}
     end
 
     test "splits cross-cluster v2 groups; earliest cluster survives" do
@@ -339,25 +339,25 @@ defmodule ServiceRadar.Inventory.Remediation.DecisionsTest do
       assert {:split, plan} = Decisions.plan_proxmox_unfuse(fused_device(), v2_rows, mac_rows)
 
       assert plan.device_uid == "sr:fused"
-      assert plan.survivor == %{cluster: "farm01", uid: "sr:fused", row_ids: [1]}
+      assert plan.survivor == %{cluster: "edge01", uid: "sr:fused", row_ids: [1]}
       assert [split] = plan.splits
-      assert split.cluster == "tonka"
-      assert split.v2_values == [@tonka_v2]
+      assert split.cluster == "hub"
+      assert split.v2_values == [@hub_v2]
       assert split.row_ids == [2]
       assert split.mac_row_ids == [11]
 
       expected_uid =
-        Ids.generate_deterministic_device_id(%{integration_id: @tonka_v2, partition: "default"})
+        Ids.generate_deterministic_device_id(%{integration_id: @hub_v2, partition: "default"})
 
       assert split.new_uid == expected_uid
       refute split.new_uid == "sr:fused"
     end
 
     test "single-cluster devices are not over-merges" do
-      {[farm_row, _], [_farm_mac, _]} = fused_rows()
+      {[edge_row, _], [_edge_mac, _]} = fused_rows()
 
       assert {:skip, :single_cluster} =
-               Decisions.plan_proxmox_unfuse(fused_device(), [farm_row], [])
+               Decisions.plan_proxmox_unfuse(fused_device(), [edge_row], [])
     end
 
     test "tombstoned fused devices wait for operator judgment" do
@@ -376,8 +376,8 @@ defmodule ServiceRadar.Inventory.Remediation.DecisionsTest do
                Decisions.plan_proxmox_unfuse(
                  fused_device(),
                  [
-                   v2_row(1, @farm_v2, @farm_source, @farm_seen),
-                   v2_row(2, "proxmox:vm:k8s-cp3-worker1", @tonka_source, @tonka_seen)
+                   v2_row(1, @edge_v2, @edge_source, @edge_seen),
+                   v2_row(2, "proxmox:vm:lab-k8s-worker1", @hub_source, @hub_seen)
                  ],
                  []
                )
@@ -388,8 +388,8 @@ defmodule ServiceRadar.Inventory.Remediation.DecisionsTest do
     test "MAC rows without attributable provenance fail closed" do
       # one sync source behind both clusters: every MAC matches both groups
       shared_v2 = [
-        v2_row(1, @farm_v2, "shared-src", @farm_seen),
-        v2_row(2, @tonka_v2, "shared-src", @tonka_seen)
+        v2_row(1, @edge_v2, "shared-src", @edge_seen),
+        v2_row(2, @hub_v2, "shared-src", @hub_seen)
       ]
 
       assert {:skip, :ambiguous_mac_attribution} =
@@ -402,18 +402,18 @@ defmodule ServiceRadar.Inventory.Remediation.DecisionsTest do
 
       assert {:skip, :ambiguous_mac_attribution} =
                Decisions.plan_proxmox_unfuse(fused_device(), v2_rows, [
-                 mac_row(10, "BC241176DF7E", @farm_source),
+                 mac_row(10, "BC241176DF7E", @edge_source),
                  mac_row(11, "BC2411AABBCC", nil)
                ])
     end
 
     test "partition drift fails closed" do
       {v2_rows, mac_rows} = fused_rows()
-      [farm_row, tonka_row] = v2_rows
-      drifted = %{tonka_row | partition: "other"}
+      [edge_row, hub_row] = v2_rows
+      drifted = %{hub_row | partition: "other"}
 
       assert {:skip, :multiple_partitions} =
-               Decisions.plan_proxmox_unfuse(fused_device(), [farm_row, drifted], mac_rows)
+               Decisions.plan_proxmox_unfuse(fused_device(), [edge_row, drifted], mac_rows)
     end
   end
 

@@ -116,7 +116,7 @@ The device details Logs tab SHALL query logs by device identity using a bounded 
 The device details Agent Availability summary SHALL reflect the same recent per-agent sweep observations shown in Recent Sweep History. It SHALL identify the canonical availability source and SHALL NOT claim no per-agent availability exists when recent per-agent sweep history is present.
 
 #### Scenario: Recent sweep history exists
-- **GIVEN** a device has recent sweep history from `agent-dusk01`
+- **GIVEN** a device has recent sweep history from `agent-alpha01`
 - **WHEN** an operator opens device details
-- **THEN** the Agent Availability card shows `agent-dusk01` with recent status and freshness
+- **THEN** the Agent Availability card shows `agent-alpha01` with recent status and freshness
 - **AND** the canonical source label matches the configured or fallback availability source

@@ -17,7 +17,7 @@ Retirement SHALL NOT delete the historical row. An agent that is decommissioned 
 remain queryable for audit, carrying who decommissioned it and when.
 
 #### Scenario: Decommissioning stops an agent reconnecting
-- **GIVEN** agent `agent-dusk01` is `Connected` via gateway `gateway-platform`
+- **GIVEN** agent `agent-alpha01` is `Connected` via gateway `gateway-platform`
 - **WHEN** an authorized operator decommissions it from the agent detail page
 - **THEN** its certificate is revoked at that gateway
 - **AND** the agent cannot establish a new session with the revoked identity
@@ -25,7 +25,7 @@ remain queryable for audit, carrying who decommissioned it and when.
 - **AND** the row remains readable for audit with the actor and timestamp recorded
 
 #### Scenario: Deleting an onboarding package is not a decommission
-- **GIVEN** an onboarding package for `agent-dusk01` whose status is `delivered`
+- **GIVEN** an onboarding package for `agent-alpha01` whose status is `delivered`
 - **WHEN** an operator deletes that package
 - **THEN** the agent's certificate remains valid and the agent stays connected
 - **AND** the interface SHALL NOT present package deletion as a way to remove the agent

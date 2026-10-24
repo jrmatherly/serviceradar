@@ -2460,7 +2460,7 @@ defmodule ServiceRadar.EventWriter.Processors.AnalyticsSignals do
 
   # Canonical re-key on ingest. Anomaly verdicts (edge spike + central seasonal)
   # and capacity-forecast verdicts arrive keyed by a raw host/agent/series id (for
-  # example "ns03", "agent-ns03", "k8s-cp3-worker3"). Findings written under those
+  # example "ns03", "agent-ns03", "lab-k8s-worker3"). Findings written under those
   # raw ids never join the canonical `sr:` device, so device-detail queries the
   # canonical uid and shows "No anomaly findings". We resolve the raw identity to
   # the canonical inventory device uid here so device.uid,

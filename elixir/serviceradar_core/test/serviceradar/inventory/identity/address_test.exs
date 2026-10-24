@@ -14,7 +14,7 @@ defmodule ServiceRadar.Inventory.Identity.AddressTest do
   describe "classify/1" do
     test "IPv4 families" do
       assert Address.classify("8.8.8.8") == :global
-      assert Address.classify("152.117.116.178") == :global
+      assert Address.classify("198.51.100.178") == :global
       assert Address.classify("10.0.0.5") == :private
       assert Address.classify("192.168.1.1") == :private
       assert Address.classify("172.16.0.1") == :private
@@ -36,8 +36,8 @@ defmodule ServiceRadar.Inventory.Identity.AddressTest do
       assert Address.classify("2001:4860:4860::8888") == :global
       assert Address.classify("::1") == :loopback
       assert Address.classify("::") == :unspecified
-      assert Address.classify("fd2f:420a:24b1:1:f692:bfff:fe75:c72a") == :unique_local
-      assert Address.classify("fe80::f692:bfff:fe75:c72b") == :link_local
+      assert Address.classify("fd2f:420a:24b1:1:f29f:c2ff:fe1a:4b84") == :unique_local
+      assert Address.classify("fe80::f29f:c2ff:fe1a:4b2b") == :link_local
     end
 
     test "the whole fe80::/10 range is link-local, not just fe80" do
@@ -111,7 +111,7 @@ defmodule ServiceRadar.Inventory.Identity.AddressTest do
     test "promotes a routable alias over a link-local primary" do
       # The #3905 case: 10 of 18 affected devices already hold the better
       # address and simply are not presenting it.
-      assert Address.preferred_primary("fe80::f692:bfff:fe75:c72b", ["192.168.1.1"]) ==
+      assert Address.preferred_primary("fe80::f29f:c2ff:fe1a:4b2b", ["192.168.1.1"]) ==
                "192.168.1.1"
     end
 

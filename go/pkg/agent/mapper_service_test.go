@@ -61,7 +61,7 @@ func TestPublishDeviceIncludesSNMPFingerprint(t *testing.T) {
 				IPForwarding: 1,
 			},
 			Bridge: &mapper.SNMPBridgeFingerprint{
-				BridgeBaseMAC:          "F4:92:BF:75:C7:2B",
+				BridgeBaseMAC:          "F0:9F:C2:1A:4B:85",
 				BridgePortCount:        8,
 				STPForwardingPortCount: 6,
 			},

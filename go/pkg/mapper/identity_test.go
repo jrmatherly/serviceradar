@@ -495,9 +495,9 @@ func TestGenerateDeviceIDPrefersExistingIdentityForSameIP(t *testing.T) {
 		Results: &DiscoveryResults{
 			Devices: []*DiscoveredDevice{
 				{
-					DeviceID: "mac-f492bf75c721",
-					IP:       "152.117.116.178",
-					MAC:      "f4:92:bf:75:c7:21",
+					DeviceID: "mac-f09fc21a4b7c",
+					IP:       "198.51.100.178",
+					MAC:      "f0:9f:c2:1a:4b:7c",
 					Metadata: map[string]string{},
 				},
 			},
@@ -506,18 +506,18 @@ func TestGenerateDeviceIDPrefersExistingIdentityForSameIP(t *testing.T) {
 	}
 
 	device := &DiscoveredDevice{
-		IP:       "152.117.116.178",
-		MAC:      "f6:92:bf:75:c7:21",
+		IP:       "198.51.100.178",
+		MAC:      "f2:9f:c2:1a:4b:7c",
 		DeviceID: "",
 	}
 
 	engine.generateDeviceID(job, device, device.IP)
 
-	if device.DeviceID != "mac-f492bf75c721" {
+	if device.DeviceID != "mac-f09fc21a4b7c" {
 		t.Fatalf("expected existing ID to be reused, got %q", device.DeviceID)
 	}
 
-	if device.MAC != "f6:92:bf:75:c7:21" {
+	if device.MAC != "f2:9f:c2:1a:4b:7c" {
 		t.Fatalf("expected SNMP MAC to remain on device object for conflict handling, got %q", device.MAC)
 	}
 }

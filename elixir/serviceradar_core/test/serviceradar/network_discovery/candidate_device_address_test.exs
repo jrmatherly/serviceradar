@@ -15,14 +15,14 @@ defmodule ServiceRadar.NetworkDiscovery.CandidateDeviceAddressTest do
   alias ServiceRadar.NetworkDiscovery.MapperResultsIngestor
 
   test "routable addresses may seed a candidate device" do
-    for ip <- ["192.168.1.143", "10.0.2.13", "152.117.116.178", "2001:470:c0b5:1::1"] do
+    for ip <- ["192.168.1.143", "10.0.2.13", "198.51.100.178", "2001:db8:c0b5:1::1"] do
       assert MapperResultsIngestor.candidate_device_address?(ip), "expected #{ip} to be allowed"
     end
   end
 
   test "link-local never seeds a device" do
     # The observed case, plus its IPv6 counterpart. Every device has these.
-    for ip <- ["169.254.0.1", "169.254.255.254", "fe80::1", "fe80::f692:bfff:fe75:c72a"] do
+    for ip <- ["169.254.0.1", "169.254.255.254", "fe80::1", "fe80::f29f:c2ff:fe1a:4b84"] do
       refute MapperResultsIngestor.candidate_device_address?(ip), "expected #{ip} to be rejected"
     end
   end

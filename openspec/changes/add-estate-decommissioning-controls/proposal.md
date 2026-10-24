@@ -12,7 +12,7 @@ Measured on `demo` during that cutover:
 
 | what the operator wanted | what actually exists |
 | --- | --- |
-| remove agent `agent-dusk01` | no destroy action on the Agent resource; the detail page has **zero** `handle_event` |
+| remove agent `agent-alpha01` | no destroy action on the Agent resource; the detail page has **zero** `handle_event` |
 | stop it reconnecting | `revoke_agent_certificate/3` exists, reachable **only** as an admin API |
 | delete its onboarding package | succeeded, and changed nothing -- the package was already `delivered` |
 | drop 109 departed devices | soft-delete worked, but nothing expires a device that merely stops being seen |
