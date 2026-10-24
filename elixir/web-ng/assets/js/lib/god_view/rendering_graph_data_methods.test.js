@@ -5,7 +5,7 @@ import ELK from "elkjs/lib/elk.bundled.js"
 
 import {applyTopologyOverviewToGraph, layoutTopologyOverview} from "./layout_elk_radial_overview"
 import {LANDSCAPE_PROFILE, applyTopologySceneToGraph, layoutTopologyScene} from "./layout_elk_scene"
-import {collapsedFarm01Graph, expandedFarm01Graph} from "./fixtures/farm01_topology_regression"
+import {collapsedFarm01Graph, expandedFarm01Graph} from "./fixtures/edge01_topology_regression"
 import {godViewLayoutClusterMethods} from "./layout_cluster_methods"
 import {godViewLifecycleStreamDecodeMethods} from "./lifecycle_stream_decode_methods"
 import {godViewRenderingGraphDataMethods, hasManagedTopologySceneRoutes} from "./rendering_graph_data_methods"
@@ -794,9 +794,9 @@ describe("rendering_graph_data_methods", () => {
     const out = ctx.buildVisibleGraphData(effective)
 
     const renderedRelationIds = out.edgeData.flatMap((edge) => edge.relationIds)
-    expect(renderedRelationIds.some((relationId) => relationId.startsWith("farm01:attachment:member-"))).toEqual(false)
-    expect(renderedRelationIds.some((relationId) => relationId.startsWith("farm01:attachment:device-"))).toEqual(false)
-    expect(renderedRelationIds.some((relationId) => relationId.startsWith("farm01:attachment:summary-"))).toEqual(true)
+    expect(renderedRelationIds.some((relationId) => relationId.startsWith("edge01:attachment:member-"))).toEqual(false)
+    expect(renderedRelationIds.some((relationId) => relationId.startsWith("edge01:attachment:device-"))).toEqual(false)
+    expect(renderedRelationIds.some((relationId) => relationId.startsWith("edge01:attachment:summary-"))).toEqual(true)
     expect(ctx.state.layoutEngine.layout).not.toHaveBeenCalled()
   })
 

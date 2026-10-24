@@ -155,7 +155,7 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionCommandResultCoordinato
         execution_id: execution_id,
         controller_id: controller_id,
         dispatch_agent_id: "edge-agent-1",
-        dispatch_partition_id: "farm01",
+        dispatch_partition_id: "edge01",
         stage: :fetch_job,
         purpose: :terminal_poll,
         attempt: 1,
@@ -175,7 +175,7 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionCommandResultCoordinato
 
     controller = %{
       id: controller_id,
-      name: "farm01-awx",
+      name: "edge01-awx",
       base_url: "https://awx.example.test:8443",
       agent_id: "edge-agent-1",
       enabled: true,
@@ -193,7 +193,7 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionCommandResultCoordinato
         id: command_id,
         command_type: "awx.fetch_job",
         agent_id: "edge-agent-1",
-        partition_id: "farm01",
+        partition_id: "edge01",
         status: :completed,
         payload: %{},
         context: %{},
@@ -210,7 +210,7 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionCommandResultCoordinato
         controller_id: controller_id,
         state: :running,
         metadata: %{
-          "dispatch_partition_id" => "farm01",
+          "dispatch_partition_id" => "edge01",
           "controller_security_snapshot" => controller_snapshot
         }
       },

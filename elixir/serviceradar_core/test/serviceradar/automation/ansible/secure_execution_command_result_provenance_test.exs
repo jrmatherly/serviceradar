@@ -106,7 +106,7 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionCommandResultProvenance
                controller_provenance: fn controller, job_id, opts ->
                  assert controller.id == env.controller.id
                  assert job_id == 91_001
-                 assert opts[:expected_partition_id] == "farm01"
+                 assert opts[:expected_partition_id] == "edge01"
                  assert opts[:expected_controller_snapshot] == env.controller_snapshot
                  {:ok, victim}
                end
@@ -294,7 +294,7 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionCommandResultProvenance
           execution_id: env.execution.id,
           controller_id: env.controller.id,
           dispatch_agent_id: env.controller.agent_id,
-          dispatch_partition_id: "farm01"
+          dispatch_partition_id: "edge01"
         },
         env.execution,
         request,
@@ -419,7 +419,7 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionCommandResultProvenance
 
     controller = %{
       id: controller_id,
-      name: "farm01-awx",
+      name: "edge01-awx",
       base_url: "https://awx.example.test:8443",
       agent_id: "edge-agent-1",
       enabled: true,
@@ -453,7 +453,7 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionCommandResultProvenance
       scm_revision: String.duplicate("a", 40),
       execution_environment_id: 4,
       machine_credential_id: 5,
-      host_limit: "farm01-pve01",
+      host_limit: "edge01-pve01",
       check_mode: false,
       credential_snapshot: %{
         "credential_ids" => [5],
@@ -461,7 +461,7 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionCommandResultProvenance
       },
       metadata: %{
         "awx_created_by_id" => 11,
-        "dispatch_partition_id" => "farm01",
+        "dispatch_partition_id" => "edge01",
         "controller_security_snapshot" => controller_snapshot
       },
       awx_job_id: nil,
@@ -479,7 +479,7 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionCommandResultProvenance
         inventory_id: 34,
         awx_host_id: 7,
         canonical_device_uid: "sr:device-7",
-        host_name: "farm01-pve01"
+        host_name: "edge01-pve01"
       }
     ]
 

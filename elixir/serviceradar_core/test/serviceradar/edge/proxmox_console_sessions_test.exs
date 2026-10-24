@@ -36,7 +36,7 @@ defmodule ServiceRadar.Edge.ProxmoxConsoleSessionsTest do
          source_key: "#{policy_id}:#{agent_id}",
          policy_id: policy_id,
          agent_uid: agent_id,
-         partition_id: "farm01",
+         partition_id: "edge01",
          plugin_id: "proxmox-console",
          plugin_package_id: package_id,
          plugin_package: %{
@@ -270,7 +270,7 @@ defmodule ServiceRadar.Edge.ProxmoxConsoleSessionsTest do
         gateway_id: "gateway-guest",
         hostname: "pve-guest-owner",
         ip: "192.0.2.10",
-        cluster: "farm01",
+        cluster: "edge01",
         source_rule: rule
       )
 
@@ -283,7 +283,7 @@ defmodule ServiceRadar.Edge.ProxmoxConsoleSessionsTest do
       metadata: %{}
     )
 
-    _guest = create_virtualization_guest!(uid, host, 155, "farm01")
+    _guest = create_virtualization_guest!(uid, host, 155, "edge01")
     Process.put(:proxmox_console_test_device_uid, controller_uid)
 
     assert {:ok, %{session: session}} =

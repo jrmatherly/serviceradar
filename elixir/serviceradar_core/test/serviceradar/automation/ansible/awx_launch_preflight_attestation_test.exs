@@ -76,14 +76,14 @@ defmodule ServiceRadar.Automation.Ansible.AwxLaunchPreflightAttestationTest do
              AwxLaunchPreflightAttestation.verify_dispatch_principal(
                snapshot,
                "edge-agent-1",
-               "farm01"
+               "edge01"
              )
 
     assert {:error, :awx_preflight_partition_drift} =
              AwxLaunchPreflightAttestation.verify_dispatch_principal(
                snapshot,
                "edge-agent-1",
-               "tonka01"
+               "hub01"
              )
 
     assert {:error, :awx_preflight_evidence_mismatch} =
@@ -136,7 +136,7 @@ defmodule ServiceRadar.Automation.Ansible.AwxLaunchPreflightAttestationTest do
              AwxLaunchPreflightAttestation.verify_dispatch_principal(
                snapshot,
                "edge-agent-1",
-               "farm01"
+               "edge01"
              )
 
     assert {:error, :awx_preflight_evidence_mismatch} =
@@ -182,7 +182,7 @@ defmodule ServiceRadar.Automation.Ansible.AwxLaunchPreflightAttestationTest do
         command_id: @command_id,
         controller_id: @controller_id,
         dispatch_agent_id: "edge-agent-1",
-        dispatch_partition_id: "farm01",
+        dispatch_partition_id: "edge01",
         binding_id: @binding_id,
         binding_version: 3,
         approval_id: @approval_id,
@@ -238,7 +238,7 @@ defmodule ServiceRadar.Automation.Ansible.AwxLaunchPreflightAttestationTest do
   defp controller do
     %{
       id: @controller_id,
-      name: "farm01-awx",
+      name: "edge01-awx",
       base_url: "https://awx.example.test:443",
       agent_id: "edge-agent-1",
       enabled: true,

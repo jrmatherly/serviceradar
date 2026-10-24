@@ -9,7 +9,7 @@ defmodule ServiceRadar.Plugins.ProxmoxHostAuthorityTest do
   @sentinel "__SERVICERADAR_HOST_CREDENTIAL__"
   @integration_id "11111111-1111-4111-8111-111111111111"
   @controller_id "22222222-2222-4222-8222-222222222222"
-  @provider_instance_ref "proxmox:v3:#{@integration_id}:#{@controller_id}:farm01"
+  @provider_instance_ref "proxmox:v3:#{@integration_id}:#{@controller_id}:edge01"
 
   test "partitions inventory grants into exact source-scoped PVE bindings" do
     params = %{
@@ -26,16 +26,16 @@ defmodule ServiceRadar.Plugins.ProxmoxHostAuthorityTest do
           "name" => "targets",
           "items" => [
             %{
-              "uid" => "device-farm-pve01",
+              "uid" => "device-edge-pve01",
               "ip" => "192.168.2.10",
-              "integration_id" => "proxmox:v2:farm01:node:pve01",
+              "integration_id" => "proxmox:v2:edge01:node:pve01",
               "provider_ref" => "proxmox:node:pve01",
               "target_kind" => "pve_host"
             },
             %{
-              "uid" => "device-tonka-pve01",
+              "uid" => "device-hub-pve01",
               "ip" => "192.168.1.10",
-              "integration_id" => "proxmox:v2:tonka01:node:pve01",
+              "integration_id" => "proxmox:v2:hub01:node:pve01",
               "provider_ref" => "proxmox:node:pve01",
               "target_kind" => "pve_host"
             }
@@ -57,19 +57,19 @@ defmodule ServiceRadar.Plugins.ProxmoxHostAuthorityTest do
     assert length(host["bindings"]) == 2
 
     bindings = Map.new(host["bindings"], &{&1["origin"], &1})
-    farm = bindings["https://192.168.2.10:8006"]
-    tonka = bindings["https://192.168.1.10:8006"]
+    edge = bindings["https://192.168.2.10:8006"]
+    hub = bindings["https://192.168.1.10:8006"]
 
-    assert farm["target_ids"]["integration_id"] == "proxmox:v2:farm01:node:pve01"
-    assert tonka["target_ids"]["integration_id"] == "proxmox:v2:tonka01:node:pve01"
-    refute farm["binding_id"] == tonka["binding_id"]
-    assert farm["credential_broker"]["allow"]["hosts"] == ["192.168.2.10"]
-    assert farm["credential_broker"]["allow"]["ports"] == [8006]
-    assert farm["credential_broker"]["allow"]["methods"] == ["GET"]
-    assert farm["assignment_policy_version"] == 1
-    assert farm["assignment_policy_fingerprint"] =~ ~r/\A[0-9a-f]{64}\z/
-    refute Map.has_key?(farm, "ssh_host_key_policy")
-    refute Map.has_key?(farm, "insecure_skip_verify")
+    assert edge["target_ids"]["integration_id"] == "proxmox:v2:edge01:node:pve01"
+    assert hub["target_ids"]["integration_id"] == "proxmox:v2:hub01:node:pve01"
+    refute edge["binding_id"] == hub["binding_id"]
+    assert edge["credential_broker"]["allow"]["hosts"] == ["192.168.2.10"]
+    assert edge["credential_broker"]["allow"]["ports"] == [8006]
+    assert edge["credential_broker"]["allow"]["methods"] == ["GET"]
+    assert edge["assignment_policy_version"] == 1
+    assert edge["assignment_policy_fingerprint"] =~ ~r/\A[0-9a-f]{64}\z/
+    refute Map.has_key?(edge, "ssh_host_key_policy")
+    refute Map.has_key?(edge, "insecure_skip_verify")
   end
 
   test "a CA bundle rides the host binding and is stripped from the guest" do
@@ -152,20 +152,20 @@ defmodule ServiceRadar.Plugins.ProxmoxHostAuthorityTest do
           "name" => "targets",
           "items" => [
             %{
-              "uid" => "guest-farm-155",
+              "uid" => "guest-edge-155",
               "ip" => "192.168.2.126",
               "proxmox_base_url" => "https://192.168.2.10:8006/api2/json",
               "integration_id" => @integration_id,
               "controller_id" => @controller_id,
               "provider_instance_ref" => @provider_instance_ref,
               "provider_ref" => "#{@provider_instance_ref}:qemu:155",
-              "native_cluster_id" => "farm01",
+              "native_cluster_id" => "edge01",
               "object_kind" => "qemu",
               "native_object_id" => "155",
               "node" => "pve01",
-              "cluster" => "farm01",
+              "cluster" => "edge01",
               "vmid" => "155",
-              "controller_device_uid" => "farm-pve01",
+              "controller_device_uid" => "edge-pve01",
               "controller_provider_ref" => "#{@provider_instance_ref}:node:pve01",
               "target_kind" => "qemu_guest"
             }
@@ -181,18 +181,18 @@ defmodule ServiceRadar.Plugins.ProxmoxHostAuthorityTest do
     refute inspect(public) =~ "credential_broker"
     assert [binding] = host["bindings"]
     assert binding["origin"] == "https://192.168.2.10:8006"
-    assert binding["target_ids"]["device_uid"] == "guest-farm-155"
+    assert binding["target_ids"]["device_uid"] == "guest-edge-155"
     assert binding["target_ids"]["integration_id"] == @integration_id
     assert binding["target_ids"]["controller_id"] == @controller_id
     assert binding["target_ids"]["provider_instance_ref"] == @provider_instance_ref
     assert binding["target_ids"]["provider_ref"] == "#{@provider_instance_ref}:qemu:155"
-    assert binding["target_ids"]["native_cluster_id"] == "farm01"
+    assert binding["target_ids"]["native_cluster_id"] == "edge01"
     assert binding["target_ids"]["object_kind"] == "qemu"
     assert binding["target_ids"]["native_object_id"] == "155"
     assert binding["target_ids"]["node"] == "pve01"
-    assert binding["target_ids"]["cluster"] == "farm01"
+    assert binding["target_ids"]["cluster"] == "edge01"
     assert binding["target_ids"]["vmid"] == "155"
-    assert binding["target_ids"]["controller_device_uid"] == "farm-pve01"
+    assert binding["target_ids"]["controller_device_uid"] == "edge-pve01"
 
     assert binding["target_ids"]["controller_provider_ref"] ==
              "#{@provider_instance_ref}:node:pve01"
@@ -213,7 +213,7 @@ defmodule ServiceRadar.Plugins.ProxmoxHostAuthorityTest do
         %{
           "items" => [
             %{
-              "uid" => "guest-farm-155",
+              "uid" => "guest-edge-155",
               "ip" => "192.168.2.126",
               "provider_ref" => "proxmox:guest:pve01:qemu:155",
               "target_kind" => "qemu_guest"
@@ -241,10 +241,10 @@ defmodule ServiceRadar.Plugins.ProxmoxHostAuthorityTest do
         %{
           "items" => [
             %{
-              "uid" => "guest-farm-155",
+              "uid" => "guest-edge-155",
               "proxmox_base_url" => "http://192.168.2.10:8006",
-              "integration_id" => "proxmox:v3:source:controller:farm01:qemu:155",
-              "provider_ref" => "proxmox:v3:source:controller:farm01:qemu:155",
+              "integration_id" => "proxmox:v3:source:controller:edge01:qemu:155",
+              "provider_ref" => "proxmox:v3:source:controller:edge01:qemu:155",
               "target_kind" => "qemu_guest"
             }
           ]
@@ -274,10 +274,10 @@ defmodule ServiceRadar.Plugins.ProxmoxHostAuthorityTest do
         %{
           "items" => [
             %{
-              "uid" => "guest-farm-155",
-              "proxmox_base_url" => "https://pve01.farm01.example:8006",
-              "integration_id" => "proxmox:v3:source:controller:farm01:qemu:155",
-              "provider_ref" => "proxmox:v3:source:controller:farm01:qemu:155",
+              "uid" => "guest-edge-155",
+              "proxmox_base_url" => "https://pve01.edge01.example:8006",
+              "integration_id" => "proxmox:v3:source:controller:edge01:qemu:155",
+              "provider_ref" => "proxmox:v3:source:controller:edge01:qemu:155",
               "target_kind" => "qemu_guest"
             }
           ]
@@ -306,18 +306,18 @@ defmodule ServiceRadar.Plugins.ProxmoxHostAuthorityTest do
         %{
           "items" => [
             %{
-              "uid" => "farm-pve01",
+              "uid" => "edge-pve01",
               "ip" => "192.168.2.10",
               "integration_id" => @integration_id,
               "controller_id" => @controller_id,
               "provider_instance_ref" => @provider_instance_ref,
               "provider_ref" => "#{@provider_instance_ref}:node:pve01",
-              "native_cluster_id" => "farm01",
+              "native_cluster_id" => "edge01",
               "object_kind" => "node",
               "native_object_id" => "pve01",
               "node" => "pve01",
-              "cluster" => "farm01",
-              "controller_device_uid" => "farm-pve01",
+              "cluster" => "edge01",
+              "controller_device_uid" => "edge-pve01",
               "controller_provider_ref" => "#{@provider_instance_ref}:node:pve01",
               "target_kind" => "pve_host"
             }
@@ -336,7 +336,7 @@ defmodule ServiceRadar.Plugins.ProxmoxHostAuthorityTest do
 
     assert [binding] = host["bindings"]
     assert binding["origin"] == "https://192.168.2.10:8006"
-    assert binding["target_ids"]["device_uid"] == "farm-pve01"
+    assert binding["target_ids"]["device_uid"] == "edge-pve01"
     assert binding["target_ids"]["integration_id"] == @integration_id
     assert binding["target_ids"]["controller_id"] == @controller_id
     assert binding["target_ids"]["provider_instance_ref"] == @provider_instance_ref
@@ -360,7 +360,7 @@ defmodule ServiceRadar.Plugins.ProxmoxHostAuthorityTest do
         %{
           "items" => [
             %{
-              "uid" => "pve-tonka-01",
+              "uid" => "pve-hub-01",
               "proxmox_base_url" => "https://192.168.1.10:8006",
               "provider_ref" => "proxmox:node:pve01",
               "target_kind" => "pve_host"
@@ -394,7 +394,7 @@ defmodule ServiceRadar.Plugins.ProxmoxHostAuthorityTest do
         %{
           "items" => [
             %{
-              "uid" => "pve-tonka-01",
+              "uid" => "pve-hub-01",
               "proxmox_base_url" => "https://192.168.1.10:8006",
               "provider_ref" => "proxmox:node:pve01",
               "target_kind" => "pve_host"
@@ -784,7 +784,7 @@ defmodule ServiceRadar.Plugins.ProxmoxHostAuthorityTest do
         "id" => "proxmox-inventory",
         "purpose" => "inventory_enrichment"
       },
-      "target" => %{"agent_id" => "edge-farm"},
+      "target" => %{"agent_id" => "agent-edge"},
       "resolution_location" => "agent",
       "inject" => %{
         "type" => "http_header",
@@ -811,7 +811,7 @@ defmodule ServiceRadar.Plugins.ProxmoxHostAuthorityTest do
         "id" => "proxmox-console",
         "purpose" => "console_access"
       },
-      "target" => %{"agent_id" => "edge-farm"},
+      "target" => %{"agent_id" => "agent-edge"},
       "resolution_location" => "agent",
       "auth_method" => auth_method,
       "allow" => %{},

@@ -12,12 +12,12 @@ defmodule ServiceRadar.Plugins.RecoveryConfigDispatchTest do
     end
 
     assert :ok =
-             RecoveryConfigDispatch.dispatch_after_commit("agent-farm01", "farm01",
+             RecoveryConfigDispatch.dispatch_after_commit("agent-edge01", "edge01",
                config_dispatcher: dispatcher,
                config_dispatch_async?: false
              )
 
-    assert_receive {:config_push, "farm01", "agent-farm01"}
+    assert_receive {:config_push, "edge01", "agent-edge01"}
     refute_receive {:config_push, _, _}
   end
 
@@ -30,19 +30,19 @@ defmodule ServiceRadar.Plugins.RecoveryConfigDispatchTest do
     end
 
     assert :ok =
-             RecoveryConfigDispatch.dispatch_after_commit("agent-farm01", "farm01",
+             RecoveryConfigDispatch.dispatch_after_commit("agent-edge01", "edge01",
                config_dispatcher: dispatcher,
                config_dispatch_async?: false
              )
 
-    assert_receive {:config_push, "farm01", "agent-farm01"}
+    assert_receive {:config_push, "edge01", "agent-edge01"}
   end
 
   test "invalid principal values do not invoke a dispatcher" do
     dispatcher = fn _partition_id, _agent_uid -> flunk("config dispatch must not be invoked") end
 
     assert :ok =
-             RecoveryConfigDispatch.dispatch_after_commit("agent-farm01", " ",
+             RecoveryConfigDispatch.dispatch_after_commit("agent-edge01", " ",
                config_dispatcher: dispatcher,
                config_dispatch_async?: false
              )

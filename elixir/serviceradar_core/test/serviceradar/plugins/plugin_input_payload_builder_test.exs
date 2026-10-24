@@ -13,7 +13,7 @@ defmodule ServiceRadar.Plugins.PluginInputPayloadBuilderTest do
         vendor_name: "AXIS",
         tags: %{"brand" => "axis"},
         metadata: %{
-          "integration_id" => "proxmox:v2:farm01:vm:155",
+          "integration_id" => "proxmox:v2:edge01:vm:155",
           "hypervisor_provider_ref" => "proxmox:guest:pve01:qemu:155",
           "hypervisor_guest_type" => "qemu",
           "hypervisor_vmid" => 155,
@@ -37,7 +37,7 @@ defmodule ServiceRadar.Plugins.PluginInputPayloadBuilderTest do
 
     assert first["vendor"] == "AXIS"
     assert first["labels"] == %{"brand" => "axis"}
-    assert first["integration_id"] == "proxmox:v2:farm01:vm:155"
+    assert first["integration_id"] == "proxmox:v2:edge01:vm:155"
     assert first["provider_ref"] == "proxmox:guest:pve01:qemu:155"
     assert first["target_kind"] == "qemu_guest"
     assert first["vmid"] == "155"

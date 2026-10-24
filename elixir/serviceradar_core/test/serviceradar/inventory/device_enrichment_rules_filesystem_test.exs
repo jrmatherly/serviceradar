@@ -16,12 +16,12 @@ defmodule ServiceRadar.Inventory.DeviceEnrichmentRulesFilesystemTest do
   alias ServiceRadar.Inventory.DeviceEnrichmentRules
 
   @udm_update %{
-    hostname: "farm01",
+    hostname: "edge01",
     source: "mapper",
     metadata: %{
       "sys_object_id" => ".1.3.6.1.4.1.8072.3.2.10",
       "sys_descr" => "Ubiquiti UniFi UDM-Pro 4.4.6 Linux 4.19.152 al324",
-      "sys_name" => "farm01",
+      "sys_name" => "edge01",
       "ip_forwarding" => "1"
     }
   }
@@ -74,7 +74,7 @@ defmodule ServiceRadar.Inventory.DeviceEnrichmentRulesFilesystemTest do
           all:
             ip_forwarding: [1]
           any:
-            sys_name: ["farm01"]
+            sys_name: ["edge01"]
         set:
           vendor_name: "Ubiquiti-Override"
           type: "Router"

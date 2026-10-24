@@ -35,7 +35,7 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionLifecycleTest do
   test "terminal success preserves changed=0 as an exact successful target outcome" do
     {operation, execution, targets, job} = running_bundle("successful")
 
-    summaries = [summary(7, "farm01-pve01"), summary(8, "farm01-node01")]
+    summaries = [summary(7, "edge01-pve01"), summary(8, "edge01-node01")]
 
     assert {:ok, _result} =
              SecureExecutionLifecycle.complete_terminal(
@@ -62,7 +62,7 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionLifecycleTest do
     {operation, execution, targets, failed_job} = running_bundle("failed")
 
     failed =
-      summary(7, "farm01-pve01", %{"failures" => 1, "failed" => true, "processed" => 1})
+      summary(7, "edge01-pve01", %{"failures" => 1, "failed" => true, "processed" => 1})
 
     assert {:ok, _result} =
              SecureExecutionLifecycle.complete_terminal(
@@ -71,7 +71,7 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionLifecycleTest do
                targets,
                @controller_id,
                failed_job,
-               [failed, summary(8, "farm01-node01")],
+               [failed, summary(8, "edge01-node01")],
                actions: FakeActions
              )
 
@@ -87,7 +87,7 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionLifecycleTest do
                targets,
                @controller_id,
                canceled_job,
-               [summary(7, "farm01-pve01"), summary(8, "farm01-node01")],
+               [summary(7, "edge01-pve01"), summary(8, "edge01-node01")],
                actions: FakeActions
              )
 
@@ -105,7 +105,7 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionLifecycleTest do
                targets,
                @controller_id,
                job,
-               [summary(7, "farm01-pve01")],
+               [summary(7, "edge01-pve01")],
                actions: FakeActions
              )
 
@@ -181,7 +181,7 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionLifecycleTest do
         ]
       },
       check_mode: false,
-      host_limit: "farm01-pve01,farm01-node01",
+      host_limit: "edge01-pve01,edge01-node01",
       dispatch_id: "018f3f56-1111-7222-8333-123456789abf",
       snapshot_digest: String.duplicate("b", 64),
       awx_job_id: nil,
@@ -198,7 +198,7 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionLifecycleTest do
         "job_id" => 77,
         "job_template" => 42,
         "inventory" => 34,
-        "limit" => "farm01-pve01,farm01-node01",
+        "limit" => "edge01-pve01,edge01-node01",
         "project" => 3,
         "scm_revision" => String.duplicate("a", 40),
         "execution_environment" => 4,
@@ -221,8 +221,8 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionLifecycleTest do
 
   defp targets do
     [
-      target(7, "farm01-pve01", "target-7"),
-      target(8, "farm01-node01", "target-8")
+      target(7, "edge01-pve01", "target-7"),
+      target(8, "edge01-node01", "target-8")
     ]
   end
 

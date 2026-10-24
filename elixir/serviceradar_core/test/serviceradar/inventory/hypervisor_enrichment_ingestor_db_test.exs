@@ -129,7 +129,7 @@ defmodule ServiceRadar.Inventory.HypervisorEnrichmentIngestorDbTest do
     source_scope = %{
       integration_id: Ecto.UUID.generate(),
       controller_id: Ecto.UUID.generate(),
-      partition_id: "farm01"
+      partition_id: "edge01"
     }
 
     {:ok, host_identity} =
@@ -480,7 +480,7 @@ defmodule ServiceRadar.Inventory.HypervisorEnrichmentIngestorDbTest do
   test "rejects new legacy Proxmox v2 writes", %{actor: actor} do
     suffix = System.unique_integer([:positive])
     provider = "proxmox"
-    cluster = "farm-#{suffix}"
+    cluster = "edge-#{suffix}"
     node = "pve-legacy-#{suffix}"
     guest_name = "legacy-guest-#{suffix}"
     guest_ref = "#{provider}:guest:#{node}:qemu:132"

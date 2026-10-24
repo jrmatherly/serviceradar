@@ -22,7 +22,7 @@ defmodule ServiceRadar.Notifications.RendererTest do
     Map.merge(
       %{
         "id" => "0198f0aa-1111-7000-8000-000000000001",
-        "title" => "Device tonka01 is unreachable",
+        "title" => "Device hub01 is unreachable",
         "message" => "ICMP probe failed three consecutive times",
         "severity" => "critical",
         "status" => "pending",
@@ -73,7 +73,7 @@ defmodule ServiceRadar.Notifications.RendererTest do
           supported_formats: [:plain]
         )
 
-      assert rendered.body == "ALERT: Device tonka01 is unreachable (critical)"
+      assert rendered.body == "ALERT: Device hub01 is unreachable (critical)"
     end
 
     test "resolves an open namespace leaf that cannot be enumerated at compile time" do
@@ -109,7 +109,7 @@ defmodule ServiceRadar.Notifications.RendererTest do
           supported_formats: [:plain]
         )
 
-      assert rendered.subject == "subject Device tonka01 is unreachable"
+      assert rendered.subject == "subject Device hub01 is unreachable"
       assert rendered.body == "body critical"
     end
 
@@ -170,7 +170,7 @@ defmodule ServiceRadar.Notifications.RendererTest do
 
     test "url_encode" do
       assert filtered("{{ alert.severity | url_encode }}") == "critical"
-      assert filtered("{{ alert.title | url_encode }}") == "Device+tonka01+is+unreachable"
+      assert filtered("{{ alert.title | url_encode }}") == "Device+hub01+is+unreachable"
     end
 
     test "iso8601 formats a DateTime" do
@@ -487,11 +487,11 @@ defmodule ServiceRadar.Notifications.RendererTest do
 
       # What the transport sends is the notification itself.
       assert rendered.payload["api_key"] == @secret
-      assert rendered.payload["text"] == "Device tonka01 is unreachable"
+      assert rendered.payload["text"] == "Device hub01 is unreachable"
 
       # What may be persisted or logged is not.
       assert rendered.redacted_payload["api_key"] == "[REDACTED]"
-      assert rendered.redacted_payload["text"] == "Device tonka01 is unreachable"
+      assert rendered.redacted_payload["text"] == "Device hub01 is unreachable"
     end
 
     test "the policy version is the northbound one, not a second policy" do
@@ -542,7 +542,7 @@ defmodule ServiceRadar.Notifications.RendererTest do
           sensitive_values: ["is"]
         )
 
-      assert rendered.redacted_payload["body"] == "Device tonka01 is unreachable"
+      assert rendered.redacted_payload["body"] == "Device hub01 is unreachable"
     end
   end
 
@@ -624,7 +624,7 @@ defmodule ServiceRadar.Notifications.RendererTest do
       reordered =
         snapshot()
         |> Map.delete("title")
-        |> Map.put("title", "Device tonka01 is unreachable")
+        |> Map.put("title", "Device hub01 is unreachable")
 
       assert forward.digest == render!(reordered, tmpl, :json, opts).digest
     end

@@ -5,7 +5,7 @@ import {
   FARM01_EXPECTED,
   collapsedFarm01Graph,
   expandedFarm01Graph,
-} from "./fixtures/farm01_topology_regression"
+} from "./fixtures/edge01_topology_regression"
 import {godViewLayoutTopologyStateMethods} from "./layout_topology_state_methods"
 import {godViewLifecycleBootstrapStateDefaultsMethods} from "./lifecycle_bootstrap_state_defaults_methods"
 
@@ -96,10 +96,10 @@ describe("layout_topology_state_methods", () => {
         ? {...node, label: "Current gateway label"}
         : node),
       edges: graph.edges.map((edge) => {
-        if (edge.id === "farm01:backbone:01") {
+        if (edge.id === "edge01:backbone:01") {
           return {...edge, metadata: {...edge.metadata, live: "current-tree-route"}}
         }
-        if (edge.id === "farm01:backbone:03") {
+        if (edge.id === "edge01:backbone:03") {
           return {...edge, metadata: {...edge.metadata, live: "current-cross-link"}}
         }
         return edge
@@ -319,7 +319,7 @@ describe("layout_topology_state_methods", () => {
     // 35 nodes (12 backbone + 24 members, less the expanded summary the members replaced),
     // and the overview lays out a tree, so exactly n-1 routes.
     {state: "expanded", build: expandedFarm01Graph, mode: "elk-radial-overview", routes: 34},
-  ])("uses one accepted scene as the geometry authority for the $state farm01 fixture", async ({build, mode, routes}) => {
+  ])("uses one accepted scene as the geometry authority for the $state edge01 fixture", async ({build, mode, routes}) => {
     const context = makeContext()
 
     const out = await context.prepareGraphLayout(build(), 5, "stamp")

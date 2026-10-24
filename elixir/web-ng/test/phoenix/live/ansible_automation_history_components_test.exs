@@ -33,7 +33,7 @@ defmodule ServiceRadarWebNGWeb.AnsibleLive.AutomationHistoryComponentsTest do
     text = LazyHTML.text(document)
     assert text =~ "dispatch outcome is ambiguous"
     assert text =~ "AWX job (controller-local)"
-    assert text =~ "farm01-awx"
+    assert text =~ "edge01-awx"
     assert text =~ "controller-11111111"
     assert text =~ "membership-77777777"
     assert text =~ "sr:device-7"
@@ -100,7 +100,7 @@ defmodule ServiceRadarWebNGWeb.AnsibleLive.AutomationHistoryComponentsTest do
       executions: [
         %{
           id: "execution-11111111",
-          controller: %{id: "controller-11111111", name: "farm01-awx"},
+          controller: %{id: "controller-11111111", name: "edge01-awx"},
           inventory_id: 34,
           job_template_id: 42,
           project_id: 3,
@@ -108,7 +108,7 @@ defmodule ServiceRadarWebNGWeb.AnsibleLive.AutomationHistoryComponentsTest do
           content_sha256: String.duplicate("c", 64),
           execution_environment_id: 4,
           check_mode: false,
-          host_limit: "farm01-web01",
+          host_limit: "edge01-web01",
           dispatch_id: "dispatch-11111111",
           snapshot_digest: String.duplicate("d", 64),
           state: :dispatch_ambiguous,
@@ -129,7 +129,7 @@ defmodule ServiceRadarWebNGWeb.AnsibleLive.AutomationHistoryComponentsTest do
               membership_id: "membership-77777777",
               canonical_device_uid: "sr:device-7",
               membership_generation: 2,
-              host_name: "farm01-web01",
+              host_name: "edge01-web01",
               ansible_host: "192.0.2.10",
               status: :scope_mismatch,
               snapshot_digest: String.duplicate("e", 64),

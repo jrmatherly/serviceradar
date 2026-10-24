@@ -3,7 +3,7 @@ import ELK from "elkjs/lib/elk.bundled.js"
 
 import {routeStrokeHitsBox} from "./acceptance_geometry_assertions"
 import {bindApi, createStateBackedContext} from "./api_helpers"
-import {collapsedFarm01Graph} from "./fixtures/farm01_topology_regression"
+import {collapsedFarm01Graph} from "./fixtures/edge01_topology_regression"
 import {PORTRAIT_PROFILE, applyTopologySceneToGraph, layoutTopologyScene} from "./layout_elk_scene"
 import {godViewRenderingGraphLayerNodeMethods} from "./rendering_graph_layer_node_methods"
 import {godViewRenderingGraphViewMethods} from "./rendering_graph_view_methods"
@@ -25,14 +25,14 @@ function concurrentExpandedFarm01Graph() {
 
   for (const ordinal of expanded) {
     const suffix = String(ordinal).padStart(2, "0")
-    const anchorId = `farm01:gateway-${suffix}`
+    const anchorId = `edge01:gateway-${suffix}`
     const clusterId = `cluster:endpoints:${anchorId}`
     const anchorIndex = nodes.findIndex((node) => node.id === anchorId)
     const offset = nodes.length
     for (let memberOrdinal = 1; memberOrdinal <= 24; memberOrdinal += 1) {
       const memberSuffix = String(memberOrdinal).padStart(2, "0")
       nodes.push({
-        id: `farm01:endpoint-member-${suffix}-${memberSuffix}`,
+        id: `edge01:endpoint-member-${suffix}-${memberSuffix}`,
         label: `Farm01 gateway ${ordinal} endpoint ${memberOrdinal}`,
         state: 1,
         operUp: 1,
@@ -44,7 +44,7 @@ function concurrentExpandedFarm01Graph() {
         },
       })
       edges.push({
-        id: `farm01:attachment:member-${suffix}-${memberSuffix}`,
+        id: `edge01:attachment:member-${suffix}-${memberSuffix}`,
         source: anchorIndex,
         target: offset + memberOrdinal - 1,
         topologyClass: "endpoints",
@@ -177,8 +177,8 @@ describe("managed topology visual density", () => {
       selection.constraints.detail.leftId,
       selection.constraints.detail.rightId,
     ].sort()).toEqual([
-      "farm01:endpoint-member-01-01",
-      "farm01:endpoint-member-01-02",
+      "edge01:endpoint-member-01-01",
+      "edge01:endpoint-member-01-02",
     ])
     expect(selection.constraints.overview.scale).toBeCloseTo(22 / 224, 12)
     expect(selection.constraints.overview.limitingRolePair).toEqual(["ordinary", "anchor"])

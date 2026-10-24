@@ -62,7 +62,7 @@ defmodule ServiceRadar.Automation.CallbackGrants.CleanupReconcilerTest do
       command_id: @command_id,
       command_type: "awx.cancel_job",
       agent_id: "agent-gateway-demo",
-      partition_id: "farm01",
+      partition_id: "edge01",
       success: true,
       payload: %{
         "verb" => "awx.cancel_job",
@@ -97,7 +97,7 @@ defmodule ServiceRadar.Automation.CallbackGrants.CleanupReconcilerTest do
       command_id: @command_id,
       command_type: "awx.cancel_job",
       agent_id: "agent-gateway-demo",
-      partition_id: "farm01",
+      partition_id: "edge01",
       success: false,
       payload: %{"response_body" => "must-not-persist"}
     }
@@ -148,7 +148,7 @@ defmodule ServiceRadar.Automation.CallbackGrants.CleanupReconcilerTest do
     assert {:error, :cleanup_result_partition_mismatch} =
              valid_delete_payload()
              |> delete_result()
-             |> Map.put(:partition_id, "tonka01")
+             |> Map.put(:partition_id, "hub01")
              |> CleanupReconciler.handle_command_result(opts(self(), delete_command()))
 
     refute_received {:reconcile, _, _}
@@ -177,7 +177,7 @@ defmodule ServiceRadar.Automation.CallbackGrants.CleanupReconcilerTest do
       command_id: @command_id,
       command_type: "awx.delete_callback_credential",
       agent_id: "agent-gateway-demo",
-      partition_id: "farm01",
+      partition_id: "edge01",
       success: true,
       payload: payload
     }
@@ -198,7 +198,7 @@ defmodule ServiceRadar.Automation.CallbackGrants.CleanupReconcilerTest do
       id: @command_id,
       command_type: "awx.delete_callback_credential",
       agent_id: "agent-gateway-demo",
-      partition_id: "farm01",
+      partition_id: "edge01",
       context: delete_context()
     }
   end
@@ -208,7 +208,7 @@ defmodule ServiceRadar.Automation.CallbackGrants.CleanupReconcilerTest do
       id: @command_id,
       command_type: "awx.cancel_job",
       agent_id: "agent-gateway-demo",
-      partition_id: "farm01",
+      partition_id: "edge01",
       context:
         delete_context()
         |> Map.put("cleanup_kind", "job_cancel")
@@ -223,7 +223,7 @@ defmodule ServiceRadar.Automation.CallbackGrants.CleanupReconcilerTest do
       "execution_id" => @execution_id,
       "controller_id" => @controller_id,
       "dispatch_agent_id" => "agent-gateway-demo",
-      "dispatch_partition_id" => "farm01",
+      "dispatch_partition_id" => "edge01",
       "awx_job_id" => 9_001,
       "credential_id" => 401,
       "cleanup_kind" => "credential_delete",

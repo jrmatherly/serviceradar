@@ -92,7 +92,7 @@ defmodule ServiceRadar.Automation.Ansible.CallbackCommandRecoveryTest do
                coordinator: FakeCoordinator
              )
 
-    assert_receive {:process_persisted, command_id, "agent-farm01", "awx.fetch_job", _opts}
+    assert_receive {:process_persisted, command_id, "agent-edge01", "awx.fetch_job", _opts}
     assert command_id == attempt.command_id
   end
 
@@ -102,7 +102,7 @@ defmodule ServiceRadar.Automation.Ansible.CallbackCommandRecoveryTest do
     command =
       attempt
       |> command(status: :completed, expires_at: DateTime.shift(@now, second: 30))
-      |> Map.put(:partition_id, "tonka01")
+      |> Map.put(:partition_id, "hub01")
 
     assert %{attempts: 1, cleanup_intents: 0} =
              CallbackCommandRecovery.recover_once(
@@ -259,7 +259,7 @@ defmodule ServiceRadar.Automation.Ansible.CallbackCommandRecoveryTest do
                end
              )
 
-    assert_receive {:process_persisted, command_id, "agent-farm01", "awx.launch_job", opts}
+    assert_receive {:process_persisted, command_id, "agent-edge01", "awx.launch_job", opts}
     assert command_id == attempt.command_id
     assert opts[:cleanup_only] == true
     refute_receive {:grant_revoked, _, :callback_command_deadline_elapsed}
@@ -280,7 +280,7 @@ defmodule ServiceRadar.Automation.Ansible.CallbackCommandRecoveryTest do
 
     controller = %{
       id: attempt.controller_id,
-      name: "farm01-awx",
+      name: "edge01-awx",
       base_url: "https://awx.example.test:8443",
       agent_id: attempt.dispatch_agent_id,
       enabled: true,
@@ -356,8 +356,8 @@ defmodule ServiceRadar.Automation.Ansible.CallbackCommandRecoveryTest do
       controller_id: Ash.UUID.generate(),
       command_id: Ash.UUID.generate(),
       command_type: command_type,
-      dispatch_agent_id: "agent-farm01",
-      dispatch_partition_id: "farm01",
+      dispatch_agent_id: "agent-edge01",
+      dispatch_partition_id: "edge01",
       stage: stage,
       state: state,
       deadline_at: DateTime.shift(@now, minute: 1)

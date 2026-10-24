@@ -5,7 +5,7 @@ defmodule ServiceRadar.NetworkDiscovery.InterfaceAliasCapTest do
   Nothing else does: no cap in the writer, no schema constraint, no limit on the
   read action, and the UI renders them in an un-streamed table. A device
   reporting an address per interface would produce a row per interface, and the
-  largest switch on farm01 enumerates 239.
+  largest switch on edge01 enumerates 239.
   """
 
   use ExUnit.Case, async: true

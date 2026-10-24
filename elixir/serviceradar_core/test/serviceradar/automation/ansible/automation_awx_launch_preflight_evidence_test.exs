@@ -92,8 +92,8 @@ defmodule ServiceRadar.Automation.Ansible.AutomationAwxLaunchPreflightEvidenceTe
     %{
       command_id: Ash.UUID.generate(),
       controller_id: Ash.UUID.generate(),
-      dispatch_agent_id: "agent-farm01-01",
-      dispatch_partition_id: "farm01",
+      dispatch_agent_id: "agent-edge01-01",
+      dispatch_partition_id: "edge01",
       binding_id: Ash.UUID.generate(),
       binding_version: 7,
       approval_id: Ash.UUID.generate(),

@@ -7,12 +7,12 @@ defmodule ServiceRadar.Inventory.ProxmoxEnrichmentIngestorTest do
   @farm_scope %{
     integration_id: "11111111-1111-4111-8111-111111111111",
     controller_id: "22222222-2222-4222-8222-222222222222",
-    partition_id: "farm01"
+    partition_id: "edge01"
   }
   @tonka_scope %{
     integration_id: "33333333-3333-4333-8333-333333333333",
     controller_id: "44444444-4444-4444-8444-444444444444",
-    partition_id: "tonka01"
+    partition_id: "hub01"
   }
 
   test "mints v3 refs only from a trusted source scope" do
@@ -104,11 +104,11 @@ defmodule ServiceRadar.Inventory.ProxmoxEnrichmentIngestorTest do
     refute Map.has_key?(legacy_cluster, :identity_version)
   end
 
-  test "keeps farm01 and tonka01 records distinct with identical native inventory" do
+  test "keeps edge01 and hub01 records distinct with identical native inventory" do
     parent = self()
     payload = payload_with_details(details_fixture(), @observed_at)
 
-    for {label, scope} <- [farm: @farm_scope, tonka: @tonka_scope] do
+    for {label, scope} <- [edge: @farm_scope, hub: @tonka_scope] do
       assert :ok =
                ProxmoxEnrichmentIngestor.ingest(payload, %{},
                  source_scope: scope,
@@ -119,19 +119,19 @@ defmodule ServiceRadar.Inventory.ProxmoxEnrichmentIngestorTest do
                )
     end
 
-    assert_receive {:farm, farm}
-    assert_receive {:tonka, tonka}
+    assert_receive {:edge, edge}
+    assert_receive {:hub, hub}
 
     for key <- [:clusters, :hosts, :guests, :datastores, :host_disks, :network_interfaces] do
-      farm_refs = farm |> Map.fetch!(key) |> MapSet.new(& &1.provider_ref)
-      tonka_refs = tonka |> Map.fetch!(key) |> MapSet.new(& &1.provider_ref)
+      farm_refs = edge |> Map.fetch!(key) |> MapSet.new(& &1.provider_ref)
+      tonka_refs = hub |> Map.fetch!(key) |> MapSet.new(& &1.provider_ref)
       assert MapSet.disjoint?(farm_refs, tonka_refs)
     end
 
-    assert hd(farm.guests).native_object_id == hd(tonka.guests).native_object_id
-    assert hd(farm.guests).host_provider_ref != hd(tonka.guests).host_provider_ref
-    assert hd(farm.guests).metadata["partition"] == "farm01"
-    assert hd(tonka.guests).metadata["partition"] == "tonka01"
+    assert hd(edge.guests).native_object_id == hd(hub.guests).native_object_id
+    assert hd(edge.guests).host_provider_ref != hd(hub.guests).host_provider_ref
+    assert hd(edge.guests).metadata["partition"] == "edge01"
+    assert hd(hub.guests).metadata["partition"] == "hub01"
   end
 
   test "advertises support for typed Proxmox enrichment details" do

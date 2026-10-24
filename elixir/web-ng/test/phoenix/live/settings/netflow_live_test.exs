@@ -42,7 +42,7 @@ defmodule ServiceRadarWebNGWeb.Settings.NetflowLiveTest do
         "partition" => "default",
         "label" => "RFC1918",
         "cidr" => "10.0.0.0/8",
-        "location_label" => "farm01 - Carver, MN",
+        "location_label" => "edge01 - Carver, MN",
         "latitude" => "44.7633",
         "longitude" => "-93.6258",
         "enabled" => "true"
@@ -61,14 +61,14 @@ defmodule ServiceRadarWebNGWeb.Settings.NetflowLiveTest do
 
     assert Enum.any?(cidrs, fn cidr ->
              cidr.cidr == "10.0.0.0/8" and cidr.partition == "default" and
-               cidr.location_label == "farm01 - Carver, MN" and cidr.latitude == 44.7633 and
+               cidr.location_label == "edge01 - Carver, MN" and cidr.latitude == 44.7633 and
                cidr.longitude == -93.6258
            end)
 
     {:ok, lv, _html} = live(conn, ~p"/settings/flows")
     assert has_element?(lv, "td", "10.0.0.0/8")
     assert has_element?(lv, "td", "RFC1918")
-    assert has_element?(lv, "td", "farm01 - Carver, MN")
+    assert has_element?(lv, "td", "edge01 - Carver, MN")
   end
 
   test "updates optional netflow settings", %{conn: conn} do

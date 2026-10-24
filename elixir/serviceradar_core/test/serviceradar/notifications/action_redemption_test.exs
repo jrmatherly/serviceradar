@@ -647,7 +647,7 @@ defmodule ServiceRadar.Notifications.ActionRedemptionTest do
     secret
   end
 
-  defp create_alert!(actor, title \\ "Device tonka01 is unreachable") do
+  defp create_alert!(actor, title \\ "Device hub01 is unreachable") do
     Alert
     |> Ash.Changeset.for_create(
       :trigger,

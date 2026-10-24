@@ -154,10 +154,10 @@ defmodule ServiceRadar.NetworkDiscovery.TopologyProjectionContractTest do
       normalized =
         MapperResultsIngestor.normalize_topology(%{
           "protocol" => "wireguard-derived",
-          "local_device_id" => "farm01",
+          "local_device_id" => "edge01",
           "local_device_ip" => "192.168.1.1",
           "local_if_name" => "wgsts1000",
-          "neighbor_device_id" => "sr:tonka01",
+          "neighbor_device_id" => "sr:hub01",
           "neighbor_mgmt_addr" => "192.168.1.2",
           "neighbor_port_id" => "wgsts1000",
           "metadata" => %{

@@ -249,7 +249,7 @@ defmodule ServiceRadar.Plugins.PolicyAssignmentReconcilerTest do
              PolicyAssignmentReconciler.reconcile(policy, [],
                resolver: ResolverV1,
                store: MemoryStore,
-               partition_resolver: fn "agent-a" -> {:ok, "farm01"} end,
+               partition_resolver: fn "agent-a" -> {:ok, "edge01"} end,
                generated_at: "2026-02-21T23:30:00Z"
              )
 
@@ -262,7 +262,7 @@ defmodule ServiceRadar.Plugins.PolicyAssignmentReconcilerTest do
              PolicyAssignmentReconciler.reconcile(policy, [],
                resolver: ResolverV1,
                store: MemoryStore,
-               partition_resolver: fn "agent-a" -> {:ok, "farm01"} end,
+               partition_resolver: fn "agent-a" -> {:ok, "edge01"} end,
                generated_at: "2026-02-21T23:30:00Z"
              )
 
@@ -274,7 +274,7 @@ defmodule ServiceRadar.Plugins.PolicyAssignmentReconcilerTest do
              PolicyAssignmentReconciler.reconcile(policy, [],
                resolver: ResolverV2,
                store: MemoryStore,
-               partition_resolver: fn "agent-a" -> {:ok, "farm01"} end,
+               partition_resolver: fn "agent-a" -> {:ok, "edge01"} end,
                generated_at: "2026-02-21T23:31:00Z"
              )
 
@@ -289,7 +289,7 @@ defmodule ServiceRadar.Plugins.PolicyAssignmentReconcilerTest do
     existing = %{
       id: Ecto.UUID.generate(),
       agent_uid: "agent-a",
-      partition_id: "farm01",
+      partition_id: "edge01",
       plugin_package_id: package_id,
       source: :policy,
       source_key: "drifted-old-source-key",
@@ -315,7 +315,7 @@ defmodule ServiceRadar.Plugins.PolicyAssignmentReconcilerTest do
              PolicyAssignmentReconciler.reconcile(policy, [],
                resolver: ResolverV1,
                store: DriftedStore,
-               partition_resolver: fn "agent-a" -> {:ok, "farm01"} end,
+               partition_resolver: fn "agent-a" -> {:ok, "edge01"} end,
                generated_at: "2026-02-21T23:30:00Z"
              )
 
@@ -337,7 +337,7 @@ defmodule ServiceRadar.Plugins.PolicyAssignmentReconcilerTest do
     other_rule = %{
       id: Ecto.UUID.generate(),
       agent_uid: "agent-a",
-      partition_id: "farm01",
+      partition_id: "edge01",
       plugin_package_id: package_id,
       source: :policy,
       source_key: "other-rule-source-key",
@@ -363,7 +363,7 @@ defmodule ServiceRadar.Plugins.PolicyAssignmentReconcilerTest do
              PolicyAssignmentReconciler.reconcile(policy, [],
                resolver: ResolverV1,
                store: DriftedStore,
-               partition_resolver: fn "agent-a" -> {:ok, "farm01"} end,
+               partition_resolver: fn "agent-a" -> {:ok, "edge01"} end,
                generated_at: "2026-02-21T23:30:00Z"
              )
 
@@ -383,7 +383,7 @@ defmodule ServiceRadar.Plugins.PolicyAssignmentReconcilerTest do
              PolicyAssignmentReconciler.reconcile(policy, [],
                resolver: ResolverV1,
                store: MemoryStore,
-               partition_resolver: fn "agent-a" -> {:ok, "farm01"} end,
+               partition_resolver: fn "agent-a" -> {:ok, "edge01"} end,
                generated_at: "2026-07-13T20:00:00Z"
              )
 
@@ -391,7 +391,7 @@ defmodule ServiceRadar.Plugins.PolicyAssignmentReconcilerTest do
              PolicyAssignmentReconciler.reconcile(policy, [],
                resolver: ResolverV1,
                store: MemoryStore,
-               partition_resolver: fn "agent-a" -> {:ok, "tonka01"} end,
+               partition_resolver: fn "agent-a" -> {:ok, "hub01"} end,
                generated_at: "2026-07-13T20:00:00Z"
              )
 
@@ -401,8 +401,8 @@ defmodule ServiceRadar.Plugins.PolicyAssignmentReconcilerTest do
     rows = MemoryStore.rows()
     assert Enum.count(rows, &(&1.agent_uid == "agent-a")) == 2
     assert rows |> Enum.map(& &1.source_key) |> Enum.uniq() |> length() == 1
-    assert Enum.any?(rows, &(&1.partition_id == "farm01" and &1.enabled == false))
-    assert Enum.any?(rows, &(&1.partition_id == "tonka01" and &1.enabled == true))
+    assert Enum.any?(rows, &(&1.partition_id == "edge01" and &1.enabled == false))
+    assert Enum.any?(rows, &(&1.partition_id == "hub01" and &1.enabled == true))
   end
 
   test "expected recovery partition rejects a changed live session before any assignment write" do
@@ -414,15 +414,15 @@ defmodule ServiceRadar.Plugins.PolicyAssignmentReconcilerTest do
       enabled: true
     }
 
-    # Recovery observed farm01 before entering its guarded transaction, but the
-    # reconcile-time resolver sees the same agent authenticated in tonka01.
+    # Recovery observed edge01 before entering its guarded transaction, but the
+    # reconcile-time resolver sees the same agent authenticated in hub01.
     # Do not create, update, adopt, or retract an assignment in that case.
     assert {:error, errors} =
              PolicyAssignmentReconciler.reconcile(policy, [],
                resolver: ResolverV1,
                store: MemoryStore,
-               expected_partition_id: "farm01",
-               partition_resolver: fn "agent-a" -> {:ok, "tonka01"} end,
+               expected_partition_id: "edge01",
+               partition_resolver: fn "agent-a" -> {:ok, "hub01"} end,
                generated_at: "2026-07-15T20:00:00Z"
              )
 
@@ -443,12 +443,12 @@ defmodule ServiceRadar.Plugins.PolicyAssignmentReconcilerTest do
              PolicyAssignmentReconciler.reconcile(policy, [],
                resolver: ResolverV1,
                store: MemoryStore,
-               expected_partition_id: "farm01",
-               partition_resolver: fn "agent-a" -> {:ok, "farm01"} end,
+               expected_partition_id: "edge01",
+               partition_resolver: fn "agent-a" -> {:ok, "edge01"} end,
                generated_at: "2026-07-15T20:00:00Z"
              )
 
-    assert [%{agent_uid: "agent-a", partition_id: "farm01", enabled: true}] =
+    assert [%{agent_uid: "agent-a", partition_id: "edge01", enabled: true}] =
              MemoryStore.rows()
   end
 
@@ -461,15 +461,15 @@ defmodule ServiceRadar.Plugins.PolicyAssignmentReconcilerTest do
       enabled: true
     }
 
-    # Establish the current farm01 assignment through the normal planner so its
+    # Establish the current edge01 assignment through the normal planner so its
     # source key exactly matches the recovery plan. Then inject a separately
-    # active, stale tonka01 row for the same agent UID. The recovery's native
+    # active, stale hub01 row for the same agent UID. The recovery's native
     # agent scope alone is insufficient: both rows have agent-a.
     assert {:ok, _} =
              PolicyAssignmentReconciler.reconcile(policy, [],
                resolver: ResolverV1,
                store: MemoryStore,
-               partition_resolver: fn "agent-a" -> {:ok, "farm01"} end,
+               partition_resolver: fn "agent-a" -> {:ok, "edge01"} end,
                generated_at: "2026-07-15T21:00:00Z"
              )
 
@@ -478,11 +478,11 @@ defmodule ServiceRadar.Plugins.PolicyAssignmentReconcilerTest do
     tonka_assignment = %{
       farm_assignment
       | id: Ecto.UUID.generate(),
-        partition_id: "tonka01",
-        source_key: "stale-tonka01-source",
+        partition_id: "hub01",
+        source_key: "stale-hub01-source",
         interval_seconds: 987,
         timeout_seconds: 654,
-        params: %{"must_remain" => "tonka01"}
+        params: %{"must_remain" => "hub01"}
     }
 
     MemoryStore.put_row(tonka_assignment)
@@ -492,8 +492,8 @@ defmodule ServiceRadar.Plugins.PolicyAssignmentReconcilerTest do
                resolver: ResolverV1,
                store: MemoryStore,
                agent_scope: ["agent-a"],
-               expected_partition_id: "farm01",
-               partition_resolver: fn "agent-a" -> {:ok, "farm01"} end,
+               expected_partition_id: "edge01",
+               partition_resolver: fn "agent-a" -> {:ok, "edge01"} end,
                generated_at: "2026-07-15T21:01:00Z"
              )
 

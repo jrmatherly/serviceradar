@@ -33,16 +33,16 @@ defmodule ServiceRadar.Notifications.RenderersTest do
   defp content(overrides \\ []) do
     defaults = [
       payload_format: :plain,
-      subject: "tonka01 is unreachable",
+      subject: "hub01 is unreachable",
       body: "ICMP probe failed three consecutive times",
       severity: "critical",
       alert_class: "device_down",
       alert_id: "0198f0aa-1111-7000-8000-000000000001",
       alert_url: "https://sr.example.com/alerts/0198",
       dedupe_key: @dedupe_key,
-      source: "tonka01",
+      source: "hub01",
       timestamp: "2026-08-09T12:00:00Z",
-      alert: %{"title" => "tonka01 is unreachable"},
+      alert: %{"title" => "hub01 is unreachable"},
       links: @links,
       include_action_links?: true,
       event_action: :trigger,
@@ -269,7 +269,7 @@ defmodule ServiceRadar.Notifications.RenderersTest do
     end
 
     test "summary falls back to the first non-empty body line" do
-      assert Content.summary(content()) == "tonka01 is unreachable"
+      assert Content.summary(content()) == "hub01 is unreachable"
 
       assert Content.summary(content(subject: nil, body: "\n\nfirst line\nsecond")) ==
                "first line"
@@ -282,7 +282,7 @@ defmodule ServiceRadar.Notifications.RenderersTest do
     test "writes the URLs out in full, because plain text has no link text" do
       payload = Plain.render(content(payload_format: :plain))
 
-      assert payload["subject"] == "tonka01 is unreachable"
+      assert payload["subject"] == "hub01 is unreachable"
       assert payload["body"] =~ "ICMP probe failed"
       assert payload["text"] =~ "Acknowledge: https://sr.example.com/n/ack?t=aaa"
       assert payload["text"] =~ "Snooze 1h: https://sr.example.com/n/snooze?t=bbb"
@@ -303,7 +303,7 @@ defmodule ServiceRadar.Notifications.RenderersTest do
     test "renders a heading and a single link row" do
       payload = Markdown.render(content(payload_format: :markdown))
 
-      assert payload["text"] =~ "### tonka01 is unreachable"
+      assert payload["text"] =~ "### hub01 is unreachable"
       assert payload["text"] =~ "[Acknowledge](https://sr.example.com/n/ack?t=aaa)"
       assert payload["text"] =~ "[Snooze 1h](https://sr.example.com/n/snooze?t=bbb) | "
       assert payload["severity"] == "critical"
@@ -373,7 +373,7 @@ defmodule ServiceRadar.Notifications.RenderersTest do
       payload = Json.render(content(payload_format: :json, body: "just some text"))
 
       assert payload["body"] == "just some text"
-      assert payload["subject"] == "tonka01 is unreachable"
+      assert payload["subject"] == "hub01 is unreachable"
       assert payload["severity"] == "critical"
       assert payload["dedupe_key"] == @dedupe_key
       assert payload["timestamp"] == "2026-08-09T12:00:00Z"
@@ -408,7 +408,7 @@ defmodule ServiceRadar.Notifications.RenderersTest do
       payload = SlackBlocks.render(content(payload_format: :slack_blocks))
 
       # Blocks without text render as "This content can't be displayed".
-      assert payload["text"] == "tonka01 is unreachable"
+      assert payload["text"] == "hub01 is unreachable"
       assert is_list(payload["blocks"])
     end
 
@@ -418,7 +418,7 @@ defmodule ServiceRadar.Notifications.RenderersTest do
 
       assert types == ["header", "section", "context", "actions"]
 
-      assert %{"text" => %{"type" => "plain_text", "text" => "tonka01 is unreachable"}} =
+      assert %{"text" => %{"type" => "plain_text", "text" => "hub01 is unreachable"}} =
                Enum.at(payload["blocks"], 0)
 
       assert %{"text" => %{"type" => "mrkdwn"}} = Enum.at(payload["blocks"], 1)
@@ -483,7 +483,7 @@ defmodule ServiceRadar.Notifications.RenderersTest do
     test "renders one embed with the alert fields" do
       %{"embeds" => [embed]} = DiscordEmbed.render(content(payload_format: :discord_embed))
 
-      assert embed["title"] == "tonka01 is unreachable"
+      assert embed["title"] == "hub01 is unreachable"
       assert embed["description"] =~ "ICMP probe failed"
       assert embed["url"] == "https://sr.example.com/alerts/0198"
       assert embed["timestamp"] == "2026-08-09T12:00:00Z"
@@ -562,7 +562,7 @@ defmodule ServiceRadar.Notifications.RenderersTest do
           content(
             payload_format: :pagerduty_v2,
             event_action: :resolve,
-            subject: "tonka01 recovered",
+            subject: "hub01 recovered",
             body: "ICMP probe succeeded"
           )
         )

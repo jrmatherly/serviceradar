@@ -206,7 +206,7 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionCommandRecoveryTest do
       execution_id: Ash.UUID.generate(),
       controller_id: Ash.UUID.generate(),
       dispatch_agent_id: "edge-agent-1",
-      dispatch_partition_id: "farm01",
+      dispatch_partition_id: "edge01",
       stage: stage,
       purpose: purpose,
       attempt: 1,
@@ -252,11 +252,11 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionCommandRecoveryTest do
       execution_environment_id: 4,
       credential_snapshot: %{"credential_ids" => [5]},
       check_mode: false,
-      host_limit: "farm01-node01",
+      host_limit: "edge01-node01",
       dispatch_id: "018f3f56-1111-7222-8333-123456789abf",
       snapshot_digest: String.duplicate("b", 64),
       metadata: %{
-        "dispatch_partition_id" => "farm01",
+        "dispatch_partition_id" => "edge01",
         "controller_security_snapshot" => controller_snapshot
       }
     }
@@ -273,7 +273,7 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionCommandRecoveryTest do
           execution_id: execution_id,
           controller_id: controller_id,
           dispatch_agent_id: "edge-agent-1",
-          dispatch_partition_id: "farm01"
+          dispatch_partition_id: "edge01"
         },
         execution,
         request,
@@ -331,7 +331,7 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionCommandRecoveryTest do
 
     %{
       id: id,
-      name: "farm01-awx",
+      name: "edge01-awx",
       base_url: "https://awx.example.test:8443",
       agent_id: agent_id,
       enabled: true,
@@ -355,7 +355,7 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionCommandRecoveryTest do
       command_id: Ash.UUID.generate(),
       controller_id: controller.id,
       dispatch_agent_id: controller.agent_id,
-      dispatch_partition_id: "farm01",
+      dispatch_partition_id: "edge01",
       binding_id: Ash.UUID.generate(),
       binding_version: 1,
       approval_id: Ash.UUID.generate(),

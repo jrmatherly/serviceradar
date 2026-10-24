@@ -7,7 +7,7 @@ defmodule ServiceRadarWebNG.Plugins.AddonRolloutViewTest do
 
   test "assignment rollouts name the agent, not the assignment UUID" do
     assignment_id = "11111111-1111-1111-1111-111111111111"
-    agent_uid = "farm01-edge-03"
+    agent_uid = "edge01-edge-03"
 
     view =
       AddonRolloutView.present(
@@ -34,19 +34,19 @@ defmodule ServiceRadarWebNG.Plugins.AddonRolloutViewTest do
         %{
           assignments: %{assignment_id => %{agent_uid: agent_uid}},
           agents: %{
-            agent_uid => %{uid: agent_uid, name: "farm01-edge-03", host: "10.0.0.12"}
+            agent_uid => %{uid: agent_uid, name: "edge01-edge-03", host: "10.0.0.12"}
           }
         }
       )
 
     assert view.scope_kind == :agent
-    assert view.scope_label == "farm01-edge-03"
-    assert view.scope_caption == "Direct assignment · farm01-edge-03"
-    assert view.scope_href == "/agents/farm01-edge-03"
+    assert view.scope_label == "edge01-edge-03"
+    assert view.scope_caption == "Direct assignment · edge01-edge-03"
+    assert view.scope_href == "/agents/edge01-edge-03"
     refute view.scope_label =~ assignment_id
     refute view.summary =~ assignment_id
     assert view.state_label == "Paused"
-    assert view.summary =~ "farm01-edge-03 never reported healthy on 0.1.4"
+    assert view.summary =~ "edge01-edge-03 never reported healthy on 0.1.4"
     assert view.summary =~ "rolled that agent back to 0.1.3"
     assert view.progress_label == "0 of 1 agent on 0.1.4 · 1 held on 0.1.3"
     assert hd(view.targets).batch_label == "Canary"

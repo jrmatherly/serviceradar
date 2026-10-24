@@ -4,13 +4,13 @@ export const FARM01_EXPECTED = Object.freeze({
   addedMemberCount: 24,
 })
 
-const EXPANDED_CLUSTER_ID = "cluster:endpoints:farm01:gateway-01"
+const EXPANDED_CLUSTER_ID = "cluster:endpoints:edge01:gateway-01"
 
 function infrastructureNodes() {
   return Array.from({length: 6}, (_, index) => {
     const ordinal = index + 1
-    const id = `farm01:gateway-${String(ordinal).padStart(2, "0")}`
-    const clusterId = ordinal === 1 ? EXPANDED_CLUSTER_ID : `cluster:endpoints:farm01:gateway-${String(ordinal).padStart(2, "0")}`
+    const id = `edge01:gateway-${String(ordinal).padStart(2, "0")}`
+    const clusterId = ordinal === 1 ? EXPANDED_CLUSTER_ID : `cluster:endpoints:edge01:gateway-${String(ordinal).padStart(2, "0")}`
 
     return {
       id,
@@ -29,11 +29,11 @@ function infrastructureNodes() {
 function summaryNodes() {
   return Array.from({length: 6}, (_, index) => {
     const ordinal = index + 1
-    const anchorId = `farm01:gateway-${String(ordinal).padStart(2, "0")}`
-    const clusterId = ordinal === 1 ? EXPANDED_CLUSTER_ID : `cluster:endpoints:farm01:gateway-${String(ordinal).padStart(2, "0")}`
+    const anchorId = `edge01:gateway-${String(ordinal).padStart(2, "0")}`
+    const clusterId = ordinal === 1 ? EXPANDED_CLUSTER_ID : `cluster:endpoints:edge01:gateway-${String(ordinal).padStart(2, "0")}`
 
     return {
-      id: `farm01:endpoint-summary-${String(ordinal).padStart(2, "0")}`,
+      id: `edge01:endpoint-summary-${String(ordinal).padStart(2, "0")}`,
       label: `${ordinal * 4} endpoints`,
       state: 1,
       operUp: 1,
@@ -50,7 +50,7 @@ function summaryNodes() {
 
 function attachmentNodes() {
   return Array.from({length: 18}, (_, index) => ({
-    id: `farm01:attachment-${String(index + 1).padStart(2, "0")}`,
+    id: `edge01:attachment-${String(index + 1).padStart(2, "0")}`,
     label: `Farm01 attachment ${index + 1}`,
     state: (index + 2) % 4,
     operUp: 1,
@@ -60,29 +60,29 @@ function attachmentNodes() {
 
 function backboneEdges() {
   return [
-    [0, 1, "farm01:backbone:01"],
-    [1, 0, "farm01:backbone:02-reverse"],
-    [1, 2, "farm01:backbone:03"],
-    [2, 3, "farm01:backbone:04"],
-    [3, 2, "farm01:backbone:05-reverse"],
-    [3, 4, "farm01:backbone:06"],
-    [4, 5, "farm01:backbone:07"],
-    [5, 0, "farm01:backbone:08"],
-    [0, 2, "farm01:backbone:09"],
-    [3, 5, "farm01:backbone:10"],
+    [0, 1, "edge01:backbone:01"],
+    [1, 0, "edge01:backbone:02-reverse"],
+    [1, 2, "edge01:backbone:03"],
+    [2, 3, "edge01:backbone:04"],
+    [3, 2, "edge01:backbone:05-reverse"],
+    [3, 4, "edge01:backbone:06"],
+    [4, 5, "edge01:backbone:07"],
+    [5, 0, "edge01:backbone:08"],
+    [0, 2, "edge01:backbone:09"],
+    [3, 5, "edge01:backbone:10"],
   ].map(([source, target, id]) => ({id, source, target, topologyClass: "backbone"}))
 }
 
 function collapsedAttachmentEdges() {
   const summaries = Array.from({length: 6}, (_, index) => ({
-    id: `farm01:attachment:summary-${String(index + 1).padStart(2, "0")}`,
+    id: `edge01:attachment:summary-${String(index + 1).padStart(2, "0")}`,
     source: index,
     target: 6 + index,
     topologyClass: "endpoints",
     evidenceClass: "endpoint-attachment",
   }))
   const attachments = Array.from({length: 18}, (_, index) => ({
-    id: `farm01:attachment:device-${String(index + 1).padStart(2, "0")}`,
+    id: `edge01:attachment:device-${String(index + 1).padStart(2, "0")}`,
     source: index % 6,
     target: 12 + index,
     topologyClass: "endpoints",
@@ -104,7 +104,7 @@ export function collapsedFarm01Graph() {
 export function expandedFarm01Graph() {
   const graph = baseGraph()
   const nodes = graph.nodes.map((node) => {
-    if (node.id !== "farm01:endpoint-summary-01") return node
+    if (node.id !== "edge01:endpoint-summary-01") return node
     return {
       ...node,
       details: {...node.details, cluster_expanded: true},
@@ -113,21 +113,21 @@ export function expandedFarm01Graph() {
   // The server attaches each member to its summary/cluster node, never straight to the anchor.
   // Parenting these on the anchor instead made the island regression unreproducible: the member
   // already had a visible counterpart, so nothing exercised the re-parenting path.
-  const summaryIndex = nodes.findIndex((node) => node.id === "farm01:endpoint-summary-01")
+  const summaryIndex = nodes.findIndex((node) => node.id === "edge01:endpoint-summary-01")
   const members = Array.from({length: FARM01_EXPECTED.addedMemberCount}, (_, index) => ({
-    id: `farm01:endpoint-member-${String(index + 1).padStart(2, "0")}`,
+    id: `edge01:endpoint-member-${String(index + 1).padStart(2, "0")}`,
     label: `Farm01 endpoint ${index + 1}`,
     state: 1,
     operUp: 1,
     details: {
       cluster_id: EXPANDED_CLUSTER_ID,
       cluster_kind: "endpoint-member",
-      cluster_anchor_id: "farm01:gateway-01",
+      cluster_anchor_id: "edge01:gateway-01",
       cluster_expanded: true,
     },
   }))
   const memberEdges = members.map((_, index) => ({
-    id: `farm01:attachment:member-${String(index + 1).padStart(2, "0")}`,
+    id: `edge01:attachment:member-${String(index + 1).padStart(2, "0")}`,
     source: summaryIndex,
     target: nodes.length + index,
     topologyClass: "endpoints",

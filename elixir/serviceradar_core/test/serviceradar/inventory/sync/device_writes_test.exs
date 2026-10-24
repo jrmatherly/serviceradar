@@ -240,7 +240,7 @@ defmodule ServiceRadar.Inventory.Sync.DeviceWritesTest do
   end
 
   describe "jsonb_safe/1" do
-    # The bytes below are the real ones that took farm01's sync ingestion down:
+    # The bytes below are the real ones that took edge01's sync ingestion down:
     # uuid ff82a43f-6e90-47c8-a126-0a75a1d234d9 as Postgrex returns it from a
     # `uuid` column -- a raw 16-byte binary, which satisfies is_binary/1 and so
     # slips through code that reasonably assumes a binary is text.
@@ -270,7 +270,7 @@ defmodule ServiceRadar.Inventory.Sync.DeviceWritesTest do
 
     test "one poisoned record does not affect the others in the batch" do
       # This is the whole point. insert_all is a single statement, so before this
-      # guard existed one bad value failed every device in the batch -- on farm01
+      # guard existed one bad value failed every device in the batch -- on edge01
       # that was 87 devices at a time, for hours.
       records = [
         %{uid: "sr:clean-1", metadata: %{"a" => "1"}},

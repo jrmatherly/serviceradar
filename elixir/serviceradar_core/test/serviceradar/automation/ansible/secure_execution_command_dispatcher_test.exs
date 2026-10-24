@@ -45,7 +45,7 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionCommandDispatcherTest d
     assert_receive {:awx_dispatch, claimed, %{id: @controller_id}, request, context}
     assert claimed.id == attempt.id
     assert claimed.state == :dispatching
-    assert request.launch_opts.host_limit == "farm01-node01"
+    assert request.launch_opts.host_limit == "edge01-node01"
     assert context["schema"] == Contract.context_schema()
     assert context["execution_id"] == @execution_id
   end
@@ -68,7 +68,7 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionCommandDispatcherTest d
 
   test "launch binds the immutable preflight to the exact dispatch partition" do
     {attempt, resources} = launch_attempt(:dispatching, :dispatching)
-    attempt = %{attempt | dispatch_partition_id: "tonka01"}
+    attempt = %{attempt | dispatch_partition_id: "hub01"}
 
     assert {:error, :awx_preflight_partition_drift} =
              Dispatcher.dispatch(attempt,
@@ -345,7 +345,7 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionCommandDispatcherTest d
           execution_id: @execution_id,
           controller_id: @controller_id,
           dispatch_agent_id: "edge-agent-1",
-          dispatch_partition_id: "farm01"
+          dispatch_partition_id: "edge01"
         },
         execution,
         request,
@@ -396,7 +396,7 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionCommandDispatcherTest d
           execution_id: @execution_id,
           controller_id: @controller_id,
           dispatch_agent_id: "edge-agent-1",
-          dispatch_partition_id: "farm01"
+          dispatch_partition_id: "edge01"
         },
         execution,
         request,
@@ -488,7 +488,7 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionCommandDispatcherTest d
       execution_id: @execution_id,
       controller_id: @controller_id,
       dispatch_agent_id: "edge-agent-1",
-      dispatch_partition_id: "farm01"
+      dispatch_partition_id: "edge01"
     }
   end
 
@@ -505,7 +505,7 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionCommandDispatcherTest d
   defp controller do
     %{
       id: @controller_id,
-      name: "farm01-awx",
+      name: "edge01-awx",
       base_url: "https://awx.example.test:8443",
       agent_id: "edge-agent-1",
       enabled: true,
@@ -532,11 +532,11 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionCommandDispatcherTest d
       execution_environment_id: 4,
       credential_snapshot: %{"credential_ids" => [5]},
       check_mode: false,
-      host_limit: "farm01-node01",
+      host_limit: "edge01-node01",
       dispatch_id: "018f3f56-1111-7222-8333-123456789abf",
       snapshot_digest: String.duplicate("b", 64),
       metadata: %{
-        "dispatch_partition_id" => "farm01",
+        "dispatch_partition_id" => "edge01",
         "controller_security_snapshot" => controller_snapshot
       }
     }
@@ -552,7 +552,7 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionCommandDispatcherTest d
       command_id: @preflight_command_id,
       controller_id: @controller_id,
       dispatch_agent_id: "edge-agent-1",
-      dispatch_partition_id: "farm01",
+      dispatch_partition_id: "edge01",
       binding_id: @preflight_binding_id,
       binding_version: 1,
       approval_id: @preflight_approval_id,

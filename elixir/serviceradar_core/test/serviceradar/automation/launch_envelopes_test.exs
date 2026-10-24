@@ -30,31 +30,31 @@ defmodule ServiceRadar.Automation.LaunchEnvelopesTest do
 
     wrong_agent = %{
       agent_id: "agent-other",
-      partition_id: "farm01",
+      partition_id: "edge01",
       command_id: prepared.command_id
     }
 
     assert {:error, :launch_envelope_denied} = resolve(prepared, wrong_agent, store)
 
     wrong_command = %{
-      agent_id: "agent-farm01",
-      partition_id: "farm01",
+      agent_id: "agent-edge01",
+      partition_id: "edge01",
       command_id: Ecto.UUID.generate()
     }
 
     assert {:error, :launch_envelope_denied} = resolve(prepared, wrong_command, store)
 
     wrong_partition = %{
-      agent_id: "agent-farm01",
-      partition_id: "tonka01",
+      agent_id: "agent-edge01",
+      partition_id: "hub01",
       command_id: prepared.command_id
     }
 
     assert {:error, :launch_envelope_denied} = resolve(prepared, wrong_partition, store)
 
     exact = %{
-      agent_id: "agent-farm01",
-      partition_id: "farm01",
+      agent_id: "agent-edge01",
+      partition_id: "edge01",
       command_id: prepared.command_id
     }
 
@@ -85,8 +85,8 @@ defmodule ServiceRadar.Automation.LaunchEnvelopesTest do
     assert {:ok, prepared} = prepare(store)
 
     exact = %{
-      agent_id: "agent-farm01",
-      partition_id: "farm01",
+      agent_id: "agent-edge01",
+      partition_id: "edge01",
       command_id: prepared.command_id
     }
 
@@ -115,8 +115,8 @@ defmodule ServiceRadar.Automation.LaunchEnvelopesTest do
     end)
 
     exact = %{
-      agent_id: "agent-farm01",
-      partition_id: "farm01",
+      agent_id: "agent-edge01",
+      partition_id: "edge01",
       command_id: prepared.command_id
     }
 
@@ -137,8 +137,8 @@ defmodule ServiceRadar.Automation.LaunchEnvelopesTest do
     assert {:ok, prepared} = prepare(store)
 
     exact = %{
-      agent_id: "agent-farm01",
-      partition_id: "farm01",
+      agent_id: "agent-edge01",
+      partition_id: "edge01",
       command_id: prepared.command_id
     }
 
@@ -241,8 +241,8 @@ defmodule ServiceRadar.Automation.LaunchEnvelopesTest do
       controller_id: "01980a6d-4a62-7b3f-a249-5f825874ca54",
       inventory_id: 17,
       job_template_id: 23,
-      dispatch_agent_id: "agent-farm01",
-      dispatch_partition_id: "farm01",
+      dispatch_agent_id: "agent-edge01",
+      dispatch_partition_id: "edge01",
       callback_allowed_origin: "https://demo.example.com",
       manifest_sha256: String.duplicate("a", 64),
       scm_revision: String.duplicate("b", 40),

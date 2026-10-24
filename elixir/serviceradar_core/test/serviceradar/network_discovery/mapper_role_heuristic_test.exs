@@ -153,7 +153,7 @@ defmodule ServiceRadar.NetworkDiscovery.MapperRoleHeuristicTest do
 
   describe "the live case this fixes" do
     test "switchcff8f2's shape resolves to switch_l2 instead of unknown" do
-      # Observed on farm01 and demo: a switch with one out-of-band IPv4
+      # Observed on edge01 and demo: a switch with one out-of-band IPv4
       # management address on an `oob` interface, 217 physical interfaces, seen
       # under a single device_ip. It sat at unknown@40 on both clusters.
       observed = %{

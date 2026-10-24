@@ -24,7 +24,7 @@ defmodule ServiceRadar.AgentCommands.PubSubResultGateTest do
     data = %{
       command_id: command_id,
       command_type: "awx.fetch_job",
-      agent_id: "agent-farm01",
+      agent_id: "agent-edge01",
       success: true,
       payload: %{"ok" => true}
     }
@@ -105,7 +105,7 @@ defmodule ServiceRadar.AgentCommands.PubSubResultGateTest do
       command_id: command_id,
       command_type: "sweep.run_group",
       agent_id: "agent-a",
-      partition_id: "farm01",
+      partition_id: "edge01",
       message: "accepted"
     }
   end

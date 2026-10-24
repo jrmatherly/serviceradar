@@ -29,7 +29,7 @@ defmodule ServiceRadarWebNG.AvailabilityEventsTest do
     end
 
     transitions = [
-      {:unavailable, %{uid: "sr:1", hostname: "farm01", ip: "192.168.2.1"}}
+      {:unavailable, %{uid: "sr:1", hostname: "edge01", ip: "192.168.2.1"}}
     ]
 
     assert :ok =
@@ -45,7 +45,7 @@ defmodule ServiceRadarWebNG.AvailabilityEventsTest do
     assert payload["event_type"] == "device.unavailable"
     assert payload["attributes"]["event_type"] == "device.unavailable"
     assert payload["attributes"]["device"]["uid"] == "sr:1"
-    assert payload["message"] =~ "farm01"
+    assert payload["message"] =~ "edge01"
     assert payload["attributes"]["sweep_group_name"] == "LAN ICMP"
   end
 

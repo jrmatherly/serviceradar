@@ -20,7 +20,7 @@ defmodule ServiceRadar.NetworkDiscovery.MapperUnifiControllerTest do
       MapperUnifiController
       |> Ash.Changeset.for_create(:create, %{
         mapper_job_id: job.id,
-        name: "tonka01",
+        name: "hub01",
         base_url: "https://192.168.10.1",
         api_key: "abc123"
       })
@@ -38,7 +38,7 @@ defmodule ServiceRadar.NetworkDiscovery.MapperUnifiControllerTest do
       MapperUnifiController
       |> Ash.Changeset.for_create(:create, %{
         mapper_job_id: job.id,
-        name: "tonka01",
+        name: "hub01",
         base_url: "https://192.168.10.1/api",
         api_key: "abc123"
       })

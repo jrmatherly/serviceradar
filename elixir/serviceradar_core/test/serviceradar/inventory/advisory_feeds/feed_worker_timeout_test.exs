@@ -230,7 +230,7 @@ defmodule ServiceRadar.Inventory.AdvisoryFeeds.FeedWorkerTimeoutTest do
     # The case the first version of this missed. An OOMKill restarts the container
     # inside the same pod, so the pod keeps its IP and the BEAM returns under the
     # identical node name -- liveness alone cannot tell it apart from a healthy
-    # node. Observed on farm01: a nist-nvd2 run OOMKilled four minutes in, then sat
+    # node. Observed on edge01: a nist-nvd2 run OOMKilled four minutes in, then sat
     # `executing` for over an hour behind a node name that looked fine.
     test "a job is orphaned when its node restarted after the attempt began" do
       live = %{"serviceradar_core@10.42.0.1" => DateTime.shift(@job_at, second: 260)}

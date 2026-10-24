@@ -55,7 +55,7 @@ defmodule ServiceRadar.Plugins.PluginAssignmentTest do
     system = SystemActor.system(:plugin_assignment_test)
     plugin_id = "duplicate-guard-#{unique_id}"
     agent_uid = "agent-duplicate-guard-#{unique_id}"
-    register_control_session!(agent_uid, "farm01")
+    register_control_session!(agent_uid, "edge01")
     {:ok, package} = create_approved_package(actor, plugin_id)
 
     assert {:ok, _policy_assignment} =
@@ -134,7 +134,7 @@ defmodule ServiceRadar.Plugins.PluginAssignmentTest do
     system = SystemActor.system(:plugin_assignment_test)
     plugin_id = "single-enabled-assignment-#{unique_id}"
     agent_uid = "agent-single-enabled-assignment-#{unique_id}"
-    register_control_session!(agent_uid, "farm01")
+    register_control_session!(agent_uid, "edge01")
     {:ok, package} = create_approved_package(actor, plugin_id)
 
     assert {:ok, assignment} =
@@ -185,7 +185,7 @@ defmodule ServiceRadar.Plugins.PluginAssignmentTest do
     system = SystemActor.system(:plugin_assignment_test)
     plugin_id = "disabled-duplicate-assignment-#{unique_id}"
     agent_uid = "agent-disabled-duplicate-assignment-#{unique_id}"
-    register_control_session!(agent_uid, "farm01")
+    register_control_session!(agent_uid, "edge01")
     {:ok, package} = create_approved_package(actor, plugin_id)
 
     assert {:ok, _active} =
@@ -234,7 +234,7 @@ defmodule ServiceRadar.Plugins.PluginAssignmentTest do
     system = SystemActor.system(:plugin_assignment_test)
     plugin_id = "policy-package-update-#{unique_id}"
     agent_uid = "agent-policy-package-update-#{unique_id}"
-    register_control_session!(agent_uid, "farm01")
+    register_control_session!(agent_uid, "edge01")
     {:ok, old_package} = create_approved_package(actor, plugin_id)
     {:ok, new_package} = create_package_version(actor, plugin_id, "1.0.1")
 
@@ -287,7 +287,7 @@ defmodule ServiceRadar.Plugins.PluginAssignmentTest do
     system = SystemActor.system(:plugin_assignment_test)
     plugin_id = "policy-adopts-manual-#{unique_id}"
     agent_uid = "agent-policy-adopts-manual-#{unique_id}"
-    register_control_session!(agent_uid, "farm01")
+    register_control_session!(agent_uid, "edge01")
     {:ok, old_package} = create_approved_package(actor, plugin_id)
     {:ok, new_package} = create_package_version(actor, plugin_id, "1.0.1")
 
@@ -365,25 +365,25 @@ defmodule ServiceRadar.Plugins.PluginAssignmentTest do
     source_key = "shared-source-key:#{unique_id}"
     {:ok, package} = create_approved_package(actor, plugin_id)
 
-    register_control_session!(agent_uid, "farm01")
-    assert {:ok, farm} = create_policy_assignment(actor, package, agent_uid, source_key)
-    unregister_control_session!("farm01", agent_uid)
-    register_control_session!(agent_uid, "tonka01")
-    assert {:ok, tonka} = create_policy_assignment(actor, package, agent_uid, source_key)
+    register_control_session!(agent_uid, "edge01")
+    assert {:ok, edge} = create_policy_assignment(actor, package, agent_uid, source_key)
+    unregister_control_session!("edge01", agent_uid)
+    register_control_session!(agent_uid, "hub01")
+    assert {:ok, hub} = create_policy_assignment(actor, package, agent_uid, source_key)
 
-    assert farm.id != tonka.id
-    assert farm.partition_id == "farm01"
-    assert tonka.partition_id == "tonka01"
+    assert edge.id != hub.id
+    assert edge.partition_id == "edge01"
+    assert hub.partition_id == "hub01"
 
     assert {:ok, %PluginAssignment{id: farm_id}} =
-             read_by_partition_source_key(actor, "farm01", source_key)
+             read_by_partition_source_key(actor, "edge01", source_key)
 
-    assert farm_id == farm.id
+    assert farm_id == edge.id
 
     assert {:ok, %PluginAssignment{id: tonka_id}} =
-             read_by_partition_source_key(actor, "tonka01", source_key)
+             read_by_partition_source_key(actor, "hub01", source_key)
 
-    assert tonka_id == tonka.id
+    assert tonka_id == hub.id
     assert {:ok, nil} = read_by_partition_source_key(actor, "other", source_key)
   end
 

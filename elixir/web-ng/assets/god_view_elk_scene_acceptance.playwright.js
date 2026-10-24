@@ -284,8 +284,8 @@ function stableGroups(snapshot) {
 
 function assertConcurrentScene(snapshot) {
   assertClusterElaborated(snapshot, [
-    {anchorId: "farm01:gateway-01", summaryId: "farm01:endpoint-summary-01", memberPrefix: "farm01:endpoint-member-01-", count: 24},
-    {anchorId: "farm01:gateway-02", summaryId: "farm01:endpoint-summary-02", memberPrefix: "farm01:endpoint-member-02-", count: 24},
+    {anchorId: "edge01:gateway-01", summaryId: "edge01:endpoint-summary-01", memberPrefix: "edge01:endpoint-member-01-", count: 24},
+    {anchorId: "edge01:gateway-02", summaryId: "edge01:endpoint-summary-02", memberPrefix: "edge01:endpoint-member-02-", count: 24},
   ])
   assertScene(snapshot, {
     semanticNodes: 58, semanticEdges: 60, attachmentEdges: 0, renderedRoutes: 57,
@@ -366,7 +366,7 @@ test("gates collapsed, expanded, fit, focus, and concurrent roundtrip geometry",
   const expandedResult = await renderFixture(page, measure, "expanded")
   await runStep(measure, "assert expanded geometry", () => {
     assertClusterElaborated(expandedResult.snapshot, [
-      {anchorId: "farm01:gateway-01", summaryId: "farm01:endpoint-summary-01", memberPrefix: "farm01:endpoint-member-", count: 24},
+      {anchorId: "edge01:gateway-01", summaryId: "edge01:endpoint-summary-01", memberPrefix: "edge01:endpoint-member-", count: 24},
     ])
     assertScene(expandedResult.snapshot, {
       semanticNodes: 35, semanticEdges: 37, attachmentEdges: 0, renderedRoutes: 34,
@@ -398,7 +398,7 @@ test("gates collapsed, expanded, fit, focus, and concurrent roundtrip geometry",
     expect(stableGroups(focused)).toEqual(stableGroups(expandedResult.snapshot))
     expect(focused.nodes).toEqual(expandedResult.snapshot.nodes)
     expect(stableGeometry(focused).routes).toEqual(stableGeometry(expandedResult.snapshot).routes)
-    assertFocusedNeighborhood(focused, {anchorId: "farm01:gateway-01", memberPrefix: "farm01:endpoint-member-"})
+    assertFocusedNeighborhood(focused, {anchorId: "edge01:gateway-01", memberPrefix: "edge01:endpoint-member-"})
   })
 
   const concurrentAfterFocus = await renderFixture(
@@ -416,7 +416,7 @@ test("gates collapsed, expanded, fit, focus, and concurrent roundtrip geometry",
   const firstCollapsed = await renderFixture(page, measure, "second")
   await runStep(measure, "assert second cluster geometry", () => {
     assertClusterElaborated(firstCollapsed.snapshot, [
-      {anchorId: "farm01:gateway-02", summaryId: "farm01:endpoint-summary-02", memberPrefix: "farm01:endpoint-member-02-", count: 24},
+      {anchorId: "edge01:gateway-02", summaryId: "edge01:endpoint-summary-02", memberPrefix: "edge01:endpoint-member-02-", count: 24},
     ])
     assertScene(firstCollapsed.snapshot, {
       semanticNodes: 35, semanticEdges: 37, attachmentEdges: 0, renderedRoutes: 34,

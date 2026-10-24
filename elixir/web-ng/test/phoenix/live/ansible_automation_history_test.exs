@@ -65,7 +65,7 @@ defmodule ServiceRadarWebNG.AnsibleAutomation.HistoryTest do
       content_sha256: String.duplicate("d", 64),
       execution_environment_id: 4,
       check_mode: false,
-      host_limit: "farm01-web01",
+      host_limit: "edge01-web01",
       dispatch_id: "dispatch-1",
       snapshot_digest: String.duplicate("e", 64),
       state: :scope_verified,
@@ -82,14 +82,14 @@ defmodule ServiceRadarWebNG.AnsibleAutomation.HistoryTest do
     projected =
       AutomationHistory.execution_view(execution, %{
         id: "controller-1",
-        name: "farm01-awx",
+        name: "edge01-awx",
         base_url: "https://private.example",
         credential_secret_id: "secret-id"
       })
 
-    assert projected.controller == %{id: "controller-1", name: "farm01-awx"}
+    assert projected.controller == %{id: "controller-1", name: "edge01-awx"}
     assert projected.awx_job_id == 77
-    assert projected.host_limit == "farm01-web01"
+    assert projected.host_limit == "edge01-web01"
     assert projected.scope_verified_at == ~U[2026-07-13 00:02:00Z]
 
     refute Map.has_key?(projected, :machine_credential_id)

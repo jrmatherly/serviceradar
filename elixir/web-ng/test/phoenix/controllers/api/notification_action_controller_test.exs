@@ -27,7 +27,7 @@ defmodule ServiceRadarWebNGWeb.Api.NotificationActionControllerTest do
 
   @base "https://serviceradar.test"
   @provider %{provider_type: :native}
-  @title "Device tonka01 is unreachable"
+  @title "Device hub01 is unreachable"
 
   setup do
     actor = SystemActor.system(:notification_action_controller_test)

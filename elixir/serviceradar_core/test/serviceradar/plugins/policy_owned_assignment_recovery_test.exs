@@ -135,7 +135,7 @@ defmodule ServiceRadar.Plugins.PolicyOwnedAssignmentRecoveryTest do
 
   test "a committed policy recovery seeds current service states and pushes the exact postflight principal after terminal persistence" do
     test_pid = self()
-    request = %{id: "recovery-request-1", legacy_agent_uid: "agent-farm01", status: :requested}
+    request = %{id: "recovery-request-1", legacy_agent_uid: "agent-edge01", status: :requested}
 
     assert {:ok, :reconciled} =
              Executor.execute("recovery-request-1",
@@ -152,11 +152,11 @@ defmodule ServiceRadar.Plugins.PolicyOwnedAssignmentRecoveryTest do
                  # transaction commits in production; the dispatcher must wait
                  # for the terminal request status below as well.
                  send(test_pid, :materialization_committed)
-                 {:ok, :reconciled, ["replacement-assignment-1"], "farm01"}
+                 {:ok, :reconciled, ["replacement-assignment-1"], "edge01"}
                end,
                test_recovered_assignment_loader: fn "replacement-assignment-1",
                                                     ^request,
-                                                    "farm01" ->
+                                                    "edge01" ->
                  send(test_pid, :recovered_assignment_reloaded)
                  {:ok, %{id: "replacement-assignment-1"}}
                end,
@@ -190,13 +190,13 @@ defmodule ServiceRadar.Plugins.PolicyOwnedAssignmentRecoveryTest do
     assert_receive :terminal_status_persisted
     assert_receive :recovered_assignment_reloaded
     assert_receive :service_state_seeded
-    assert_receive {:policy_recovery_config_push, "farm01", "agent-farm01"}
+    assert_receive {:policy_recovery_config_push, "edge01", "agent-edge01"}
     refute_receive {:policy_recovery_config_push, _, _}
   end
 
   test "an identity-change rollback result never invokes the policy config dispatcher" do
     test_pid = self()
-    request = %{id: "recovery-request-2", legacy_agent_uid: "agent-farm01", status: :requested}
+    request = %{id: "recovery-request-2", legacy_agent_uid: "agent-edge01", status: :requested}
 
     assert {:ok, :identity_changed} =
              Executor.execute("recovery-request-2",
@@ -234,7 +234,7 @@ defmodule ServiceRadar.Plugins.PolicyOwnedAssignmentRecoveryTest do
 
     request = %{
       id: "recovery-request-lost-lease",
-      legacy_agent_uid: "agent-farm01",
+      legacy_agent_uid: "agent-edge01",
       status: :requested
     }
 
@@ -267,14 +267,14 @@ defmodule ServiceRadar.Plugins.PolicyOwnedAssignmentRecoveryTest do
 
   test "a terminal-status persistence failure does not independently dispatch config" do
     test_pid = self()
-    request = %{id: "recovery-request-3", legacy_agent_uid: "agent-farm01", status: :requested}
+    request = %{id: "recovery-request-3", legacy_agent_uid: "agent-edge01", status: :requested}
 
     assert {:error, :terminal_status_write_failed} =
              Executor.execute("recovery-request-3",
                test_request_loader: fn "recovery-request-3" -> {:ok, request} end,
                test_claimer: fn ^request -> {:ok, {:claimed, request, "lease-token"}} end,
                test_materializer: fn ^request ->
-                 {:ok, :reconciled, ["replacement-assignment-3"], "farm01"}
+                 {:ok, :reconciled, ["replacement-assignment-3"], "edge01"}
                end,
                config_dispatcher: fn partition_id, agent_uid ->
                  send(test_pid, {:policy_recovery_config_push, partition_id, agent_uid})

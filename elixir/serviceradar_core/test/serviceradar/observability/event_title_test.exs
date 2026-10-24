@@ -3,7 +3,7 @@ defmodule ServiceRadar.Observability.EventTitleTest do
 
   alias ServiceRadar.Observability.EventTitle
 
-  @cef_message "CEF:0|Ubiquiti|UniFi Network|10.4.57|578|Network Updated|4|UNIFIcategory=Software Updates UNIFIhost=farm01 msg=UniFi Network has updated to 10.4.57"
+  @cef_message "CEF:0|Ubiquiti|UniFi Network|10.4.57|578|Network Updated|4|UNIFIcategory=Software Updates UNIFIhost=edge01 msg=UniFi Network has updated to 10.4.57"
 
   test "derives alert titles from triggering CEF messages when stored title is generic" do
     assert EventTitle.alert_title(%{

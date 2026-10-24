@@ -97,16 +97,16 @@ defmodule ServiceRadar.Inventory.VirtualizationV3IdentityDbTest do
     node = "pve-shared-#{suffix}"
     vmid = rem(suffix, 900_000) + 100
 
-    farm = %{
+    edge = %{
       integration_id: Ecto.UUID.generate(),
       controller_id: Ecto.UUID.generate(),
-      partition_id: "farm01"
+      partition_id: "edge01"
     }
 
-    tonka = %{
+    hub = %{
       integration_id: Ecto.UUID.generate(),
       controller_id: Ecto.UUID.generate(),
-      partition_id: "tonka01"
+      partition_id: "hub01"
     }
 
     farm_payload = payload(cluster, node, vmid, "10.210.1.11", "10.210.1.21")
@@ -115,20 +115,20 @@ defmodule ServiceRadar.Inventory.VirtualizationV3IdentityDbTest do
     assert :ok =
              ProxmoxEnrichmentIngestor.ingest(farm_payload, %{},
                actor: actor,
-               source_scope: farm
+               source_scope: edge
              )
 
     # Replaying one controller is idempotent.
     assert :ok =
              ProxmoxEnrichmentIngestor.ingest(farm_payload, %{},
                actor: actor,
-               source_scope: farm
+               source_scope: edge
              )
 
     assert :ok =
              ProxmoxEnrichmentIngestor.ingest(tonka_payload, %{},
                actor: actor,
-               source_scope: tonka
+               source_scope: hub
              )
 
     rows =
@@ -162,7 +162,7 @@ defmodule ServiceRadar.Inventory.VirtualizationV3IdentityDbTest do
     assert length(rows) == 2
 
     assert MapSet.new(Enum.map(rows, &Enum.at(&1, 1))) ==
-             MapSet.new([farm.integration_id, tonka.integration_id])
+             MapSet.new([edge.integration_id, hub.integration_id])
 
     assert MapSet.size(MapSet.new(Enum.map(rows, &Enum.at(&1, 6)))) == 2
     assert MapSet.size(MapSet.new(Enum.map(rows, &Enum.at(&1, 12)))) == 2

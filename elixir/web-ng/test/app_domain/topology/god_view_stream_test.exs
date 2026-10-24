@@ -1990,7 +1990,7 @@ defmodule ServiceRadarWebNG.Topology.GodViewStreamTest do
 
     critical_rows = [
       %{
-        local_device_id: "sr:tonka01",
+        local_device_id: "sr:hub01",
         local_device_ip: "192.168.10.1",
         local_if_name: "eth9",
         local_if_index: 9,
@@ -2019,7 +2019,7 @@ defmodule ServiceRadarWebNG.Topology.GodViewStreamTest do
         metadata: %{"relation_type" => "CONNECTS_TO", "evidence_class" => "direct"}
       },
       %{
-        local_device_id: "sr:farm01",
+        local_device_id: "sr:edge01",
         local_device_ip: "192.168.1.1",
         local_if_name: "eth10",
         local_if_index: 10,
@@ -2081,11 +2081,11 @@ defmodule ServiceRadarWebNG.Topology.GodViewStreamTest do
     replace_runtime_graph_links!(graph_ref, critical_rows)
     assert {:ok, %{snapshot: snapshot}} = latest_snapshot_for_test()
 
-    assert edge = find_edge(snapshot, "sr:tonka01", "sr:aruba-24g-02")
+    assert edge = find_edge(snapshot, "sr:hub01", "sr:aruba-24g-02")
     assert edge.flow_pps_ab > 0
     assert edge.flow_pps_ba > 0
 
-    assert edge = find_edge(snapshot, "sr:farm01", "sr:uswaggregation")
+    assert edge = find_edge(snapshot, "sr:edge01", "sr:uswaggregation")
     assert edge.flow_pps_ab > 0
     assert edge.flow_pps_ba > 0
 
@@ -2110,7 +2110,7 @@ defmodule ServiceRadarWebNG.Topology.GodViewStreamTest do
 
     rows = [
       %{
-        local_device_id: "sr:farm01",
+        local_device_id: "sr:edge01",
         local_device_ip: "192.168.1.1",
         local_if_name: "eth10",
         local_if_index: 10,
@@ -2149,9 +2149,9 @@ defmodule ServiceRadarWebNG.Topology.GodViewStreamTest do
         local_if_index_ba: 10,
         neighbor_if_name: "eth10",
         neighbor_if_index: 10,
-        neighbor_device_id: "sr:farm01",
+        neighbor_device_id: "sr:edge01",
         neighbor_mgmt_addr: "192.168.1.1",
-        neighbor_system_name: "farm01",
+        neighbor_system_name: "edge01",
         protocol: "snmp-l2",
         evidence_class: "direct",
         confidence_tier: "high",
@@ -2174,8 +2174,8 @@ defmodule ServiceRadarWebNG.Topology.GodViewStreamTest do
 
     matching =
       Enum.filter(snapshot.edges, fn edge ->
-        (edge.source == "sr:farm01" and edge.target == "sr:uswaggregation") or
-          (edge.source == "sr:uswaggregation" and edge.target == "sr:farm01")
+        (edge.source == "sr:edge01" and edge.target == "sr:uswaggregation") or
+          (edge.source == "sr:uswaggregation" and edge.target == "sr:edge01")
       end)
 
     assert length(matching) == 2
@@ -2946,7 +2946,7 @@ defmodule ServiceRadarWebNG.Topology.GodViewStreamTest do
     endpoint_ip = "192.168.1.53"
     endpoint_mac = "1e:14:04:92:15:a9"
 
-    create_topology_device(actor, router_uid, "farm01", %{
+    create_topology_device(actor, router_uid, "edge01", %{
       ip: "192.168.1.1",
       type_id: 12,
       is_available: true
@@ -3056,7 +3056,7 @@ defmodule ServiceRadarWebNG.Topology.GodViewStreamTest do
     access_uid = "sr:anonymous-ambiguous-access-#{suffix}"
     endpoint_uid = "sr:anonymous-ambiguous-endpoint-#{suffix}"
 
-    create_topology_device(actor, switch_uid, "tonka01", %{
+    create_topology_device(actor, switch_uid, "hub01", %{
       ip: "192.168.1.1",
       type_id: 10,
       is_available: true

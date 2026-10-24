@@ -53,7 +53,7 @@ defmodule ServiceRadar.Notifications.TemplateSeederTest do
     Map.merge(
       %{
         "id" => "0198f0aa-1111-7000-8000-000000000001",
-        "title" => "Device tonka01 is unreachable",
+        "title" => "Device hub01 is unreachable",
         "message" => "ICMP probe failed three consecutive times",
         "severity" => "critical",
         "status" => "pending",
@@ -72,7 +72,7 @@ defmodule ServiceRadar.Notifications.TemplateSeederTest do
 
   defp context do
     %{
-      "device" => %{"name" => "tonka01", "ip" => "10.0.2.11"},
+      "device" => %{"name" => "hub01", "ip" => "10.0.2.11"},
       "system" => %{"name" => "ServiceRadar", "url" => "https://serviceradar.example.com"}
     }
   end

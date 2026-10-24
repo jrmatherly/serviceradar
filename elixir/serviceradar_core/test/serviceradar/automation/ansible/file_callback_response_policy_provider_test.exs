@@ -148,7 +148,7 @@ defmodule ServiceRadar.Automation.Ansible.FileCallbackResponsePolicyProviderTest
           "policy_version" => "ssh-policy-v3",
           "scope" => %{
             "tenant_id" => "platform",
-            "controller_id" => "controller-farm01",
+            "controller_id" => "controller-edge01",
             "inventory_id" => 34,
             "job_template_id" => 42,
             "binding_id" => "binding-7",
@@ -189,7 +189,7 @@ defmodule ServiceRadar.Automation.Ansible.FileCallbackResponsePolicyProviderTest
       action_version: "1.0.0",
       policy_version: "ssh-policy-v3",
       tenant_id: "platform",
-      controller_id: "controller-farm01",
+      controller_id: "controller-edge01",
       inventory_id: 34,
       job_template_id: 42,
       binding_id: "binding-7",
@@ -216,7 +216,7 @@ defmodule ServiceRadar.Automation.Ansible.FileCallbackResponsePolicyProviderTest
 
   defp target_identity do
     %{
-      "controller_id" => "controller-farm01",
+      "controller_id" => "controller-edge01",
       "inventory_id" => 34,
       "awx_host_id" => 100,
       "canonical_device_uid" => "device:linux-01"

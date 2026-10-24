@@ -75,7 +75,7 @@ defmodule ServiceRadarWebNGWeb.DeviceLive.AnsiblePanelComponentsTest do
         scope_verified_at: ~U[2026-07-13 12:00:30Z],
         awx_job_id: 77,
         started_at: ~U[2026-07-13 12:00:05Z],
-        controller: %{id: "controller-1", name: "farm01-awx"}
+        controller: %{id: "controller-1", name: "edge01-awx"}
       },
       target: %{
         status: :ok,
@@ -101,7 +101,7 @@ defmodule ServiceRadarWebNGWeb.DeviceLive.AnsiblePanelComponentsTest do
       |> LazyHTML.query("[data-testid=device-ansible-operation-history]")
       |> LazyHTML.text()
 
-    assert operation_text =~ "farm01-awx"
+    assert operation_text =~ "edge01-awx"
     assert operation_text =~ "controller-1 / inventory 34"
     assert operation_text =~ "host 7 · gen 2"
     assert operation_text =~ "controller-local"

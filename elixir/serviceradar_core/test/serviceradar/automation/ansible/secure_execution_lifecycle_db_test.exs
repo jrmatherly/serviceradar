@@ -34,7 +34,7 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionLifecycleDbTest do
           execution_id: fixture.execution.id,
           controller_id: fixture.controller_id,
           dispatch_agent_id: "edge-secure-db",
-          dispatch_partition_id: "farm01"
+          dispatch_partition_id: "edge01"
         },
         fixture.execution,
         request,
@@ -172,7 +172,7 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionLifecycleDbTest do
          source_generation, host_name, ansible_host, enabled, current,
          last_seen_at, link_disposition, source_fingerprint)
       VALUES (($1::text)::uuid, ($2::text)::uuid, 34, 7, $3, 3,
-              'farm01-pve01', '192.168.2.22', true, true,
+              'edge01-pve01', '192.168.2.22', true, true,
               (now() AT TIME ZONE 'utc'), 'approved', $4)
       """,
       [membership_id, controller_id, device_uid, source_fingerprint]
@@ -219,7 +219,7 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionLifecycleDbTest do
           machine_credential_id: 5,
           credential_snapshot: %{"credential_ids" => [5]},
           check_mode: false,
-          host_limit: "farm01-pve01",
+          host_limit: "edge01-pve01",
           dispatch_id: Ash.UUID.generate(),
           snapshot_digest: String.duplicate("c", 64),
           metadata: %{"awx_created_by_id" => 11}
@@ -241,7 +241,7 @@ defmodule ServiceRadar.Automation.Ansible.SecureExecutionLifecycleDbTest do
           awx_host_id: 7,
           membership_generation: 3,
           source_fingerprint: source_fingerprint,
-          host_name: "farm01-pve01",
+          host_name: "edge01-pve01",
           ansible_host: "192.168.2.22",
           snapshot_digest: String.duplicate("d", 64)
         },

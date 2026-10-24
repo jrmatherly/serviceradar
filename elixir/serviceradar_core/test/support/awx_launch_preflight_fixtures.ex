@@ -27,7 +27,7 @@ defmodule ServiceRadar.Automation.Ansible.AwxLaunchPreflightFixtures do
     Map.merge(
       %{
         id: @controller_id,
-        name: "farm01-awx",
+        name: "edge01-awx",
         base_url: "https://awx.example.test:443",
         agent_id: "edge-agent-1",
         enabled: true,
@@ -103,7 +103,7 @@ defmodule ServiceRadar.Automation.Ansible.AwxLaunchPreflightFixtures do
       },
       "inventory" => %{
         "id" => "8",
-        "name" => "farm01-linux",
+        "name" => "edge01-linux",
         "modified" => "2026-07-14T20:00:00Z",
         "kind" => ""
       },
@@ -226,7 +226,7 @@ defmodule ServiceRadar.Automation.Ansible.AwxLaunchPreflightFixtures do
         command_id: @command_id,
         controller_id: @controller_id,
         dispatch_agent_id: "edge-agent-1",
-        dispatch_partition_id: "farm01",
+        dispatch_partition_id: "edge01",
         binding_id: @binding_id,
         binding_version: 3,
         approval_id: @approval_id,

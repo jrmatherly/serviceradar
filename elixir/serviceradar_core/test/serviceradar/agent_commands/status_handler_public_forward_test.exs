@@ -116,7 +116,7 @@ defmodule ServiceRadar.AgentCommands.StatusHandlerPublicForwardTest do
       command_id: command_id,
       command_type: "sweep.run_group",
       agent_id: "agent-a",
-      partition_id: "farm01",
+      partition_id: "edge01",
       message: "accepted"
     }
   end

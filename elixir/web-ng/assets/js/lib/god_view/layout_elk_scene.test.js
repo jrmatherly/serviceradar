@@ -17,7 +17,7 @@ import {
   collapsedFarm01Graph,
   expandedFarm01Graph,
   reverseGraphArrays,
-} from "./fixtures/farm01_topology_regression"
+} from "./fixtures/edge01_topology_regression"
 import {prepareTopologySceneInput} from "./topology_scene_graph"
 import {routeStrokeHitsBox} from "./acceptance_geometry_assertions"
 import {godViewRenderingGraphLayerNodeMethods} from "./rendering_graph_layer_node_methods"
@@ -973,7 +973,7 @@ describe("layout_elk_scene", () => {
     })
   })
 
-  it("lays out both farm01 fixtures deterministically with valid groups and routes", async () => {
+  it("lays out both edge01 fixtures deterministically with valid groups and routes", async () => {
     for (const graph of [collapsedFarm01Graph(), expandedFarm01Graph()]) {
       const input = prepareTopologySceneInput(graph)
       const first = await layoutTopologyScene(input, {
@@ -1141,7 +1141,7 @@ describe("layout_elk_scene", () => {
     })
 
     expect(collisions).not.toContain(
-      "rendered:farm01:attachment-02|farm01:gateway-02->farm01:attachment-08",
+      "rendered:edge01:attachment-02|edge01:gateway-02->edge01:attachment-08",
     )
     expect(glyphOverlaps).toEqual([])
     expect(collisions).toEqual([])
