@@ -71,7 +71,7 @@ defmodule ServiceRadar.Inventory.AdvisoryFeeds.FeedWorker do
   end
 
   @impl true
-  # farm01 nist-nvd2 inserted ~360k advisories / 2.5M coordinates in 30 minutes
+  # One site's nist-nvd2 run inserted ~360k advisories / 2.5M coordinates in 30 minutes
   # and still had shards left. 60 minutes leaves headroom for a cold PVC.
   def timeout(%Oban.Job{args: %{"feed" => "nist-nvd2"}}), do: 3_600_000
 
@@ -355,7 +355,7 @@ defmodule ServiceRadar.Inventory.AdvisoryFeeds.FeedWorker do
     * **The container restarts inside the same pod.** An OOMKill does this: the
       pod keeps its IP, so the BEAM comes back under the *identical* node name.
       Liveness alone cannot see this, and an earlier version of this function
-      missed it -- observed on farm01, where a nist-nvd2 run was OOMKilled four
+      missed it -- observed on one site, where a nist-nvd2 run was OOMKilled four
       minutes in (exit 137) and its row then sat `executing` for well over an
       hour under a node name that looked perfectly healthy.
 

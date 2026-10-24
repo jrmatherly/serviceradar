@@ -418,7 +418,7 @@ defmodule ServiceRadar.CompositeChecks.Validation.Orchestrator do
   end
 
   # Per-target JetStream rows are authoritative. When they have not landed yet
-  # (farm01's event-writer often lags the ScanRun completion payload), use
+  # (a site's event-writer often lags the ScanRun completion payload), use
   # hosts_up: 0 => every target blocked, hosts_up == target count => every
   # target up. A partial hosts_up on a multi-target scan cannot be mapped.
   defp availability_by_ip(_scan, results) when is_list(results) and results != [] do

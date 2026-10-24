@@ -204,7 +204,7 @@ defmodule ServiceRadar.Inventory.Sync.MacVendor do
   #
   #   Jason.EncodeError: invalid byte 0xFF in <<255, 130, 164, ...>>
   #
-  # which failed the WHOLE bulk device upsert -- on farm01, every sync batch,
+  # which failed the WHOLE bulk device upsert -- on one site, every sync batch,
   # with 59 devices carrying the raw value. The error surfaces in a writer that
   # never saw this module, which is what made it expensive to trace back here.
   defp normalize_snapshot(value) when is_binary(value) do

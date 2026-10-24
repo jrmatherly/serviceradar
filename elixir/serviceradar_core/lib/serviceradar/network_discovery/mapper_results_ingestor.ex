@@ -1135,7 +1135,7 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestor do
   # Nothing else bounds this: there is no cap in the writer, no constraint in the
   # schema, no limit on the read action, and the UI renders the rows in an
   # un-streamed table. A device reporting one address per interface would produce
-  # a row per interface -- the largest switch on farm01 enumerates 239.
+  # a row per interface -- a large access switch enumerates well over 200.
   #
   # 64 is chosen to sit above real L3 topologies (a core router with per-VLAN
   # SVIs lands in the dozens) and below pathological ones. These are
@@ -1240,11 +1240,11 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestor do
   # so ensure_candidate_devices/2 found no device and no alias at that address and
   # minted a phantom.
   #
-  # Observed on farm01: switch `switchcff8f2` (sr:f3f0e473, 192.168.2.55) reports
-  # its out-of-band management address 192.168.1.143 on an `oob` interface, and
-  # that address became sr:eab6cd98 -- a second device record with no hostname
-  # and no MAC, tagged identity_source=mapper_client_ip_candidate_seed. One
-  # physical switch, two records.
+  # Failure mode this guards: a switch reports its out-of-band management
+  # address on an `oob` interface, and that address becomes a second device
+  # record with no hostname and no MAC, tagged
+  # identity_source=mapper_client_ip_candidate_seed. One physical switch, two
+  # records.
   #
   # `mismatched_device_ips` stay: those are other device_ips seen in the same
   # group, i.e. genuinely different devices, which is what this seeding is for.

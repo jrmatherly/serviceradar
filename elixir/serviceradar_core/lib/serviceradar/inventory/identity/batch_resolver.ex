@@ -469,7 +469,7 @@ defmodule ServiceRadar.Inventory.Identity.BatchResolver do
 
   # First-sighting attach: the incoming MAC is new, but its IEEE LAA/UAA
   # sibling is already registered. Resolve onto that device so SNMP F6
-  # never mints a second farm01 next to UniFi F4.
+  # never mints a second gateway record next to the UniFi one.
   defp hardware_mac_sibling_match(mac, ids, identifier_map) do
     case Mac.hardware_mac_sibling(mac) do
       nil ->

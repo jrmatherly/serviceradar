@@ -10,7 +10,7 @@ defmodule ServiceRadar.Identity.AliasPolicy do
   exactly one of the two producers. `MapperResultsIngestor` filtered, while the
   `AliasEvents` path -- which is fed by the netprobe NDP census and produces
   every IPv6 alias in the fleet today -- applied no gate at all. The result was
-  33 of 40 IPv6 aliases on farm01 being `fe80::` link-local. One predicate, both
+  33 of 40 IPv6 aliases on one site being `fe80::` link-local. One predicate, both
   callers.
   """
 

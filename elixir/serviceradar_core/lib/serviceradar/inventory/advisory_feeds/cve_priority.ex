@@ -9,7 +9,7 @@ defmodule ServiceRadar.Inventory.AdvisoryFeeds.CvePriority do
 
   EPSS is extracted only when it is already present on an ingested VulnCheck
   payload. CISA KEV does not carry EPSS; a dedicated EPSS index is a follow-on
-  if farm01 payloads have none.
+  if a site's payloads have none.
   """
 
   import Ecto.Query

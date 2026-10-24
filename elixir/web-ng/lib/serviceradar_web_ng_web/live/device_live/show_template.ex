@@ -783,7 +783,7 @@ defmodule ServiceRadarWebNGWeb.DeviceLive.ShowTemplate do
     # ocsf_agents linkage flag, same signal as the bolt badge) or when there is real
     # software-inventory data / an inventory error for it — never just because a device
     # row loaded (the old `is_map(device_row)` clause made this true for every device,
-    # so routers like farm01/tonka01 wrongly showed the tab).
+    # so gateway routers wrongly showed the tab).
     DeviceStateData.agent?(device_row) or
       Map.get(assigns, :has_software_inventory, false) or
       is_binary(Map.get(assigns, :endpoint_inventory_error))
