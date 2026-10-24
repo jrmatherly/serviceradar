@@ -96,7 +96,7 @@ deep_causality_tensor = "0.5"
 deep_causality_topology = "0.7"
 deep_causality_uncertain = "0.5"
 diesel = { version = "2.3", default-features = false }
-diesel-async = { version = "0.7.1", default-features = false }
+diesel-async = { version = "0.9", default-features = false }
 # Git pin until dgraph-client is published on crates.io. The hyphen crate is not
 # the crates.io `dgraph_client` 0.1.0 package. Same source scrith uses; do not
 # recreate rust/dgraph-client in this repo. See rust/README_RUST.md.
