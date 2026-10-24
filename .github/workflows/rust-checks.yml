@@ -345,3 +345,40 @@ jobs:
             echo
             echo "Any additional RustSec vulnerability or warning fails this job."
           } >> "${GITHUB_STEP_SUMMARY}"
+
+      # The root workspace lock was previously ungated: advisories accumulated there without
+      # anyone seeing them. Same mechanics as the probe step; every ignore names the reason
+      # and what would retire it, so a new advisory fails the job while the accepted ones
+      # stay visible in the step summary.
+      - name: Audit workspace dependencies
+        run: |
+          set -euo pipefail
+
+          advisory_db="${RUNNER_TEMP:-/tmp}/rustsec-advisory-db"
+          if [ ! -d "${advisory_db}" ]; then
+            git clone --depth 1 https://github.com/RustSec/advisory-db.git "${advisory_db}"
+          fi
+
+          sfw cargo audit --db "${advisory_db}" --no-fetch --deny warnings \
+            --ignore RUSTSEC-2023-0071 \
+            --ignore RUSTSEC-2026-0235 \
+            --ignore RUSTSEC-2026-0367 \
+            --ignore RUSTSEC-2026-0368 \
+            --ignore RUSTSEC-2026-0369 \
+            --ignore RUSTSEC-2020-0016 \
+            --ignore RUSTSEC-2025-0134 \
+            --ignore RUSTSEC-2026-0249
+
+          {
+            echo "## Workspace RustSec Audit"
+            echo
+            echo "Accepted advisories for the root Cargo.lock, each with what retires it:"
+            echo "- RUSTSEC-2023-0071: rsa Marvin timing issue; no fixed release exists."
+            echo "- RUSTSEC-2026-0235: rkyv 0.7 is an optional feature of rust_decimal that nothing enables; retire when rust_decimal moves to rkyv 0.8."
+            echo "- RUSTSEC-2026-0367/0368/0369: zip 8 via zen-engine, whose current 2.x releases still require zip ^8; retire when zen-engine moves to zip 9."
+            echo "- RUSTSEC-2020-0016: net2 via mio 0.6 inside the vendored rperf patch (third_party/rust_patches); retire with rperf."
+            echo "- RUSTSEC-2025-0134: rustls-pemfile is unmaintained; the 16 call sites across 7 crates move to rustls-pki-types in their own change."
+            echo "- RUSTSEC-2026-0249: smartstring via swc via zen-engine; retire with zen-engine."
+            echo
+            echo "Any additional RustSec vulnerability or warning fails this job."
+          } >> "${GITHUB_STEP_SUMMARY}"
