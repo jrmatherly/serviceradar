@@ -455,7 +455,7 @@ func TestConvertDeviceTargets_NormalizesIPsToCIDR(t *testing.T) {
 	targets := []gatewayDeviceTarget{
 		{Network: "10.0.0.1", SweepModes: []string{"tcp"}},
 		{Network: "10.0.0.2/32", SweepModes: []string{"icmp"}},
-		{Network: "2001:470::5:b19e", SweepModes: []string{"tcp"}},
+		{Network: "2001:db8::5:b19e", SweepModes: []string{"tcp"}},
 		{Network: "invalid", SweepModes: []string{"tcp"}},
 		{Network: "", SweepModes: []string{"tcp"}},
 	}
@@ -478,8 +478,8 @@ func TestConvertDeviceTargets_NormalizesIPsToCIDR(t *testing.T) {
 	}
 
 	// IPv6 host targets should be normalized to /128, not the IPv4-only /32.
-	if converted[2].Network != "2001:470::5:b19e/128" {
-		t.Errorf("expected '2001:470::5:b19e/128', got '%s'", converted[2].Network)
+	if converted[2].Network != "2001:db8::5:b19e/128" {
+		t.Errorf("expected '2001:db8::5:b19e/128', got '%s'", converted[2].Network)
 	}
 }
 
@@ -489,16 +489,16 @@ func TestNormalizeTargets_NormalizesIPv6HostsTo128(t *testing.T) {
 	targets := normalizeTargets([]string{
 		"192.168.1.10",
 		"192.168.1.0/24",
-		"2001:470::5:b19e",
-		"2001:470::5:b000/120",
+		"2001:db8::5:b19e",
+		"2001:db8::5:b000/120",
 		"not-an-ip",
 	}, log)
 
 	expected := []string{
 		"192.168.1.10/32",
 		"192.168.1.0/24",
-		"2001:470::5:b19e/128",
-		"2001:470::5:b000/120",
+		"2001:db8::5:b19e/128",
+		"2001:db8::5:b000/120",
 	}
 
 	if len(targets) != len(expected) {

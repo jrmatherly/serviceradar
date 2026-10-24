@@ -168,7 +168,7 @@ func TestTargetGeneration_IPv6KeepsICMPAndUsesTCPConnect(t *testing.T) {
 		logger: logger.NewTestLogger(),
 	}
 
-	targets := sweeper.createTargetsForIP("2001:470:c0b5:2::100", config.SweepModes, nil)
+	targets := sweeper.createTargetsForIP("2001:db8:5:2::100", config.SweepModes, nil)
 
 	assert.Len(t, targets, 3)
 	icmpTargets := filterByMode(targets, models.ModeICMP)
@@ -185,7 +185,7 @@ func TestTargetGeneration_IPv6KeepsICMPAndUsesTCPConnect(t *testing.T) {
 	require.Len(t, tcpConnectTargets, 2)
 
 	for _, target := range tcpConnectTargets {
-		assert.Equal(t, "2001:470:c0b5:2::100", target.Host)
+		assert.Equal(t, "2001:db8:5:2::100", target.Host)
 		assert.Equal(t, "ipv6", target.Metadata["address_family"])
 		assert.Equal(t, []string{"icmp", "tcp"}, target.Metadata["requested_sweep_modes"])
 		assert.Equal(t, "tcp", target.Metadata["requested_sweep_mode"])
@@ -211,7 +211,7 @@ func TestTargetGeneration_IPv6UsesRawSYNWhenCapabilityAvailable(t *testing.T) {
 		},
 	}
 
-	targets := sweeper.createTargetsForIP("2001:470:c0b5:2::100", config.SweepModes, nil)
+	targets := sweeper.createTargetsForIP("2001:db8:5:2::100", config.SweepModes, nil)
 
 	assert.Len(t, targets, 3)
 	tcpTargets := filterByMode(targets, models.ModeTCP)

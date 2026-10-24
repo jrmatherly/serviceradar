@@ -86,11 +86,11 @@ func TestConfigValidateRequiresMaxPrefixesWhenBGPEnabled(t *testing.T) {
 
 func TestBGPSimulationConfigUnmarshalAcceptsScientificSeed(t *testing.T) {
 	cfg := BGPSimulationConfig{}
-	data := []byte(`{"seed":4.01642e+07}`)
+	data := []byte(`{"seed":7.3911046e+07}`)
 
 	err := json.Unmarshal(data, &cfg)
 	require.NoError(t, err)
-	require.Equal(t, int64(40164200), cfg.Seed)
+	require.Equal(t, int64(73911046), cfg.Seed)
 }
 
 func TestBGPSimulationConfigUnmarshalRejectsFractionalSeed(t *testing.T) {

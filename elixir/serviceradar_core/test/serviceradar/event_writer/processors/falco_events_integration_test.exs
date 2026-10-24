@@ -33,7 +33,7 @@ defmodule ServiceRadar.EventWriter.Processors.FalcoEventsIntegrationTest do
         "priority" => "Warning",
         "rule" => "Drop and execute new binary in container",
         "time" => "2026-06-11T01:10:00Z",
-        "hostname" => "k8s-cp2-worker2",
+        "hostname" => "dev-k8s-worker2",
         "source" => "syscall",
         "tags" => ["container", "process"],
         "output_fields" => %{

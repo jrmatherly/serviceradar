@@ -23,9 +23,10 @@ import (
 	"github.com/gosnmp/gosnmp"
 )
 
-// The OID suffixes below were captured verbatim from a production router with
-// `snmpwalk -On -v2c <community> <router> .1.3.6.1.2.1.4.34.1.3`, so this test
-// pins the real ipAddressTable index encoding rather than an assumed one.
+// The OID suffixes below use the real ipAddressTable index encoding (as
+// `snmpwalk -On -v2c <community> <router> .1.3.6.1.2.1.4.34.1.3` returns it)
+// over invented addresses, so this test pins the encoding rather than an
+// assumed one.
 func TestParseInetAddressIndexDecodesRealRouterOIDs(t *testing.T) {
 	tests := []struct {
 		name   string

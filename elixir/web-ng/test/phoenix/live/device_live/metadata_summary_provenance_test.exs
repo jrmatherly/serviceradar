@@ -13,7 +13,7 @@ defmodule ServiceRadarWebNGWeb.DeviceLive.MetadataSummaryProvenanceTest do
   end
 
   test "a proxmox-only device shows no fabricated Armis/NetBox provenance" do
-    # Mirrors the live demo device `proxmox:vm:k8s-cp2-cnpg1`: discovered via the
+    # Mirrors a Proxmox-sourced device shaped like `proxmox:vm:dev-k8s-cnpg1`: discovered via the
     # proxmox plugin + sweep, carrying only GENERIC device fields. It is not in
     # Armis or NetBox, so neither card must appear.
     html =
@@ -21,7 +21,7 @@ defmodule ServiceRadarWebNGWeb.DeviceLive.MetadataSummaryProvenanceTest do
         "discovery_sources" => ["proxmox", "sweep"],
         "metadata" => %{
           "integration_type" => "plugin_device_discovery",
-          "integration_id" => "proxmox:vm:k8s-cp2-cnpg1",
+          "integration_id" => "proxmox:vm:dev-k8s-cnpg1",
           "device_role" => "proxmox_vm",
           "device_type" => "vm",
           "status" => "running",
@@ -51,7 +51,7 @@ defmodule ServiceRadarWebNGWeb.DeviceLive.MetadataSummaryProvenanceTest do
     assert html =~ "running"
 
     # The proxmox source id lives in the neutral Integration group, never Armis.
-    assert html =~ "proxmox:vm:k8s-cp2-cnpg1"
+    assert html =~ "proxmox:vm:dev-k8s-cnpg1"
   end
 
   test "a device with a real armis_device_id shows the Armis card" do

@@ -37,7 +37,7 @@ defmodule ServiceRadarWebNGWeb.SecurityDiagnosticsShowTest do
     source_device =
       device_fixture(%{
         uid: "falco-source-device",
-        hostname: "k8s-cp2-worker2",
+        hostname: "dev-k8s-worker2",
         ip: "10.42.3.25"
       })
 
@@ -85,7 +85,7 @@ defmodule ServiceRadarWebNGWeb.SecurityDiagnosticsShowTest do
     assert html =~ "Stateful incident"
     # The incident rule name renders humanized in the Rule fact.
     assert html =~ "Falco-incident"
-    assert html =~ "rule=Drop and execute new binary in container|hostname=k8s-cp2-worker2"
+    assert html =~ "rule=Drop and execute new binary in container|hostname=dev-k8s-worker2"
     assert html =~ "/tmp/.build/tool --lint"
     assert html =~ "forgejo-runner"
     assert html =~ "code.forgejo.org/forgejo/runner:latest"
@@ -302,7 +302,7 @@ defmodule ServiceRadarWebNGWeb.SecurityDiagnosticsShowTest do
           "incident_diagnostics" => %{
             "rule_id" => "rule-1",
             "rule_name" => "falco-incident",
-            "group_key" => "rule=Drop and execute new binary in container|hostname=k8s-cp2-worker2",
+            "group_key" => "rule=Drop and execute new binary in container|hostname=dev-k8s-worker2",
             "threshold" => 1,
             "window_seconds" => 300,
             "window_count" => 915,
@@ -340,7 +340,7 @@ defmodule ServiceRadarWebNGWeb.SecurityDiagnosticsShowTest do
     defp falco_diagnostics do
       %{
         "rule" => %{"name" => "Drop and execute new binary in container", "priority" => "Critical"},
-        "host" => %{"name" => "k8s-cp2-worker2"},
+        "host" => %{"name" => "dev-k8s-worker2"},
         "process" => %{
           "name" => "tool",
           "command" => "/tmp/.build/tool --lint",

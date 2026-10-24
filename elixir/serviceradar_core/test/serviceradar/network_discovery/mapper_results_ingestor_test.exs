@@ -1396,7 +1396,7 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
 
   describe "valid_alias_ip?/1" do
     test "accepts routable addresses of both families" do
-      # Captured from a production router's ipAddressTable walk.
+      # Invented addresses in the shapes an ipAddressTable walk returns.
       for ip <- [
             "198.51.100.23",
             "192.168.1.1",

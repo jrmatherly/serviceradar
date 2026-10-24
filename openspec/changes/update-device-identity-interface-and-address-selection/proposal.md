@@ -26,7 +26,7 @@ Two gaps follow:
 - `eth10` is discovered with the right MAC but an EMPTY `ip_addresses`, so `192.168.1.1` is never
   bound to the interface that holds it.
 - Interface MACs are never registered as device identifiers. The parent device carries only
-  `...C721`; it never carries `...C72B`.
+  `...4B7C`; it never carries `...4B85`.
 
 So the two rows share no identifier and `Identity.DuplicateSweep` refuses to merge them --
 **correctly**. Two distinct strong MACs are not evidence of one device, and merging because MACs
@@ -39,12 +39,12 @@ identifier". An alias IS wired to merge: `AliasGuard.maybe_merge_ip_alias_device
 `distinct_strong_identity_conflict?/3` -> `distinct_mac_conflict?/3` (`alias_guard.ex:74`) finds the
 two MAC sets entirely disjoint, and `Mac.any_hardware_mac_siblings?/2` recognises only the U/L-bit
 flip (which is why `F29FC21A4B7C` pairs with `F09FC21A4B7C`, and why a third row legitimately
-collapsed into the router on 2026-08-12). `...C72B` gets no such pass.
+collapsed into the router on 2026-08-12). `...4B85` gets no such pass.
 
 That veto is correct on the evidence available -- disjoint MACs are the network-agnostic tell that a
 recycled IP has rebound to different hardware -- and it is also why there is no `merge_audit` row
 for the pair: a refusal writes no audit. It matters for the remedy: once the chassis carries
-`...C72B`, the MAC sets are no longer disjoint, the veto lifts, and this path merges the pair
+`...4B85`, the MAC sets are no longer disjoint, the veto lifts, and this path merges the pair
 directly rather than waiting on the sweep.
 
 This is not a reconciler bug. The reconciler is starved of the one fact that would let it act.
