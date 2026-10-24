@@ -414,10 +414,23 @@ pub fn validate_time_format_input(
             https://docs.rs/time/0.3.7/time/format_description/index.html \n\
             Will use the default one: {time_format_default}. If you want to use %, you need to escape it (\\\\%)\n"
         );
-        time_format_default
-    } else {
-        //replacing the escaped chars so the file has the correct name
-        time_format.replace("\\%", "%").to_string()
+        return time_format_default;
+    }
+    //replacing the escaped chars so the file has the correct name
+    let unescaped = time_format.replace("\\%", "%");
+    // Parse once here so a bad description is reported against its config key at startup,
+    // instead of failing on every record (prepend timestamp) or panicking on the first
+    // rotation (file output).
+    match time::format_description::parse_borrowed::<1>(&unescaped) {
+        Ok(_) => unescaped,
+        Err(e) => {
+            let _ = writeln!(
+                stderr(),
+                "WARNING: Wrong {name} value received: {time_format}: {e}.\n\
+                Will use the default one: {time_format_default}\n"
+            );
+            time_format_default
+        }
     }
 }
 
@@ -525,6 +538,30 @@ mod tests {
         );
 
         assert!(time_format.eq(input_time_format));
+    }
+
+    #[test]
+    fn test_invalid_component_falls_back_to_default() {
+        let default_value = "[year][month][day]";
+        let time_format = validate_time_format_input(
+            "syslog_prepend_timestamp",
+            "[yaer]-[month]",
+            default_value.to_string(),
+        );
+
+        assert!(time_format.eq(default_value));
+    }
+
+    #[test]
+    fn test_unclosed_bracket_falls_back_to_default() {
+        let default_value = "[year][month][day]";
+        let time_format = validate_time_format_input(
+            "file_rotation_timeformat",
+            "[year",
+            default_value.to_string(),
+        );
+
+        assert!(time_format.eq(default_value));
     }
 
     #[test]
