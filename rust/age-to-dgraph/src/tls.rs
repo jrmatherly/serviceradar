@@ -246,20 +246,33 @@ hiLAw4qSBfpp0cf74kUge4NmHeSlwGk=
     }
 
     #[test]
-    fn rejects_empty_client_key() {
+    fn rejects_client_key_without_a_private_key_block() {
+        // A certificate is a valid PEM section of the wrong kind, so the key parser
+        // skips it and reports that no private key was found.
         let err = match postgres_connector(
             CA_CERT.as_bytes(),
             Some(CLIENT_CERT.as_bytes()),
-            Some(b"-----BEGIN PRIVATE KEY-----\n-----END PRIVATE KEY-----\n"),
+            Some(CLIENT_CERT.as_bytes()),
             Some("cnpg"),
         ) {
-            Ok(_) => panic!("empty key should fail"),
+            Ok(_) => panic!("a key file without a private key must fail"),
             Err(err) => err,
         };
-        let message = err.to_string();
+        assert_eq!(err.to_string(), "client key PEM contained no private key");
+    }
+
+    #[test]
+    fn rejects_empty_client_key_body() {
+        // An empty body decodes to a zero-length DER key; rustls rejects it, not the parser.
         assert!(
-            message.contains("no private key") || message.contains("failed to parse private key"),
-            "{message}"
+            postgres_connector(
+                CA_CERT.as_bytes(),
+                Some(CLIENT_CERT.as_bytes()),
+                Some(b"-----BEGIN PRIVATE KEY-----\n-----END PRIVATE KEY-----\n"),
+                Some("cnpg"),
+            )
+            .is_err(),
+            "empty key should fail"
         );
     }
 }

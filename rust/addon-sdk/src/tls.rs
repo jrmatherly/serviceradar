@@ -428,4 +428,26 @@ mod p521_tests {
             "a malformed public key must not verify"
         );
     }
+
+    #[test]
+    fn client_cert_without_a_certificate_block_is_no_client_cert() {
+        for pem in [
+            "",
+            "-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----\n",
+        ] {
+            assert!(
+                matches!(parse_first_cert_der(pem), Err(MtlsError::NoClientCert)),
+                "{pem:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn malformed_client_cert_block_is_a_parse_error() {
+        let pem = "-----BEGIN CERTIFICATE-----\n!!!!\n-----END CERTIFICATE-----\n";
+        assert!(matches!(
+            parse_first_cert_der(pem),
+            Err(MtlsError::ClientCertParse(_))
+        ));
+    }
 }
