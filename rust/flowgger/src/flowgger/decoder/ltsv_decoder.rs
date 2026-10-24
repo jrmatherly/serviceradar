@@ -247,7 +247,7 @@ fn english_time_to_unix_with_subsecond(
         format_str = format_str.replace(".[subsecond]", "");
     }
 
-    let format_item = format_description::parse(&format_str).unwrap();
+    let format_item = format_description::parse_borrowed::<1>(&format_str).unwrap();
     match OffsetDateTime::parse(&et, &format_item) {
         Ok(date) => Ok(utils::PreciseTimestamp::from_offset_datetime(date).as_f64()),
         Err(_) => Err("Unable to parse the English to Unix timestamp in LTSV decoder"),

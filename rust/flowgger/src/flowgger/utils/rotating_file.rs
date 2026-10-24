@@ -127,7 +127,7 @@ impl RotatingFile {
         let current_time = self.get_current_date_time();
         self.next_rotation_time = Some(current_time + Duration::minutes(i64::from(self.max_time)));
 
-        let format_item = format_description::parse(&self.time_format).unwrap();
+        let format_item = format_description::parse_borrowed::<1>(&self.time_format).unwrap();
         let dt_str = match current_time.format(&format_item) {
             Ok(date) => date,
             Err(_) => return Err("Failed to parse date"),

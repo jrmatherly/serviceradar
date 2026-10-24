@@ -53,7 +53,7 @@ impl Encoder for RFC3164Encoder {
             Err(_) => return Err("Failed to parse unix timestamp in RFC3164 encoder"),
         };
 
-        let format_item = format_description::parse(
+        let format_item = format_description::parse_borrowed::<1>(
             "[month repr:short]  [day padding:none] [hour]:[minute]:[second] ",
         )
         .unwrap();
@@ -170,7 +170,7 @@ fn test_rfc3164_encode_with_prepend() {
     let cfg = Config::from_string(config_str).unwrap();
     let ts = ts_from_partial_date_time(Month::August, 6, 11, 15, 24);
     let now = OffsetDateTime::now_utc();
-    let format_item = format_description::parse(TIME_FORMAT).unwrap();
+    let format_item = format_description::parse_borrowed::<1>(TIME_FORMAT).unwrap();
     let dt_str = now.format(&format_item).unwrap().to_string();
     let expected_msg = format!(
         r#"{}Aug  6 11:15:24 testhostname appname 69 42 [origin@123 software="te\st sc\"ript" swVersion="0.0.1"] test message"#,
