@@ -865,7 +865,7 @@ defmodule ServiceRadarWebNGWeb.Settings.NetflowLive.Index do
                             field={@form[:location_label]}
                             type="text"
                             label="Location label"
-                            placeholder="farm01 - Carver, MN"
+                            placeholder="site01 - Springfield, IL"
                           />
                           <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <.input
