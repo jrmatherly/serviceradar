@@ -1,5 +1,5 @@
 ## Context
-`platform.netflow_local_cidrs` already exists for directionality tagging. It is the right ownership boundary for deployer knowledge such as "farm01 networks are in Carver, MN" and "tonka01 networks are in Minnetonka, MN".
+`platform.netflow_local_cidrs` already exists for directionality tagging. It is the right ownership boundary for deployer knowledge such as "edge01 networks are in Carver, MN" and "hub01 networks are in Minnetonka, MN".
 
 GeoIP enrichment remains the source for public IP locations. Private/local ranges are not GeoIP-resolvable and need explicit operator-provided anchors.
 

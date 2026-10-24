@@ -26,7 +26,7 @@ Authenticated Proxmox discovery SHALL emit the non-secret source and native iden
 - **AND** the writer SHALL render and persist v3 identities without using cluster or node display names as global keys
 
 #### Scenario: Two assignments report identical names and VMIDs
-- **GIVEN** farm01 and tonka01 assignments return identical cluster names, node names, and VMIDs
+- **GIVEN** edge01 and hub01 assignments return identical cluster names, node names, and VMIDs
 - **WHEN** the plugin results are ingested
 - **THEN** each result SHALL remain bound to its producing assignment and integration/controller
 - **AND** batching, retries, streaming, and deduplication SHALL NOT collapse objects across those scopes

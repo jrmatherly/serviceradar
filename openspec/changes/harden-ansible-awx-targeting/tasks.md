@@ -39,7 +39,7 @@
 
 ## 5. Verification
 
-- [ ] 5.1 Add unit/property tests for duplicate farm01/tonka01 hostnames, multiple memberships, safe literal limit grammar/round-trip, stale links, empty/inexact limits, fixed inventory mismatch, target-row rollback, job-host reconciliation mismatch, and check-mode enforcement.
+- [ ] 5.1 Add unit/property tests for duplicate edge01/hub01 hostnames, multiple memberships, safe literal limit grammar/round-trip, stale links, empty/inexact limits, fixed inventory mismatch, target-row rollback, job-host reconciliation mismatch, and check-mode enforcement.
 - [ ] 5.2 Add authorization tests for human attribution, higher-privilege delegation rejection, issuer/principal/owner issuance-current intersection/expiry/revocation changes, invalidation/pulse contraction, SystemActor non-escalation, callback scope-pending lifecycle/cleanup, approval expiry, and device-wide hold clearance.
 - [ ] 5.3 Add secret-retention tests covering DB, Oban args, command context, logs/events, PaperTrail, PubSub, OCSF, support output, retries, cancel, backup, and UI.
 - [ ] 5.4 Add AWX integration tests for accepted-job full-field drift, moving SCM/update-on-launch rejection, reserved-extra-var ignore/override, controller-local duplicate job IDs, marker-based ambiguity, copied/relaunched jobs, host-ID scope verification, callback pending-before-scope, partial compensation, cancel failure, exact mutation-phase graph/replays/forgery/timeout, and hold bypass.

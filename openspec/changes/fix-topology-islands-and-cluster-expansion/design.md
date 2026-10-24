@@ -24,7 +24,7 @@ The God-View snapshot pipeline has two disconnected fidelity problems that toget
 ## Risks / Trade-offs
 - Larger snapshots when multiple clusters expand -> bounded by visible-member cap per cluster and the existing payload telemetry alerting.
 - Projection row growth (attachment rows +119) -> well under the 2,000 attachment-row cap; refresh transaction already full-delete/reinsert.
-- Layout heuristics can regress visual tests -> reuse `improve-mapper-topology-fidelity` farm01/tonka01 fixtures for golden assertions once landed; add unit tests for spiral math independent of fixtures.
+- Layout heuristics can regress visual tests -> reuse `improve-mapper-topology-fidelity` edge01/hub01 fixtures for golden assertions once landed; add unit tests for spiral math independent of fixtures.
 - Client-side crossing scoring cost O(members x edges) per candidate -> members are capped at 24 per cluster and candidates at 4; negligible.
 
 ## Migration Plan

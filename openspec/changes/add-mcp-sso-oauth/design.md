@@ -32,7 +32,7 @@ already understands.
     RBAC unchanged.
   - PKCE S256 required. Refresh with rotation **and IdP-session binding**
     when the grant was created through SSO.
-  - Client credentials remain for farm01 and non-SSO automation.
+  - Client credentials remain for edge01 and non-SSO automation.
 - Non-Goals:
   - Validating customer IdP (Authentik/Okta/Entra) access tokens on `/mcp`.
   - Dynamic client registration (RFC 7591) or CIMD.

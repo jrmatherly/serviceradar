@@ -63,9 +63,9 @@
 - [ ] 7.7 Add mixed-version matrices proving old control plane/new agent, new control plane/old agent, and incompatible plugin combinations fail closed with no secret or network effect.
 - [ ] 7.8 Add concurrency tests for guest migration and authorization/rule revocation between session create, credential resolve, provider ticket issue, WebSocket attach, and SSH dial.
 
-## 8. Prove farm01 and tonka01 in demo
+## 8. Prove edge01 and hub01 in demo
 
-- [ ] 8.1 Register or reconcile separate farm01 and tonka01 Proxmox integration/controller scopes and record their immutable IDs without placing credentials in test artifacts.
+- [ ] 8.1 Register or reconcile separate edge01 and hub01 Proxmox integration/controller scopes and record their immutable IDs without placing credentials in test artifacts.
 - [ ] 8.2 Sync both clusters through compatible edge agents and prove overlapping cluster/node names and VMIDs create distinct v3 provider instances, guests, device links, and current-owner relationships with no overwrite.
 - [ ] 8.3 Capture host instrumentation proving inventory credentials and broker authority never enter Wasm-visible config, calls, results, logs, or diagnostics.
 - [ ] 8.4 From guest device details, open one native console in each environment and prove the trusted connector targets the exact owning PVE/controller origin and node, never `https://<guest-ip>:8006`.
@@ -78,7 +78,7 @@
 - [ ] 9.1 Run focused Elixir, Go, Wasm bundle, migration, connector, browser-console, and redaction test suites.
 - [ ] 9.2 Run the repository security and quality gates required by the touched components.
 - [ ] 9.3 Run `openspec validate harden-proxmox-console-credential-custody --strict` and resolve every error before review.
-- [ ] 9.4 Attach the requirement matrix and farm01/tonka01 proof to the pull request; do not mark the change complete or enable demo until every security gate is evidenced.
+- [ ] 9.4 Attach the requirement matrix and edge01/hub01 proof to the pull request; do not mark the change complete or enable demo until every security gate is evidenced.
 
 ## 10. Close Proxmox console transport bindings
 

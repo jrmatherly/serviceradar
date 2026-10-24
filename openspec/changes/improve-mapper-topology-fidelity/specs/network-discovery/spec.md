@@ -14,7 +14,7 @@ The system SHALL ingest mapper-discovered interfaces and topology links into CNP
 - **AND** repeated ingestion SHALL be idempotent (no duplicate effective links)
 
 #### Scenario: Multi-interface seed normalization
-- **GIVEN** a seed router has multiple interface IPs (for example `192.168.1.1` and `192.168.2.1` for farm01)
+- **GIVEN** a seed router has multiple interface IPs (for example `192.168.1.1` and `192.168.2.1` for edge01)
 - **WHEN** discovery runs from any of those seed addresses
 - **THEN** observations SHALL resolve to the same canonical device identity
 - **AND** topology projection SHALL not fragment that router into multiple logical roots
@@ -39,9 +39,9 @@ Mapper discovery MUST emit canonical neighbor identity fields sufficient to reso
 Mapper discovery MUST expand coverage from configured seeds into discovered routed and L2-neighbor domains with bounded recursion.
 
 #### Scenario: Routed downstream switch discovered from seed
-- **GIVEN** seed routers include farm01 and tonka01
+- **GIVEN** seed routers include edge01 and hub01
 - **WHEN** discovery runs
-- **THEN** the mapper SHALL discover reachable downstream infrastructure devices (including `192.168.10.154` behind tonka01) within configured recursion bounds
+- **THEN** the mapper SHALL discover reachable downstream infrastructure devices (including `192.168.10.154` behind hub01) within configured recursion bounds
 
 #### Scenario: Indirect endpoint evidence captured
 - **GIVEN** a managed switch reports ARP/CAM/bridge evidence for downstream clients
@@ -52,7 +52,7 @@ Mapper discovery MUST expand coverage from configured seeds into discovered rout
 The system MUST provide deterministic synthetic topology fixtures and replay tests for mapper ingestion and graph projection.
 
 #### Scenario: Farm01 fixture produces expected adjacency
-- **GIVEN** a synthetic fixture representing the expected farm01/tonka01 topology
+- **GIVEN** a synthetic fixture representing the expected edge01/hub01 topology
 - **WHEN** fixture data is replayed through mapper ingestion and AGE projection
 - **THEN** expected device adjacencies SHALL be present in the graph output
 - **AND** missing required edges SHALL fail the test

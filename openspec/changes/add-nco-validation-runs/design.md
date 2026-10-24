@@ -8,8 +8,8 @@ from an authored composite check. It has IP + partition (`default` today).
 MAC is optional and often wrong. It must not learn `sr:` out of band.
 
 Composite checks derive only (`add-composite-service-checks` D1). Sweep
-groups on farm01 (`farm01-sweep-open` on `agent-alma-test01`,
-`farm01-sweep-isolated` on `k8s-agent`) re-probe `in:devices` hourly.
+groups on edge01 (`edge01-sweep-open` on `agent-alma-test01`,
+`edge01-sweep-isolated` on `k8s-agent`) re-probe `in:devices` hourly.
 Ad-hoc scans probe a subset but do not write `device_agent_availability`.
 
 This design adds an orchestrator in front of those existing pieces.
@@ -107,7 +107,7 @@ Then dispatch **one** targeted ad-hoc scan to that agent whose
 `targets` are this run's IPs that that agent covers, and whose
 `modes` / `ports` / timeout are the compiled settings above. The run
 records `sweep_group_id` and `profile_id` on each device/vantage row
-so the report can say "probed like `farm01-sweep-isolated` / `farm-scan`".
+so the report can say "probed like `edge01-sweep-isolated` / `farm-scan`".
 
 The run MUST NOT call `SweepGroup.run_now` and MUST NOT expand the
 check's `scope_query` into extra targets.
@@ -118,8 +118,8 @@ results and evaluates the named check for just those UIDs. Ad-hoc
 scan ingest is unchanged for console scans; the availability write is
 run-owned.
 
-On farm01 this is unambiguous today: both vantage agents have one
-group (`farm01-sweep-open` / `farm01-sweep-isolated`), both
+On edge01 this is unambiguous today: both vantage agents have one
+group (`edge01-sweep-open` / `edge01-sweep-isolated`), both
 `target_query` are `in:devices`, both use profile `farm-scan`
 (`icmp,tcp,arp` + ports 22/80/443/8080). A host at `192.168.1.55`
 matches both queries, so the run replays `farm-scan` from Alma and
@@ -165,7 +165,7 @@ Authorization: Bearer <token>
 Content-Type: application/json
 
 {
-  "check": "farm01-lab-isolation",
+  "check": "edge01-lab-isolation",
   "partition": "default",
   "devices": [
     {"ip": "192.168.1.55", "mac": "aabbccddeeff"}
@@ -177,7 +177,7 @@ Single-device shorthand (equivalent to a one-element `devices` array):
 
 ```json
 {
-  "check": "farm01-lab-isolation",
+  "check": "edge01-lab-isolation",
   "partition": "default",
   "ip": "192.168.1.55",
   "mac": "aa:bb:cc:dd:ee:ff"
@@ -193,7 +193,7 @@ HTTP/1.1 202 Accepted
 {
   "id": "2f6c0e3a-…",
   "status": "pending",
-  "check": "farm01-lab-isolation",
+  "check": "edge01-lab-isolation",
   "devices": [
     {
       "ip": "192.168.1.55",

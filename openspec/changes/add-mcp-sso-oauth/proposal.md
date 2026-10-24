@@ -4,7 +4,7 @@
 
 MCP on web-ng authenticates with OAuth2 **client credentials**: a long-lived
 `client_id` / `client_secret` minted in Settings, then `POST /oauth/token`
-with no browser. That works for lab automation (farm01). It fails security
+with no browser. That works for lab automation (edge01). It fails security
 reviews that require every token grant to go through SSO (Authentik on
 carverauto demo, customer IdP in production): MFA, conditional access, and
 IdP revocation never see the agent. Claude Code, Codex, and Grok's HTTP OAuth

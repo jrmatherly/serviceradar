@@ -15,8 +15,8 @@
 - [x] 1.5 [D] Scope the known-IP-without-identity veto (`snmp_l2_query.go:210`) so
   it does not fire for FDB endpoints whose identity came from a cross-device ARP
   observation in the recursive pass (`discovery_recursive.go` scan-queue seeding).
-- [x] 1.6 Confirm the tonka01 job's recursive expansion walks both the ARP owner
-  (`tonka01`) and the FDB owner (aruba) in one run so their evidence can join.
+- [x] 1.6 Confirm the hub01 job's recursive expansion walks both the ARP owner
+  (`hub01`) and the FDB owner (aruba) in one run so their evidence can join.
 
 ## 2. UniFi wired-client attachment (Go, `go/pkg/mapper`)
 

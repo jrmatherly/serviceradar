@@ -7,7 +7,7 @@ GitHub: https://github.com/carverauto/serviceradar/issues/4149
 The UI, SNMP profile forms, device overrides, proto messages, and compiler already
 describe SNMPv3 (username, security level, auth/priv protocols and passwords). That
 path has never been proven against a real USM device. Farm01 still speaks SNMPv2c.
-After this change lands, farm01 will be converted to SNMPv3 so discovery, topology,
+After this change lands, edge01 will be converted to SNMPv3 so discovery, topology,
 and interface polling can be verified on the live cluster.
 
 Today a v3 profile can be saved and compiled, but the mapper discovery engine does
@@ -36,7 +36,7 @@ secret and no SNMP credential rule.
 - Infer SNMPv3 from a v3 credential-rule payload even when the parent profile
   record is still v2c, so a UniFi-style single password (SHA + AES, same value
   for auth and privacy) compiles as `authPriv`.
-- Add hermetic USM GET/walk tests and a farm01 verification checklist. v1/v2c
+- Add hermetic USM GET/walk tests and a edge01 verification checklist. v1/v2c
   behavior is unchanged.
 
 ## Impact
@@ -54,6 +54,6 @@ secret and no SNMP credential rule.
 - Related in-flight change: `refactor-unified-credential-management` owns the
   credentials UI. This change flips SNMP onto credential rules (`supports_rules:
   true`) and adds the missing v3 fields; it does not restyle that UI.
-- Out of scope: converting farm01 device configs (operator step after merge),
+- Out of scope: converting edge01 device configs (operator step after merge),
   SNMPv3 context names (see design open questions), SNMP trap ingestion, rewriting
   credential settings UI, putting SNMP material in Kubernetes/Vault secrets.

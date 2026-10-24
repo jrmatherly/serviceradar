@@ -29,11 +29,11 @@ SHALL happen after the response.
 
 #### Scenario: Single-device shorthand returns uid and run id
 
-- **GIVEN** an enabled composite check with slug `farm01-lab-isolation`
+- **GIVEN** an enabled composite check with slug `edge01-lab-isolation`
 - **AND** a live device whose IP is `192.168.1.55` in partition `default`
   with uid `sr:8cad4cc3-e9f8-4873-a1fe-cf2529b246a0`
 - **WHEN** a principal with `validation_runs.execute` POSTs
-  `{"check":"farm01-lab-isolation","partition":"default","ip":"192.168.1.55"}`
+  `{"check":"edge01-lab-isolation","partition":"default","ip":"192.168.1.55"}`
 - **THEN** the response SHALL be 202
 - **AND** the body SHALL contain a run `id`
 - **AND** the body SHALL contain
@@ -154,12 +154,12 @@ gain this availability write.
 
 #### Scenario: Farm isolation replays farm-scan from both vantage groups
 
-- **GIVEN** check `farm01-lab-isolation` has vantage points
+- **GIVEN** check `edge01-lab-isolation` has vantage points
   `agent-alma-test01` and `k8s-agent`
-- **AND** `farm01-sweep-open` is assigned to `agent-alma-test01` with
+- **AND** `edge01-sweep-open` is assigned to `agent-alma-test01` with
   `target_query` `in:devices` and profile `farm-scan`
   (modes `icmp,tcp,arp`, ports 22/80/443/8080)
-- **AND** `farm01-sweep-isolated` is assigned to `k8s-agent` with the
+- **AND** `edge01-sweep-isolated` is assigned to `k8s-agent` with the
   same query and profile
 - **AND** a run targeting `192.168.1.55`, which matches `in:devices`
 - **WHEN** the orchestrator dispatches
@@ -252,7 +252,7 @@ NOT substitute for a missing run probe.
 - **WHEN** a run completes with verdict `isolated_verified` for a device
 - **THEN** `device_composite_check_results` for that device and check
   SHALL also read `isolated_verified`
-- **AND** `in:composite_results check:farm01-lab-isolation` SHALL return
+- **AND** `in:composite_results check:edge01-lab-isolation` SHALL return
   the same verdict
 
 ### Requirement: Pollable Run Status

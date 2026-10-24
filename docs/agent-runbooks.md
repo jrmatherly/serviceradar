@@ -850,7 +850,7 @@ PR's BazelCI and the staging `LargeIngestionGate`.
    `find /mnt/buildbuddy/bazel-caches-workflows -xdev ! -user 1001` on the node.
 
 The same rules apply to the second workflow release (`buildbuddy-workflows-2`)
-and farm01's workflow replicas: they mount their own instances of the same
+and edge01's workflow replicas: they mount their own instances of the same
 shared-cache layout from `//k8s/buildbuddy/values-workflows.yaml`.
 
 ## Ecto migration versions

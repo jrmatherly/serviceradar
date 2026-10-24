@@ -5,7 +5,7 @@
 `platform.discovered_interfaces` grows without bound and stores ~98 rows for every
 one thing it actually knows.
 
-Measured on farm01 (2026-08-24), a **4-device** sample:
+Measured on edge01 (2026-08-24), a **4-device** sample:
 
 | property | value |
 | --- | --- |
@@ -66,7 +66,7 @@ happens **across polls over time**, which is where the growth is.
   **The key is `interface_uid`, NOT `if_index`** -- corrected after reading the schema. `if_index`
   is `allow_nil? true` and `inventory/sync/interfaces.ex` never sets it, so sync-produced rows
   carry NULL and a Postgres unique index would not dedupe them. `interface_uid` is
-  `allow_nil? false` and already `primary_key? true`. On farm01 the two keys are currently
+  `allow_nil? false` and already `primary_key? true`. On edge01 the two keys are currently
   indistinguishable (340 distinct pairs each, zero NULLs) only because every interface there comes
   from the mapper -- which is exactly the kind of coincidence that makes a wrong key look right
   until another producer appears.

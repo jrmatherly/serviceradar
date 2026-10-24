@@ -8,7 +8,7 @@ which `getSourceIP()` already re-detects when the onboard-time `host_ip` pin goe
 Neither fact currently anchors an inventory device, so a re-IP'd host becomes a second
 device instead of an update.
 
-Measured on farm01 for `alma-test01` (192.168.2.243 -> 192.168.1.171), from CNPG:
+Measured on edge01 for `alma-test01` (192.168.2.243 -> 192.168.1.171), from CNPG:
 
 | when | event |
 | --- | --- |
@@ -32,7 +32,7 @@ census -- and `SourcePolicy.observer_agent_source?/1` deliberately demotes an ob
 without it every host a mapper sees collapses onto the mapper, which is a reproduced failure.
 The consequence is that no source is left that may say "this device IS agent X."
 
-Scale, on farm01: **2** devices carry an `agent_id` identifier and **1** distinct `agent_id`
+Scale, on edge01: **2** devices carry an `agent_id` identifier and **1** distinct `agent_id`
 appears in any device metadata, against 127 live devices whose creators are
 `netprobe_census` (64), `mapper_topology_sighting` (53), `proxmox_unauthenticated_https_8006` (4),
 `netprobe_mdns` (3) and `sweep_ip_seed` (1). There is no self-report source at all. This is the
@@ -40,7 +40,7 @@ general case, not one unlucky host.
 
 It also invalidates a documented assumption. `inventory/discovery/decoders/process.ex` justifies
 registering the process schema `:enrichment_only` on the grounds that "the agent host always
-already has a device -- sysmon and the agent's own self-report create it." On farm01 neither
+already has a device -- sysmon and the agent's own self-report create it." On edge01 neither
 source has created one.
 
 ## What Changes

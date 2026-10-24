@@ -4,17 +4,17 @@
 
 OpenText Network Automation (NCO) applies network access-control changes and
 then needs ServiceRadar to say whether those changes actually isolated the
-target. The composite check `farm01-lab-isolation` already answers that
+target. The composite check `edge01-lab-isolation` already answers that
 question — Alma should still reach the host, the k8s agent should not, and
 `acl_enforced` should be true — but NCO cannot drive that answer today.
 
 NCO does not know ServiceRadar's `sr:` UID. It knows an IP (and sometimes a
-MAC). Partition is always available and, on farm01-style deployments,
+MAC). Partition is always available and, on edge01-style deployments,
 is `"default"`. The existing lookup surface is SRQL or `GET /api/devices`,
 neither of which is a contract NCO should guess at, and neither of which
 kicks a **fresh** probe from both vantage-point agents.
 
-Kicking the authored sweep groups (`farm01-sweep-open` / `farm01-sweep-isolated`)
+Kicking the authored sweep groups (`edge01-sweep-open` / `edge01-sweep-isolated`)
 is the wrong lever: they target `in:devices` on a one-hour interval. NCO's
 change set is a handful of IPs. The ad-hoc scan API (`POST /api/v1/scans`)
 can probe a subset, but its results land in `adhoc_scan_results` and never

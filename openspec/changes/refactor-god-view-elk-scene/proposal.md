@@ -1,7 +1,7 @@
 # Change: Refactor God-View into one ELK-authored scene
 
 ## Why
-The current God-View client imports ELK but normally bypasses it. A custom radial pass lays out the backbone, then separate satellite and endpoint-cluster projection passes move subsets of nodes afterward. Edges are rendered as direct source-to-target segments, fixed-pixel labels are not part of collision decisions, and camera fitting only considers node centers. The result can be connected and still be unreadable: the observed farm01 fixed-build snapshot reports one connected component and no unplaced nodes, but its nodes collapse into a narrow vertical spine, labels overlap, groups collide with the backbone, routes cross unrelated nodes, and fitted content clips against the viewport.
+The current God-View client imports ELK but normally bypasses it. A custom radial pass lays out the backbone, then separate satellite and endpoint-cluster projection passes move subsets of nodes afterward. Edges are rendered as direct source-to-target segments, fixed-pixel labels are not part of collision decisions, and camera fitting only considers node centers. The result can be connected and still be unreadable: the observed edge01 fixed-build snapshot reports one connected component and no unplaced nodes, but its nodes collapse into a narrow vertical spine, labels overlap, groups collide with the backbone, routes cross unrelated nodes, and fitted content clips against the viewport.
 
 PR #3928 and PR #3937 repaired important topology semantics, including lost attachment connectivity, redundant inferred-edge suppression, and transitive satellite placement. They did not establish a coherent geometry contract. Continuing to tune the custom radial, spiral, and crossing heuristics would preserve the same split authority that produced the regressions.
 
@@ -20,7 +20,7 @@ PR #3928 and PR #3937 repaired important topology semantics, including lost atta
 - Select a truthful managed presentation-density contract when fixed-pixel glyphs or physical-path strokes cannot fit at detail size, without changing ELK-authored nodes, groups, semantic branches, rails, or trunks.
 - Keep every fixed-width semantic and manifold stroke clear of nonincident glyphs and noncontact physical paths at every managed camera scale, exempt only declared manifold junctions from contact diagnostics, and remeasure LiveView chrome when warning/details surfaces appear without resizing the canvas.
 - Accept prepared snapshot/profile scenes only after rendering succeeds so a camera or layer exception cannot replace coherent last-good state.
-- Add paired collapsed/expanded farm01-style fixtures and geometry assertions that fail on overlap, clipping, unstable placement, or any semantic/manifold path intersection with nonincident geometry.
+- Add paired collapsed/expanded edge01-style fixtures and geometry assertions that fail on overlap, clipping, unstable placement, or any semantic/manifold path intersection with nonincident geometry.
 - Remove competing custom radial/spiral geometry passes from the accepted bounded ELK detail path. If ELK fails, preserve the last exactly compatible good scene or show an explicit recoverable layout error; do not silently switch algorithms.
 
 ## Impact

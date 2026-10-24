@@ -43,7 +43,7 @@
 ## 6. Farm01 verification
 
 - [ ] 6.1 Create an SNMP credential **rule** (not a profile-bound secret): v3, SHA, AES, authPriv, UniFi password in both fields, scoped to the k8s agent
-- [ ] 6.2 Roll farm01 onto the build; UniFi still has v2c enabled so mixed estate stays reachable
+- [ ] 6.2 Roll edge01 onto the build; UniFi still has v2c enabled so mixed estate stays reachable
 - [ ] 6.3 Poll the UDM at `192.168.2.1`, not `192.168.1.1`
 - [ ] 6.4 Confirm a known switch (e.g. USW Pro 24) answers mapper discovery (fingerprint + interfaces)
 - [ ] 6.5 Confirm topology/LLDP or FDB evidence still appears for that switch

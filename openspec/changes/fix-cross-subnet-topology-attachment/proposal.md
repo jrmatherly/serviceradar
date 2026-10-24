@@ -3,8 +3,8 @@
 ## Why
 
 On the demo network, hypervisors and endpoints on routed segments render as
-disconnected "islands" in the topology graph. The `farm01` site
-(`192.168.2.0/24`) and the `tonka01` site (`192.168.10.0/24`) devices — including
+disconnected "islands" in the topology graph. The `edge01` site
+(`192.168.2.0/24`) and the `hub01` site (`192.168.10.0/24`) devices — including
 every Proxmox hypervisor and its guests — have **zero** switch↔host attachment
 edges, even though the switches that serve them are discovered and their ARP/FDB
 data is reachable over SNMP right now.
@@ -52,7 +52,7 @@ Verified root causes:
   endpoint sightings (e.g. a server 10G NIC advertising LLDP on a switch port).
 
 Live proof the data is sufficient: on the tonka aruba switch (`192.168.10.154`,
-HP 2920), all five endpoints on ports 13–17 resolve via `tonka01`'s ARP to
+HP 2920), all five endpoints on ports 13–17 resolve via `hub01`'s ARP to
 existing inventory IPs (`192.168.10.31/.33/.45/.56/.96`) on the **same /24** as
 the switch — so only **[D]** blocks those edges. The switch's `dot1d` FDB walks
 fine (`dot1q` adds only VLAN duplicates), so **[B]** is not the tonka blocker. On

@@ -1,5 +1,5 @@
 ## 1. Scene contract and regression fixtures
-- [x] 1.1 Add sanitized collapsed and expanded farm01-style decoded fixtures pinning `30/34/24/32 -> 54/58/48/32` node/semantic-edge/attachment-edge/semantic-`scene.routes` counts, the exact 24-member identity delta, rendered-glyph counts, local shape, layer settings, visibility mask, and aggregation policy.
+- [x] 1.1 Add sanitized collapsed and expanded edge01-style decoded fixtures pinning `30/34/24/32 -> 54/58/48/32` node/semantic-edge/attachment-edge/semantic-`scene.routes` counts, the exact 24-member identity delta, rendered-glyph counts, local shape, layer settings, visibility mask, and aggregation policy.
 - [x] 1.2 Add failing contract tests for one connected component, no unplaced/isolated nodes, deterministic output, compound containment, node/group separation, one valid ELK section per semantic branch and manifold trunk, connected manifold rails, and the zero semantic-route delta.
 - [x] 1.3 Define and test the named viewport, real-glyph minima, `208` manifold slot, `112` cross-axis/expanded-member spacing, `104` ELK edge-node corridor, distinct `96` runtime clearance, `192` edge-edge spacing, padding, label, seed, and numeric-tolerance constants from the design.
 - [x] 1.4 Add failing camera and label tests for safe-viewport containment, collision rejection, two-pass Fit idempotence, selected-label fallback, and latest-group focus without collapsing concurrent expansions.
@@ -42,4 +42,4 @@
   - Verified on 2026-08-24: 613 focused JavaScript tests, God View ESLint and TypeScript checks, all 11 focused Bazel targets, the complete non-Swift `make HOST_OS=Linux lint` contract, and all 193 repository unit tests passed.
   - Host/toolchain blockers: `make test-toolchains` stops in the upstream `github.com/cilium/ebpf@v0.22.0` module at an invalid embedded BOM, and native `make lint` stops when SwiftLint cannot load the local SourceKit framework. Neither failure reaches or implicates this change.
 - [x] 5.6 Run `openspec validate refactor-god-view-elk-scene --strict`.
-- [ ] 5.7 Roll the fixed build to demo and verify collapsed plus expanded farm01 endpoint-cluster views before merge.
+- [ ] 5.7 Roll the fixed build to demo and verify collapsed plus expanded edge01 endpoint-cluster views before merge.

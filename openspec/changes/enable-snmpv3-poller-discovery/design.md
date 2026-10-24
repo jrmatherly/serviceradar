@@ -2,7 +2,7 @@
 
 Issue 4149: SNMPv3 exists in the UI and in compiled agent config, but has never
 been tested on a real network. Farm01 is the intended live proving ground. The
-operator will convert farm01 devices from SNMPv2c community auth to SNMPv3 after
+operator will convert edge01 devices from SNMPv2c community auth to SNMPv3 after
 this change is on the cluster.
 
 Current surfaces that already mention v3:
@@ -43,7 +43,7 @@ Farm01 verification is intentionally *after* implementation. Observed 2026-08-29
   from New Rule. Farm01 stored a standalone `snmp-v3` secret on the default profile
   instead. Mapper picked it up and then failed 61 IPs with
   `the SNMPV3 User Security Model is the only SNMPV3 security model currently implemented`.
-- The k8s agent is `192.168.2.121`. UDM-Pro `farm01` has confirmed aliases
+- The k8s agent is `192.168.2.121`. UDM-Pro `edge01` has confirmed aliases
   `192.168.1.1` and `192.168.2.1`. Poller target `snmp_192_168_1_1` times out
   because the worker cannot reach the WAN-side address; poll `192.168.2.1`.
 
@@ -51,14 +51,14 @@ Farm01 verification is intentionally *after* implementation. Observed 2026-08-29
 
 - Goals:
   - Poller GET/walk and mapper discovery/topology both succeed against SNMPv3
-    `authPriv` (the farm01 target) and the other two USM levels.
+    `authPriv` (the edge01 target) and the other two USM levels.
   - SNMP credentials come from credential rules in CNPG. A v3 rule is enough to
     compile v3 sessions even if the parent profile row is still v2c.
   - Auth failures are visible as auth failures, not empty discovery or a silent
     skip.
   - v1/v2c keep working; VLAN `community@vlan` indexing stays v1/v2c-only.
 - Non-Goals:
-  - Changing farm01 device configuration in this repo.
+  - Changing edge01 device configuration in this repo.
   - SNMPv3 context names / non-default contexts (open question).
   - SNMP trap v3 ingestion.
   - Replacing the unified credential settings UI
@@ -120,7 +120,7 @@ Farm01 verification is intentionally *after* implementation. Observed 2026-08-29
 
 - **Decision: No SNMPv3 context name in this change.**
   gosnmp `ContextName` stays empty (default context). The Cisco doc example uses
-  a named context; farm01's current v2c estate does not. If conversion requires a
+  a named context; edge01's current v2c estate does not. If conversion requires a
   context, add it as a follow-up field on the credential rather than guess now.
 
 - **Decision: Fail closed on incomplete v3 config.**
@@ -132,13 +132,13 @@ Farm01 verification is intentionally *after* implementation. Observed 2026-08-29
 
 ## Risks / Trade-offs
 
-- **Farm01 cutover will drop v2c** → keep v2c code paths; only the farm01
+- **Farm01 cutover will drop v2c** → keep v2c code paths; only the edge01
   credential/profile changes. Roll back by restoring the v2c community on the
   devices and the profile.
 - **Wrong security level after inference** → prefer explicit `security_level` on
   new rules; inference is a compatibility bridge for UniFi's single-password UI
   and for payloads created before the descriptor grows the field.
-- **UniFi AES-128 vs gosnmp AES** → farm01 uses UniFi's AES-128 (`gosnmp.AES`),
+- **UniFi AES-128 vs gosnmp AES** → edge01 uses UniFi's AES-128 (`gosnmp.AES`),
   not AES-256. The identifier table still includes AES256 for other vendors.
 - **Discovery proto field add** → regenerate Go + Elixir stubs; old agents ignore
   unknown fields, old cores omit the field, inference covers them.
@@ -148,13 +148,13 @@ Farm01 verification is intentionally *after* implementation. Observed 2026-08-29
 ## Migration Plan
 
 1. Land the code on a feature branch, unit/hermetic tests green.
-2. Roll the farm01 agent (mapper + poller) *before* converting devices, so v2c
+2. Roll the edge01 agent (mapper + poller) *before* converting devices, so v2c
    keeps working.
 3. Operator creates an SNMP credential **rule** (v3 / SHA / AES / authPriv,
    UniFi password in both fields, scope the k8s agent). Poll the UDM at
    `192.168.2.1`. Wait for agent config push.
 4. Verify mapper job produces device/interface/topology results and poller
-   writes SNMP metrics for a known farm01 switch.
+   writes SNMP metrics for a known edge01 switch.
 5. If verification fails, restore v2c on the devices; the new code still speaks
    v2c.
 
@@ -162,7 +162,7 @@ No schema migration. Descriptor field additions are backward compatible.
 
 ## Open Questions
 
-- Does farm01 need a non-default SNMPv3 context name? If yes, add `context_name`
+- Does edge01 need a non-default SNMPv3 context name? If yes, add `context_name`
   to the credential rule and set gosnmp `ContextName`.
 - Mixed estate: UniFi still has v1/2C enabled, so v2c community still answers.
   Non-UniFi boxes (pve, etc.) may not share this USM user. Credential-rule
@@ -170,4 +170,4 @@ No schema migration. Descriptor field additions are backward compatible.
   blindly if some seeds are not v3.
 - Should existing profile-bound `credential_secret_id` values be migrated into
   rules automatically, or left as legacy until the operator recreates a rule
-  (farm01 will recreate)?
+  (edge01 will recreate)?

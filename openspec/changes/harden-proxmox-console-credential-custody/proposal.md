@@ -6,20 +6,20 @@ ServiceRadar has Proxmox inventory and console capabilities, but the implemented
 
 Those gaps are security blockers for enabling the feature in the `demo` namespace. A plugin that can observe a reusable Proxmox token or select the request target can turn the agent into a credential-exfiltration or SSRF primitive. An ambiguous virtualization identity can associate a guest with the wrong PVE controller and send a console request to another cluster. A console permission that does not separately authorize use of the selected credential can make the broker a confused deputy.
 
-This change makes the agent host, rather than Wasm, the only component that can resolve and apply Proxmox credentials. It also introduces source-scoped virtualization identities and requires the console service to derive the owning controller and node from authoritative inventory relationships. The result is a fail-closed contract that can be demonstrated against both farm01 and tonka01 even when their native names and VMIDs overlap.
+This change makes the agent host, rather than Wasm, the only component that can resolve and apply Proxmox credentials. It also introduces source-scoped virtualization identities and requires the console service to derive the owning controller and node from authoritative inventory relationships. The result is a fail-closed contract that can be demonstrated against both edge01 and hub01 even when their native names and VMIDs overlap.
 
 ## What Changes
 
 - **BREAKING** Proxmox inventory and console assignments no longer place tokens, passwords, private keys, provider tickets, cookies, CSRF values, redeemable secret references, or broker grants in Wasm-visible parameters. A typed host-only assignment envelope carries the authorization grant to the agent broker, and Wasm receives only non-secret semantic operation inputs.
 - **BREAKING** the Proxmox HTTP, WebSocket, and SSH paths become trusted agent-hosted connectors. They construct the final request or session and enforce the granted scheme, canonical origin, effective port, resolved address, target, TLS policy, operation, method, path/query, body policy, redirect policy, protected headers, SSH principal, and host-key policy. A plugin cannot supply `Authorization`, cookies, provider tickets, target substitutions, TLS downgrade flags, or an arbitrary privileged request body.
-- Introduce `proxmox:v3` virtualization identities scoped by immutable ServiceRadar integration and controller IDs plus the native cluster identity. Identical cluster names, node names, and VMIDs from farm01 and tonka01 remain distinct. Legacy identities become read-only aliases only when they map unambiguously; ambiguous aliases are quarantined rather than merged.
+- Introduce `proxmox:v3` virtualization identities scoped by immutable ServiceRadar integration and controller IDs plus the native cluster identity. Identical cluster names, node names, and VMIDs from edge01 and hub01 remain distinct. Legacy identities become read-only aliases only when they map unambiguously; ambiguous aliases are quarantined rather than merged.
 - Resolve a guest console through the guest's authoritative virtualization owner relationship to the exact Proxmox integration, cluster, owning node, and controller base origin. Proxmox console code never derives `https://<guest-ip>:8006`, never uses browser-supplied target metadata, and never silently falls back to another PVE.
 - Require both `devices.console.open` and the new `devices.console.credentials.use` permission, plus an allow decision from the selected credential rule's actor and `console_access` use policy, before any secret resolution or privileged network effect.
 - Bind each broker resolution and native console ticket to the current actor, authorization decision, assignment, session, device, versioned provider identity, integration, controller, cluster, node, VMID/guest type, credential rule, agent, gateway, console mode, canonical target origin, purpose, expiry, and use count. Any mismatch fails before resolution or dial.
 - Bind each console open to the exact active assignment policy version and deterministic fingerprint in typed control-stream fields, and pin every broker frame to the authenticated agent and selected gateway node. Missing or mismatched bindings fail before plugin startup, credential resolution, or dial.
 - Carry the server-selected Proxmox SSH host-key policy only in host authority. The supported closed enum is `known_hosts` or `trust_on_first_use`; browser/Wasm overrides, missing/unknown values, and `skip_verify` fail closed.
 - Make mixed control-plane/agent/plugin versions fail closed. Legacy inline-secret assignments and v1/v2 identity writes cannot be used as a compatibility path for authenticated inventory or console operations.
-- Add redacted authorization, resolution, connector, and lifecycle audit events; negative security tests; migration tests; and an explicit farm01/tonka01 demo proof that includes overlapping names and VMIDs.
+- Add redacted authorization, resolution, connector, and lifecycle audit events; negative security tests; migration tests; and an explicit edge01/hub01 demo proof that includes overlapping names and VMIDs.
 
 ## Relationship to Existing Changes
 
@@ -36,7 +36,7 @@ Where an earlier active delta conflicts with this proposal, this proposal is the
 - Affected agent areas: plugin assignment parsing, host-only credential envelopes, credential broker validation, trusted HTTP/WebSocket/SSH connectors, DNS/TLS/redirect enforcement, redaction and diagnostics
 - Affected plugin areas: Proxmox inventory and console configuration schemas, semantic host-call contracts, removal of raw token/header/target/TLS inputs
 - Affected data: virtualization provider-instance and object identities, unambiguous legacy aliases, guest-to-owner relationships, console session binding fields
-- Affected operations: coordinated control-plane and agent rollout, credential-rule policy migration, farm01 and tonka01 integration validation, demo feature enablement only after proof completion
+- Affected operations: coordinated control-plane and agent rollout, credential-rule policy migration, edge01 and hub01 integration validation, demo feature enablement only after proof completion
 
 ## Security Outcome
 
