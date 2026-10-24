@@ -50,7 +50,7 @@ export default {
     this._map = new mapboxgl.Map({
       container: this.el,
       style,
-      center: hasPoint ? [lng, lat] : [-93.6258, 44.7633],
+      center: hasPoint ? [lng, lat] : [-87.9073, 41.9742],
       zoom: hasPoint ? 10 : 3,
       attributionControl: false,
     })

@@ -884,7 +884,7 @@ defmodule ServiceRadarWebNGWeb.Settings.NetflowLive.Index do
                               step="0.000001"
                               min="-180"
                               max="180"
-                              placeholder="-93.6258"
+                              placeholder="-87.9073"
                             />
                           </div>
                           <%= if mapbox_picker_enabled?(@mapbox) do %>

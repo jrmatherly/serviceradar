@@ -13,7 +13,7 @@ defmodule ServiceRadarWebNGWeb.NetflowLive.Visualize.FlowContext.MapMarkersTest 
 
   test "draws a source marker at the local-CIDR anchor when GeoIP has no coordinates" do
     context = %{
-      src_anchor: %{latitude: 44.7636, longitude: -93.6258, label: "Carver, MN"},
+      src_anchor: %{latitude: 41.9742, longitude: -87.9073, label: "Chicago, IL"},
       # GeoIP cache holds a row for the private IP but with NULL lat/lon.
       src_geo: %{latitude: nil, longitude: nil},
       dst_anchor: nil,
@@ -25,11 +25,11 @@ defmodule ServiceRadarWebNGWeb.NetflowLive.Visualize.FlowContext.MapMarkersTest 
     assert length(markers) == 2
 
     src = source(markers)
-    assert src.lat == 44.7636
-    assert src.lng == -93.6258
+    assert src.lat == 41.9742
+    assert src.lng == -87.9073
     assert src.local_anchor == true
     assert src.label =~ "10.0.2.12"
-    assert src.label =~ "Carver, MN"
+    assert src.label =~ "Chicago, IL"
 
     dst = dest(markers)
     assert dst.lat == 39.0997
@@ -53,7 +53,7 @@ defmodule ServiceRadarWebNGWeb.NetflowLive.Visualize.FlowContext.MapMarkersTest 
 
   test "anchor takes precedence over GeoIP (consistent with the main dashboard map)" do
     context = %{
-      src_anchor: %{latitude: 44.7636, longitude: -93.6258, label: "Carver, MN"},
+      src_anchor: %{latitude: 41.9742, longitude: -87.9073, label: "Chicago, IL"},
       src_geo: %{latitude: 1.0, longitude: 1.0, city: "Elsewhere"},
       dst_anchor: nil,
       dst_geo: nil
@@ -61,8 +61,8 @@ defmodule ServiceRadarWebNGWeb.NetflowLive.Visualize.FlowContext.MapMarkersTest 
 
     src = context |> MapMarkers.netflow_map_markers(@flow) |> source()
 
-    assert src.lat == 44.7636
-    assert src.lng == -93.6258
+    assert src.lat == 41.9742
+    assert src.lng == -87.9073
     assert src.local_anchor == true
   end
 

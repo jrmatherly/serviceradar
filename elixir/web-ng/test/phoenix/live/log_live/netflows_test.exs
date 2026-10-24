@@ -226,9 +226,9 @@ defmodule ServiceRadarWebNGWeb.LogLive.NetflowsTest do
         partition: "default",
         label: "k3s node interfaces",
         cidr: "192.168.1.0/24",
-        location_label: "Carver, MN",
-        latitude: 44.7636,
-        longitude: -93.6258,
+        location_label: "Chicago, IL",
+        latitude: 41.9742,
+        longitude: -87.9073,
         enabled: true
       },
       actor: system_actor()
@@ -261,10 +261,10 @@ defmodule ServiceRadarWebNGWeb.LogLive.NetflowsTest do
     [markers_json] = LazyHTML.attribute(map, "data-markers")
 
     assert [source | _] = Jason.decode!(markers_json)
-    assert source["label"] == "Source - 192.168.1.134 - Carver, MN"
+    assert source["label"] == "Source - 192.168.1.134 - Chicago, IL"
     assert source["local_anchor"] == true
-    assert source["lat"] == 44.7636
-    assert source["lng"] == -93.6258
+    assert source["lat"] == 41.9742
+    assert source["lng"] == -87.9073
   end
 
   @tag :web_ng_shared_fixture_db

@@ -103,7 +103,7 @@ describe("OperationsTrafficMap netflow links", () => {
         {
           source_label: "10.0.2.12",
           target_label: "104.18.11.60",
-          geo_from: [-93.6258, 44.7636],
+          geo_from: [-87.9073, 41.9742],
           geo_to: null,
           topology_from: [-120, 20],
           topology_to: [-56, 26],
@@ -142,7 +142,7 @@ describe("OperationsTrafficMap netflow links", () => {
         {
           source_label: "10.0.2.12",
           target_label: "8.8.8.8",
-          geo_from: [-93.6258, 44.7636],
+          geo_from: [-87.9073, 41.9742],
           geo_to: [-97.822, 37.751],
           topology_from: [-120, 20],
           topology_to: [-56, 26],
@@ -153,7 +153,7 @@ describe("OperationsTrafficMap netflow links", () => {
     )
 
     expect(link).toMatchObject({
-      from: [-93.6258, 44.7636],
+      from: [-87.9073, 41.9742],
       to: [-97.822, 37.751],
       sourceLabel: "10.0.2.12",
       targetLabel: "8.8.8.8",
@@ -196,7 +196,7 @@ describe("OperationsTrafficMap netflow links", () => {
         {
           source_label: "10.0.2.11",
           target_label: "192.168.10.96",
-          geo_from: [-93.6258, 44.7636],
+          geo_from: [-87.9073, 41.9742],
           geo_to: [-93.4687, 44.9212],
           topology_from: [-120, 20],
           topology_to: [-90, 30],
@@ -282,7 +282,7 @@ describe("OperationsTrafficMap flow detail links", () => {
       getBoundingClientRect: vi.fn(() => ({width: 20, height: 20, left: 120, top: 80})),
       dataset: {
         sourceLabel: "Kansas City, US, 34.117.62.14",
-        targetLabel: "Carver, MN",
+        targetLabel: "Chicago, IL",
         sourceIp: "34.117.62.14",
         targetIp: "10.0.2.13",
         bytes: "36249",
