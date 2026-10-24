@@ -48,7 +48,7 @@ ADDON_SDK_DEPS = [
     "@crates//:prost",
     "@crates//:rcgen",
     "@crates//:rustls",
-    "@crates//:rustls-pemfile",
+    "@crates//:rustls-pki-types",
     "@crates//:sha2",
     "@crates//:thiserror",
     "@crates//:tokio",

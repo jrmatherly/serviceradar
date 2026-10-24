@@ -165,7 +165,7 @@ pub enum MtlsError {
     #[error("PLUGIN_CLIENT_CERT did not contain a PEM certificate")]
     NoClientCert,
     #[error("failed to parse client certificate PEM: {0}")]
-    ClientCertParse(std::io::Error),
+    ClientCertParse(rustls_pki_types::pem::Error),
     #[error("failed to build rustls server config: {0}")]
     Rustls(#[from] rustls::Error),
 }
@@ -213,14 +213,11 @@ pub fn build_server_mtls(client_cert_pem: &str) -> Result<ServerMtls, MtlsError>
 
 /// Parses the first PEM `CERTIFICATE` block into DER bytes.
 fn parse_first_cert_der(pem: &str) -> Result<Vec<u8>, MtlsError> {
-    let mut reader = std::io::BufReader::new(pem.as_bytes());
-    let mut certs = rustls_pemfile::certs(&mut reader);
-    match certs.next() {
-        Some(item) => {
-            let der = item.map_err(MtlsError::ClientCertParse)?;
-            Ok(der.as_ref().to_vec())
-        }
-        None => Err(MtlsError::NoClientCert),
+    use rustls_pki_types::pem::{Error, PemObject};
+    match CertificateDer::from_pem_slice(pem.as_bytes()) {
+        Ok(der) => Ok(der.as_ref().to_vec()),
+        Err(Error::NoItemsFound) => Err(MtlsError::NoClientCert),
+        Err(err) => Err(MtlsError::ClientCertParse(err)),
     }
 }
 
@@ -430,5 +427,27 @@ mod p521_tests {
                 .is_err(),
             "a malformed public key must not verify"
         );
+    }
+
+    #[test]
+    fn client_cert_without_a_certificate_block_is_no_client_cert() {
+        for pem in [
+            "",
+            "-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----\n",
+        ] {
+            assert!(
+                matches!(parse_first_cert_der(pem), Err(MtlsError::NoClientCert)),
+                "{pem:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn malformed_client_cert_block_is_a_parse_error() {
+        let pem = "-----BEGIN CERTIFICATE-----\n!!!!\n-----END CERTIFICATE-----\n";
+        assert!(matches!(
+            parse_first_cert_der(pem),
+            Err(MtlsError::ClientCertParse(_))
+        ));
     }
 }

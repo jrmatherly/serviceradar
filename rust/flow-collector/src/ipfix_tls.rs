@@ -2,12 +2,13 @@ use crate::config::IpfixTlsConfig;
 use crate::listener::{FlowHandler, FlowOutput};
 use crate::netflow::NetflowHandler;
 use anyhow::{Context, Result};
+use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use rustls::server::{NoServerSessionStorage, WebPkiClientVerifier};
 use rustls::{RootCertStore, ServerConfig};
+use rustls_pki_types::pem::{self, PemObject};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
-use std::fs::File;
-use std::io::{self, BufReader};
+use std::io;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
@@ -84,12 +85,14 @@ impl IpfixTlsListener {
 }
 
 fn server_acceptor(config: &IpfixTlsConfig) -> Result<TlsAcceptor> {
-    let certificates = rustls_pemfile::certs(&mut BufReader::new(File::open(&config.cert_file)?))
-        .collect::<io::Result<Vec<_>>>()?;
-    let key = rustls_pemfile::private_key(&mut BufReader::new(File::open(&config.key_file)?))?
-        .context("IPFIX TLS server private key is missing")?;
+    let certificates =
+        CertificateDer::pem_file_iter(&config.cert_file)?.collect::<Result<Vec<_>, _>>()?;
+    let key = match PrivateKeyDer::from_pem_file(&config.key_file) {
+        Err(pem::Error::NoItemsFound) => anyhow::bail!("IPFIX TLS server private key is missing"),
+        key => key?,
+    };
     let mut roots = RootCertStore::empty();
-    for cert in rustls_pemfile::certs(&mut BufReader::new(File::open(&config.client_ca_file)?)) {
+    for cert in CertificateDer::pem_file_iter(&config.client_ca_file)? {
         roots.add(cert?).context("invalid IPFIX client CA")?;
     }
     let provider = Arc::new(rustls::crypto::ring::default_provider());
@@ -314,8 +317,9 @@ mod tests {
             self.0.join(format!("{name}.pem"))
         }
         fn certificates(&self, name: &str) -> Vec<rustls::pki_types::CertificateDer<'static>> {
-            rustls_pemfile::certs(&mut BufReader::new(File::open(self.path(name)).unwrap()))
-                .collect::<io::Result<Vec<_>>>()
+            CertificateDer::pem_file_iter(self.path(name))
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
                 .unwrap()
         }
     }
@@ -403,10 +407,7 @@ mod tests {
             .with_safe_default_protocol_versions()?
             .with_root_certificates(roots);
             let client = if let Some(name) = identity {
-                let key = rustls_pemfile::private_key(&mut BufReader::new(File::open(
-                    self.fixtures.path(&format!("{name}-key")),
-                )?))?
-                .unwrap();
+                let key = PrivateKeyDer::from_pem_file(self.fixtures.path(&format!("{name}-key")))?;
                 builder.with_client_auth_cert(self.fixtures.certificates(name), key)?
             } else {
                 builder.with_no_client_auth()

@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-use std::io::{BufReader, Cursor};
 use std::sync::Once;
 
+use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use rustls::{ClientConfig, RootCertStore};
-use rustls_pemfile::certs;
+use rustls_pki_types::pem::{self, PemObject};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_postgres::tls::MakeTlsConnect;
 use tokio_postgres_rustls::MakeRustlsConnect;
@@ -71,9 +71,8 @@ pub fn postgres_connector(
     ensure_crypto_provider();
 
     let mut root_store = RootCertStore::empty();
-    let mut reader = BufReader::new(Cursor::new(ca_pem));
     let mut added = 0usize;
-    for cert in certs(&mut reader) {
+    for cert in CertificateDer::pem_slice_iter(ca_pem) {
         let cert = cert.map_err(|err| MigratorError::Postgres(err.to_string()))?;
         root_store
             .add(cert)
@@ -89,7 +88,7 @@ pub fn postgres_connector(
     let builder = ClientConfig::builder().with_root_certificates(root_store);
     let config = match (client_cert_pem, client_key_pem) {
         (Some(cert_pem), Some(key_pem)) => {
-            let certs = rustls_pemfile::certs(&mut BufReader::new(Cursor::new(cert_pem)))
+            let certs = CertificateDer::pem_slice_iter(cert_pem)
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(|err| MigratorError::Postgres(err.to_string()))?;
             if certs.is_empty() {
@@ -99,11 +98,12 @@ pub fn postgres_connector(
             }
             // CNPG runtime certs ship PKCS#1 (`BEGIN RSA PRIVATE KEY`). Accept
             // PKCS#8, PKCS#1, and SEC1 the same way `rust/srql` does.
-            let key = rustls_pemfile::private_key(&mut BufReader::new(Cursor::new(key_pem)))
-                .map_err(|err| MigratorError::Postgres(err.to_string()))?
-                .ok_or_else(|| {
-                    MigratorError::Postgres("client key PEM contained no private key".into())
-                })?;
+            let key = match PrivateKeyDer::from_pem_slice(key_pem) {
+                Err(pem::Error::NoItemsFound) => Err(MigratorError::Postgres(
+                    "client key PEM contained no private key".into(),
+                )),
+                key => key.map_err(|err| MigratorError::Postgres(err.to_string())),
+            }?;
             builder
                 .with_client_auth_cert(certs, key)
                 .map_err(|err| MigratorError::Postgres(err.to_string()))?
@@ -246,20 +246,33 @@ hiLAw4qSBfpp0cf74kUge4NmHeSlwGk=
     }
 
     #[test]
-    fn rejects_empty_client_key() {
+    fn rejects_client_key_without_a_private_key_block() {
+        // A certificate is a valid PEM section of the wrong kind, so the key parser
+        // skips it and reports that no private key was found.
         let err = match postgres_connector(
             CA_CERT.as_bytes(),
             Some(CLIENT_CERT.as_bytes()),
-            Some(b"-----BEGIN PRIVATE KEY-----\n-----END PRIVATE KEY-----\n"),
+            Some(CLIENT_CERT.as_bytes()),
             Some("cnpg"),
         ) {
-            Ok(_) => panic!("empty key should fail"),
+            Ok(_) => panic!("a key file without a private key must fail"),
             Err(err) => err,
         };
-        let message = err.to_string();
+        assert_eq!(err.to_string(), "client key PEM contained no private key");
+    }
+
+    #[test]
+    fn rejects_empty_client_key_body() {
+        // An empty body decodes to a zero-length DER key; rustls rejects it, not the parser.
         assert!(
-            message.contains("no private key") || message.contains("failed to parse private key"),
-            "{message}"
+            postgres_connector(
+                CA_CERT.as_bytes(),
+                Some(CLIENT_CERT.as_bytes()),
+                Some(b"-----BEGIN PRIVATE KEY-----\n-----END PRIVATE KEY-----\n"),
+                Some("cnpg"),
+            )
+            .is_err(),
+            "empty key should fail"
         );
     }
 }

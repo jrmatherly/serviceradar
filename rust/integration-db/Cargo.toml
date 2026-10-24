@@ -19,7 +19,6 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
 rustls = { workspace = true, features = ["ring"] }
-rustls-pemfile = { workspace = true }
 srql = { path = "../srql" }
 # "time" is for the clone retry backoff. It is reachable transitively through
 # tokio-postgres, but per rust/README_RUST.md a feature another crate happens to enable is an
