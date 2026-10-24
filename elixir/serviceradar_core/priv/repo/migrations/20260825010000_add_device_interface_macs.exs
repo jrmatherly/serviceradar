@@ -6,8 +6,8 @@ defmodule ServiceRadar.Repo.Migrations.AddDeviceInterfaceMacs do
   that table is unique on `(identifier_type, identifier_value, partition)` and its
   upsert deliberately never moves `device_id`. Two device rows that are the SAME
   chassis report the SAME interface MACs, so the first to register owned all of
-  them and the second got none -- observed on farm01, where one device held 11
-  chassis MACs and its twin held 0 despite reporting 16.
+  them and the second got none -- observed on a real deployment, where one of two
+  rows for the same chassis held every MAC and its twin held none.
 
   Two consequences that only appear at scale, both fixed by keying per device:
 

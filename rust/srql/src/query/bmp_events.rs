@@ -352,7 +352,7 @@ mod tests {
     #[test]
     fn bmp_events_sql_includes_routing_filters() {
         let plan =
-            plan_for("in:bmp_events router_ip:10.42.68.85 event_type:route_update time:last_1h");
+            plan_for("in:bmp_events router_ip:192.0.2.85 event_type:route_update time:last_1h");
         let (sql, params) = to_sql_and_params(&plan).expect("should build SQL");
         let lower = sql.to_lowercase();
 
@@ -361,7 +361,7 @@ mod tests {
         assert!(
             params
                 .iter()
-                .any(|param| { matches!(param, BindParam::Text(value) if value == "10.42.68.85") })
+                .any(|param| { matches!(param, BindParam::Text(value) if value == "192.0.2.85") })
         );
     }
 

@@ -920,7 +920,7 @@ fn parses_interfaces_entity() {
 
 #[test]
 fn parses_bmp_events_entity() {
-    let ast = parse("in:bmp_events router_ip:10.42.68.85 time:last_24h").unwrap();
+    let ast = parse("in:bmp_events router_ip:192.0.2.85 time:last_24h").unwrap();
     assert!(matches!(ast.entity, Entity::BmpEvents));
     assert_eq!(ast.filters.len(), 1);
     assert_eq!(ast.filters[0].field, "router_ip");
