@@ -431,7 +431,7 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
                   "if_name" => "eth0"
                 },
                 "target_endpoint" => %{
-                  "uid" => "chassis-0cea1432d277",
+                  "uid" => "chassis-0ca1b2c3d4e7",
                   "device_id" => "sr:hub01",
                   "ip" => "192.168.10.1",
                   "mac" => "0c:a1:b2:c3:d4:e7",
@@ -450,7 +450,7 @@ defmodule ServiceRadar.NetworkDiscovery.MapperResultsIngestorTest do
       assert result.metadata["observation_contract_version"] == "mapper.topology_observation.v2"
       assert result.metadata["observation_source_adapter"] == "snmp.v1"
       assert result.metadata["source_local_uid"] == "mac-f09fc21a4b7c"
-      assert result.metadata["source_target_uid"] == "chassis-0cea1432d277"
+      assert result.metadata["source_target_uid"] == "chassis-0ca1b2c3d4e7"
       assert result.metadata["confidence_tier"] == "medium"
       assert result.metadata["evidence_class"] == "inferred-segment"
     end

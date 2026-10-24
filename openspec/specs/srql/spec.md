@@ -186,7 +186,7 @@ The SRQL service SHALL support `mac` filters for `in:interfaces` queries with ca
 
 #### Scenario: Exact MAC match with mixed separators
 - **GIVEN** an interface stored with MAC address `0e:a1:b2:c3:d4:e5`
-- **WHEN** a client sends `in:interfaces mac:0E-EA-14-32-D2-78`
+- **WHEN** a client sends `in:interfaces mac:0E-A1-B2-C3-D4-E5`
 - **THEN** SRQL returns the interface in the results
 
 #### Scenario: Wildcard MAC match in interface search

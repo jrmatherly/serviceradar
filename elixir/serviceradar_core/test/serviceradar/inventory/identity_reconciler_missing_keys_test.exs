@@ -22,7 +22,7 @@ defmodule ServiceRadar.Inventory.IdentityReconcilerMissingKeysTest do
     # This is a regression test for a KeyError seen in production when
     # identifier extraction omitted :agent_id entirely.
     ids = %{
-      mac: "0CEA1432D27F",
+      mac: "0CA1B2C3D4EF",
       ip: "",
       partition: "default",
       armis_id: nil,
@@ -37,13 +37,13 @@ defmodule ServiceRadar.Inventory.IdentityReconcilerMissingKeysTest do
 
   test "does not raise when identifiers map is missing optional strong keys" do
     ids = %{
-      mac: "0CEA1432D27F",
+      mac: "0CA1B2C3D4EF",
       ip: "",
       partition: "default"
     }
 
     assert IdentityReconciler.has_strong_identifier?(ids)
-    assert {:mac, "0CEA1432D27F"} = IdentityReconciler.highest_priority_identifier(ids)
+    assert {:mac, "0CA1B2C3D4EF"} = IdentityReconciler.highest_priority_identifier(ids)
 
     # Should not raise; returns a deterministic UUID string.
     device_id = IdentityReconciler.generate_deterministic_device_id(ids)

@@ -175,7 +175,7 @@ fn latest_interfaces_query_defers_error_metric_joins_until_after_dedupe() {
 fn interfaces_mac_filter_normalizes_exact_match() {
     let plan = base_plan_with_filter(Filter {
         field: "mac".into(),
-        value: FilterValue::Scalar("0E-EA-14-32-D2-78".into()),
+        value: FilterValue::Scalar("0E-A1-B2-C3-D4-E5".into()),
         op: FilterOp::Eq,
     });
 

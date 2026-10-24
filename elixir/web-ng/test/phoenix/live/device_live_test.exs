@@ -1487,7 +1487,7 @@ defmodule ServiceRadarWebNGWeb.DeviceLiveTest do
       "classification_reason" => "matched UniFi gateway role",
       "alt_ip:10.0.0.1" => true,
       "alt_ip:192.168.10.1" => true,
-      "alt_mac:0eea1432d277" => true,
+      "alt_mac:0ea1b2c3d4e7" => true,
       "_alias_last_seen_at" => "2026-05-16T18:00:00Z",
       "debug_unifi_payload" => %{"raw" => "payload"},
       "device_id" => "raw-integration-id"
@@ -1545,7 +1545,7 @@ defmodule ServiceRadarWebNGWeb.DeviceLiveTest do
     refute curated_html =~ "edge-mikrotik"
     refute curated_html =~ "10.0.0.1"
     refute curated_html =~ "192.168.10.1"
-    refute curated_html =~ "0eea1432d277"
+    refute curated_html =~ "0ea1b2c3d4e7"
     refute curated_html =~ "Integration Details"
     refute curated_html =~ "asset-7799"
     refute curated_html =~ "_alias_last_seen_at"
