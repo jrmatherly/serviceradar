@@ -55,8 +55,7 @@ echo 'serviceradar:x:{gid}:' >> $(location {name}_group)
             "etc/passwd": "0644",
             "etc/group": "0644",
         },
-        # pkg_tar entries default to 0555; a 0555 `var/lib/serviceradar` is copied into a
-        # fresh named volume, and the service user then cannot write its readiness file.
+        # Writable directories, for the same reason as in service_layer.
         mode = "0755",
         owner = "{}.{}".format(_SERVICERADAR_UID, _SERVICERADAR_GID),
         package_dir = "/",
@@ -113,6 +112,9 @@ def service_layer(
         name = name,
         files = files,
         modes = modes,
+        # pkg_tar defaults entries to 0555, and `mode` only governs what it builds from
+        # `files`, `empty_dirs` and `symlinks`. A 0555 data directory is copied into a fresh
+        # compose volume as-is, and the service user can then never write there.
         mode = "0755",
         empty_dirs = empty_dirs,
         symlinks = symlinks,
