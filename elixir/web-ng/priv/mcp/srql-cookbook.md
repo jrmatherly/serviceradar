@@ -281,8 +281,8 @@ Only `count()` is supported on composite_results. Do not group on `hostname`.
 
 ```
 in:bmp_events time:last_24h sort:time:desc limit:50
-in:bmp_events router_ip:10.42.68.85 time:last_24h sort:time:desc
-in:bmp_events peer_ip:10.42.68.1 time:last_7d
+in:bmp_events router_ip:192.0.2.85 time:last_24h sort:time:desc
+in:bmp_events peer_ip:192.0.2.1 time:last_7d
 in:bmp_events peer_asn:64512 time:last_24h
 in:bmp_events prefix:%203.0.113.0% time:last_7d sort:time:desc
 ```

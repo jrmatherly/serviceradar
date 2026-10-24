@@ -508,7 +508,7 @@ The latest BMP events across all routers.
 ### Events from one router
 
 ```srql
-in:bmp_events router_ip:10.42.68.85 time:last_24h sort:time:desc
+in:bmp_events router_ip:192.0.2.85 time:last_24h sort:time:desc
 ```
 
 All routing activity reported by a single router.
@@ -516,7 +516,7 @@ All routing activity reported by a single router.
 ### Events for a specific BGP peer
 
 ```srql
-in:bmp_events peer_ip:10.42.68.1 time:last_7d
+in:bmp_events peer_ip:192.0.2.1 time:last_7d
 ```
 
 Track one peering session.
