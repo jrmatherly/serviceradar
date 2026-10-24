@@ -2,7 +2,7 @@ defmodule ServiceRadar.Repo.Migrations.AddAgentCommandsRetentionIndex do
   @moduledoc """
   Adds a partial index that backs the agent-command retention sweep.
 
-  Live demo evidence (cnpg-23 primary, 2026-06-17): platform.agent_commands held
+  Evidence from the public demo database (2026-06-17): platform.agent_commands held
   97k rows / 125 MB, of which 99.7% were older than a day, and the only index was
   the `command_id` primary key. The retention sweep's `WHERE inserted_at < $1`
   predicate was the #2 hot path on the demo DB (~18s mean, ~15% of total exec

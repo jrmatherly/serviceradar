@@ -675,22 +675,22 @@ gobgp:
     tag: latest
     pullPolicy: IfNotPresent
   bgp:
-    localAsn: 401642
-    routerId: "10.42.68.126"
+    localAsn: 64512
+    routerId: "192.0.2.126"
     listenPort: 179
   service:
     bgp:
       enabled: false
       port: 179
   nodeSelector:
-    kubernetes.io/hostname: k8s-cp3-worker1
+    kubernetes.io/hostname: worker01.example.com
   podAnnotations:
-    cni.projectcalico.org/ipAddrs: '["10.42.68.126"]'
+    cni.projectcalico.org/ipAddrs: '["192.0.2.126"]'
   peers:
-    - name: tonka01
+    - name: router01
       ip: "10.0.2.1"
-      peer_asn: 401642
-      description: "tonka01"
+      peer_asn: 64512
+      description: "router01"
       passiveMode: true
 
 core:
