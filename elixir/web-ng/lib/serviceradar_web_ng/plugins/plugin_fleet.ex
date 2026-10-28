@@ -127,7 +127,7 @@ defmodule ServiceRadarWebNG.Plugins.PluginFleet do
           states_by_agent
           |> Map.get({assignment.partition_id, assignment.agent_uid}, [])
           |> Enum.filter(&matches_package?(&1, package, names))
-          |> assignment_state(assignment, package)
+          |> assignment_state(assignment)
 
         row(assignment, package, state, now)
       end)
@@ -453,13 +453,7 @@ defmodule ServiceRadarWebNG.Plugins.PluginFleet do
   defp winner([]), do: nil
   defp winner(states), do: Enum.max_by(states, &PluginStateContract.state_rank/1)
 
-  # A state that names its assignment is that assignment's evidence first.
-  # A coexisting assignment's own disambiguated state never counts for
-  # this one. States under the bare package name that name no assignment,
-  # or that a sibling last stamped into the formerly shared row, remain
-  # shared legacy evidence until each assignment reports into its own
-  # state.
-  defp assignment_state(states, assignment, package) do
+  defp assignment_state(states, assignment) do
     assignment_id = assignment && to_string(assignment.id)
 
     {own, rest} =
@@ -470,8 +464,7 @@ defmodule ServiceRadarWebNG.Plugins.PluginFleet do
     if own == [] do
       rest
       |> Enum.filter(fn state ->
-        PluginStateContract.state_assignment_id(state) == nil or
-          state.service_name == package.name
+        PluginStateContract.state_assignment_id(state) == nil
       end)
       |> winner()
     else
@@ -493,6 +486,7 @@ defmodule ServiceRadarWebNG.Plugins.PluginFleet do
     {category, reason} = classify(assignment, package, state, reported_at, stale?)
     drift = known_drift(assigned_version, observed_version)
     observed_assignment_id = if reported_at, do: PluginStateContract.state_assignment_id(state)
+
     assignment_drift = known_drift(if(assignment, do: assignment.id), observed_assignment_id)
 
     {category, reason} =
