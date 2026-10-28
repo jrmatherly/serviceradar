@@ -98,6 +98,18 @@ guide for the publishing flow. Then assign both plugin manifests to the agent(s)
 that reach your AWX network. The `inventory_sync` assignment is what drives the
 `Device.ansible_managed` flag — without it, no devices flip to ansible-managed.
 
+When several `awx` assignments coexist on the agent, `AwxClient` selects the
+command assignment in this order: the sole enabled `awx` assignment, a unique
+credential-rule-owned assignment whose rule references the dispatch secret,
+then a unique assignment whose `base_url` (including entries in `controllers`)
+matches the controller URL after trimming whitespace and a trailing slash.
+The `serviceradar.awx_command.v1` payload carries the selected
+`plugin_assignment_id`. An agent that supports this field executes only that
+assignment and fails if it cannot find a matching runner for the `awx` plugin;
+it does not fall back to a sibling with different permissions or allowed domains.
+If core cannot identify an assignment, it omits the field and the agent retains
+the legacy plugin-ID lookup. Older cores and agents retain that legacy routing.
+
 If you are authoring or customizing WASM plugins, see the developer portal at
 [developer.serviceradar.cloud](https://developer.serviceradar.cloud) for the
 plugin SDK, build toolchain, and publishing workflow.
