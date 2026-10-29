@@ -16,6 +16,9 @@ defmodule ServiceRadarWebNGWeb.SAMLControllerTest do
   @moduletag :web_ng_shared_fixture_db
 
   @sp_entity_id "https://sp.example.com"
+  @browser_cookie "sr_saml_browser"
+  # The value GET /auth/saml would have set in the posting browser.
+  @browser_key "test-browser-key-00000"
   @invalid_request "Authentication failed: invalid request. Please try again."
   @failed "Authentication failed. Please try again."
 
@@ -56,7 +59,8 @@ defmodule ServiceRadarWebNGWeb.SAMLControllerTest do
              "SAML authentication is not properly configured."
   end
 
-  test "a cross-site POST with no session cookie and no CSRF token signs in", %{idp: idp} do
+  test "a cross-site POST with the browser cookie, no session cookie and no CSRF token signs in",
+       %{idp: idp} do
     {email, user} = provision_saml_user()
     {relay_state, request_id} = open_pending_request()
     assertion_id = unique_id("_assertion")
@@ -66,21 +70,137 @@ defmodule ServiceRadarWebNGWeb.SAMLControllerTest do
 
     conn = cross_site_post(%{"SAMLResponse" => saml_response, "RelayState" => relay_state})
 
-    refute List.keymember?(conn.req_headers, "cookie", 0)
+    assert [{"cookie", "#{@browser_cookie}=#{@browser_key}"}] =
+             conn.req_headers |> List.keytake("cookie", 0) |> elem(0) |> List.wrap()
+
     refute Map.has_key?(conn.body_params, "_csrf_token")
     assert redirected_to(conn) == ~p"/dashboard"
     assert get_session(conn, :live_socket_id) == "users_sessions:#{user.id}"
     assert Enum.count(recorded_assertion_ids(idp), &(&1 == assertion_id)) == 1
 
     # The pending request was spent by the login.
-    assert {:ok, nil} = SAMLPendingRequest.take(relay_state, actor: SystemActor.system(:test))
+    assert {:ok, nil} =
+             SAMLPendingRequest.take("#{relay_state}.#{@browser_key}",
+               actor: SystemActor.system(:test)
+             )
+  end
+
+  test "a valid response posted without the browser cookie is rejected", %{idp: idp} do
+    {email, _user} = provision_saml_user()
+    {relay_state, request_id} = open_pending_request()
+
+    saml_response =
+      signed_response(idp, email, assertion_id: unique_id("_assertion"), in_response_to: request_id)
+
+    conn =
+      cross_site_post(%{"SAMLResponse" => saml_response, "RelayState" => relay_state}, cookie: nil)
+
+    assert_failed(conn, @invalid_request)
+    refute get_session(conn, :live_socket_id)
+    # Not spent: the right browser can still finish this login.
+    assert {:ok, %SAMLPendingRequest{}} =
+             SAMLPendingRequest.take("#{relay_state}.#{@browser_key}",
+               actor: SystemActor.system(:test)
+             )
+  end
+
+  test "a valid response posted from another browser is rejected", %{idp: idp} do
+    {email, _user} = provision_saml_user()
+    {relay_state, request_id} = open_pending_request()
+
+    saml_response =
+      signed_response(idp, email, assertion_id: unique_id("_assertion"), in_response_to: request_id)
+
+    conn =
+      cross_site_post(%{"SAMLResponse" => saml_response, "RelayState" => relay_state},
+        cookie: "other-browser-key-0000"
+      )
+
+    assert_failed(conn, @invalid_request)
+    refute get_session(conn, :live_socket_id)
+  end
+
+  test "two login tabs in one browser both sign in", %{idp: idp} do
+    {email, user} = provision_saml_user()
+    {first_relay_state, first_request_id} = open_pending_request()
+    {second_relay_state, second_request_id} = open_pending_request()
+
+    first =
+      cross_site_post(%{
+        "SAMLResponse" =>
+          signed_response(idp, email,
+            assertion_id: unique_id("_assertion"),
+            in_response_to: first_request_id
+          ),
+        "RelayState" => first_relay_state
+      })
+
+    second =
+      cross_site_post(%{
+        "SAMLResponse" =>
+          signed_response(idp, email,
+            assertion_id: unique_id("_assertion"),
+            in_response_to: second_request_id
+          ),
+        "RelayState" => second_relay_state
+      })
+
+    assert redirected_to(first) == ~p"/dashboard"
+    assert redirected_to(second) == ~p"/dashboard"
+    assert get_session(first, :live_socket_id) == "users_sessions:#{user.id}"
+    assert get_session(second, :live_socket_id) == "users_sessions:#{user.id}"
+  end
+
+  test "a login started in one browser finishes only with that browser's cookie", %{
+    conn: conn,
+    idp: idp
+  } do
+    # The outbound policy resolves hostnames, so the SSO URL is the literal public
+    # address the policy's own tests accept.
+    clear_auth_cache()
+
+    put_saml_settings(%{
+      is_enabled: true,
+      mode: :active_sso,
+      provider_type: :saml,
+      saml_idp_metadata_xml: SAMLFixtures.metadata(idp, sso_url: "https://1.1.1.1/sso"),
+      saml_sp_entity_id: @sp_entity_id,
+      claim_mappings: nil,
+      saml_pinned_cert_fingerprints: nil
+    })
+
+    {email, user} = provision_saml_user()
+    started = get(conn, ~p"/auth/saml")
+
+    assert %{value: key, http_only: true, secure: true, same_site: "None", path: "/auth/saml"} =
+             started.resp_cookies[@browser_cookie]
+
+    assert byte_size(key) == 22
+
+    %{"RelayState" => relay_state, "SAMLRequest" => saml_request} =
+      started |> redirected_to(302) |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query()
+
+    [_, request_id] =
+      Regex.run(~r/ ID="([^"]+)"/, saml_request |> Base.decode64!() |> :zlib.unzip())
+
+    params = %{
+      "SAMLResponse" => signed_response(idp, email, assertion_id: unique_id("_assertion"), in_response_to: request_id),
+      "RelayState" => relay_state
+    }
+
+    assert_failed(cross_site_post(params, cookie: nil), @invalid_request)
+    assert_failed(cross_site_post(params, cookie: "other-browser-key-0000"), @invalid_request)
+
+    conn = cross_site_post(params, cookie: key)
+    assert redirected_to(conn) == ~p"/dashboard"
+    assert get_session(conn, :live_socket_id) == "users_sessions:#{user.id}"
   end
 
   test "the same cross-site request is refused by a CSRF-protected browser route" do
     # Proves the harness above really omits the CSRF token: the :browser
     # pipeline the ACS used to share answers it with 403.
     assert_error_sent 403, fn ->
-      cross_site_post(~p"/auth/sign-in", %{"user" => %{"email" => "someone@example.com"}})
+      cross_site_post(%{"user" => %{"email" => "someone@example.com"}}, path: ~p"/auth/sign-in")
     end
   end
 
@@ -254,10 +374,18 @@ defmodule ServiceRadarWebNGWeb.SAMLControllerTest do
   # A request the way an IdP's auto-submitting form sends it: no session cookie
   # and no Phoenix CSRF token. Phoenix.ConnTest marks its connections to skip
   # CSRF checks; removing that mark makes the pipeline enforce them.
-  defp cross_site_post(path \\ ~p"/auth/saml/consume", params) do
-    build_conn()
-    |> Map.update!(:private, &Map.delete(&1, :plug_skip_csrf_protection))
-    |> post(path, params)
+  defp cross_site_post(params, opts \\ []) do
+    path = Keyword.get(opts, :path, ~p"/auth/saml/consume")
+
+    conn = Map.update!(build_conn(), :private, &Map.delete(&1, :plug_skip_csrf_protection))
+
+    conn =
+      case Keyword.get(opts, :cookie, @browser_key) do
+        nil -> conn
+        cookie -> put_req_cookie(conn, @browser_cookie, cookie)
+      end
+
+    post(conn, path, params)
   end
 
   # What `GET /auth/saml` stores for an SP-initiated login. The GET itself is
@@ -270,7 +398,7 @@ defmodule ServiceRadarWebNGWeb.SAMLControllerTest do
 
     {:ok, _pending} =
       SAMLPendingRequest.open(
-        relay_state,
+        "#{relay_state}.#{@browser_key}",
         request_id,
         expires_at,
         %{return_to: Keyword.get(opts, :return_to)},
