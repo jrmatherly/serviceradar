@@ -1,0 +1,29 @@
+suite: web-ng CSP mode environment
+templates:
+  - templates/web.yaml
+tests:
+  - it: renders report-only by default
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SERVICERADAR_CSP_MODE
+            value: report-only
+          count: 1
+        documentSelector:
+          path: kind
+          value: Deployment
+
+  - it: renders enforce when webNg.cspMode is enforce
+    set:
+      webNg.cspMode: enforce
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SERVICERADAR_CSP_MODE
+            value: enforce
+          count: 1
+        documentSelector:
+          path: kind
+          value: Deployment
