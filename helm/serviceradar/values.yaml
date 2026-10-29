@@ -1476,6 +1476,8 @@ webNg:
   # Set to "false" only for local/lab reverse-proxy debugging.
   checkOrigin: "true"
   devRoutes: "false"
+  # Content-Security-Policy mode: "report-only" or "enforce". Any other value stops web-ng at boot.
+  cspMode: "report-only"
   localMailer: "false"
   # Bootstrap admin identity. The generated admin password is stored in
   # secrets.existingSecretName under admin-password.

@@ -410,6 +410,8 @@ spec:
           value: {{ default "28800" $webNg.mcpRefreshTtlSeconds | quote }}
         - name: SERVICERADAR_DEV_ROUTES
           value: {{ default "false" $webNg.devRoutes | quote }}
+        - name: SERVICERADAR_CSP_MODE
+          value: {{ default "report-only" $webNg.cspMode | quote }}
         # Real client IP behind the envoy gateway. Only honored for direct
         # peers inside SERVICERADAR_TRUSTED_PROXY_CIDRS (see
         # ServiceRadarWebNG.ClientIP); empty CIDRs keep the secure default

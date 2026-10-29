@@ -24,7 +24,10 @@ defmodule ServiceRadarWebNGWeb.Plugs.SecurityHeaders do
     * `:permissions_policy` — full Permissions-Policy header value.
       Default denies `camera`, `microphone`, `geolocation`, `payment`,
       `usb`, `serial`, `fullscreen`.
-    * `:csp_mode` — `:enforce` (default) or `:report_only`. When
+    * `:csp_mode` — `:enforce` or `:report_only`. `config.exs` sets
+      `:report_only`, and in prod `runtime.exs` sets it from
+      `SERVICERADAR_CSP_MODE` via `csp_mode_from_env/1`. With no config
+      at all the plug enforces. When
       `:report_only`, any `content-security-policy` header already set
       on the response is rewritten as `content-security-policy-report-only`.
     * `:csp_report_uri` — when set, appended to the CSP body as
@@ -47,6 +50,20 @@ defmodule ServiceRadarWebNGWeb.Plugs.SecurityHeaders do
 
   @default_permissions_policy "camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), fullscreen=(), display-capture=()"
   @default_hsts_max_age 63_072_000
+
+  @doc """
+  Parses `SERVICERADAR_CSP_MODE` into a `:csp_mode` value. Unset means
+  `:report_only`; any value other than `"enforce"` or `"report-only"` raises.
+  """
+  @spec csp_mode_from_env(String.t() | nil) :: :enforce | :report_only
+  def csp_mode_from_env(nil), do: :report_only
+  def csp_mode_from_env("report-only"), do: :report_only
+  def csp_mode_from_env("enforce"), do: :enforce
+
+  def csp_mode_from_env(value) do
+    raise ArgumentError,
+          "SERVICERADAR_CSP_MODE must be \"enforce\" or \"report-only\", got: #{inspect(value)}"
+  end
 
   @impl true
   def init(opts), do: opts

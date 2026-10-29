@@ -220,8 +220,8 @@ config :serviceradar_web_ng, ServiceRadarWebNGWeb.Endpoint,
 # style-src, mapbox tile hosts, etc.); this plug appends a
 # `report-uri` and optionally rewrites the header to
 # `content-security-policy-report-only` during the rollout window.
-# Flip `csp_mode` to `:enforce` once reports have been observed for
-# at least a week.
+# In prod, runtime.exs sets `csp_mode` from SERVICERADAR_CSP_MODE
+# (`enforce` or `report-only`, unset means report-only).
 config :serviceradar_web_ng, ServiceRadarWebNGWeb.Plugs.SecurityHeaders,
   csp_mode: :report_only,
   csp_report_uri: "/api/security/csp-report"

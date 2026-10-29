@@ -7,6 +7,7 @@ alias ServiceRadar.Edge.RemoteAccessSSHCACommandSigner
 alias ServiceRadar.NATS.StateBucketSizing
 alias ServiceRadarWebNG.RemoteDesktopWebRTCConfig
 alias ServiceRadarWebNG.Topology.BitmapSource
+alias ServiceRadarWebNGWeb.Plugs.SecurityHeaders
 alias Swoosh.Adapters.Local
 
 require Logger
@@ -1714,6 +1715,9 @@ if config_env() == :prod do
     else
       session_config
     end
+
+  config :serviceradar_web_ng, SecurityHeaders,
+    csp_mode: SecurityHeaders.csp_mode_from_env(System.get_env("SERVICERADAR_CSP_MODE"))
 
   # Effective upstream URL new edge-site NATS leaf servers dial. The chart
   # renders it from hostedRuntime.publicEndpoints.natsLeafHost/natsLeafPort.
