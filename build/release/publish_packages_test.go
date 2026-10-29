@@ -359,3 +359,15 @@ func TestGetReleaseAssetDownloadURLUsesPublishedGitHubTagPath(t *testing.T) {
 		t.Fatalf("getReleaseAssetDownloadURL() = %q, want %q", got, want)
 	}
 }
+
+func TestDefaultRepoDerivesFromGitHubRepository(t *testing.T) {
+	t.Setenv("GITHUB_REPOSITORY", "owner01/repo01")
+	if got := defaultRepo(); got != "owner01/repo01" {
+		t.Fatalf("defaultRepo() = %q, want owner01/repo01", got)
+	}
+
+	t.Setenv("GITHUB_REPOSITORY", "")
+	if got := defaultRepo(); got != "" {
+		t.Fatalf("defaultRepo() without GITHUB_REPOSITORY = %q, want empty (no hard-coded owner)", got)
+	}
+}

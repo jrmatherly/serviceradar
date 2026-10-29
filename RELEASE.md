@@ -66,7 +66,7 @@ The `publish_packages` binary performs the following:
 
 | Flag | Description |
 |------|-------------|
-| `--repo` | Repository, defaults to `carverauto/serviceradar`. |
+| `--repo` | Repository in `owner/repo` form; defaults to `$GITHUB_REPOSITORY` and is required when that is unset. |
 | `--forgejo-url` | Forgejo base URL, defaults to `https://code.carverauto.dev` or `$FORGEJO_URL`. |
 | `--name` | Release display name; defaults to the value of `--tag`. |
 | `--commit` | Override the commit SHA for the release. Falls back to `GITHUB_SHA`, `COMMIT_SHA`, or `STABLE_COMMIT_SHA`. |
@@ -137,6 +137,7 @@ Linux/BuildBuddy runner when cutting a full release.
 `//build/buildbuddy:release_pipeline` bootstraps Docker auth with `./buildbuddy_setup_docker_auth.sh`, determines the release tag (from `RELEASE_TAG`, the legacy `WORKFLOW_INPUT_tag`, a Git tag, or the `VERSION` file), pushes all container images, and then invokes `//build/release:publish_packages`. Useful environment variables:
 
 - `RELEASE_TAG` (or legacy `WORKFLOW_INPUT_tag`) – forces the tag passed to both publish steps.
+- `RELEASE_REPO` – passed to `publish_packages` as `--repo`; without it the publisher falls back to `GITHUB_REPOSITORY` and fails when that is unset too.
 - `RELEASE_NOTES_FILE` – points at a file that `publish_packages` should attach as the release body.
 - `PUSH_DRY_RUN` and `RELEASE_DRY_RUN` – add `--dry-run` to `oci_push` and `publish_packages` for validation runs (default `0`).
 - `PUSH_EXTRA_ARGS` – extra flags forwarded to `oci_push` (for example, `--allow-nondistributable-artifacts`).
