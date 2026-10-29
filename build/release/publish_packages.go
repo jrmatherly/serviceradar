@@ -213,8 +213,14 @@ func run() error {
 	return nil
 }
 
+// defaultRepo derives the release repository from the CI environment so a fork
+// publishes to itself; without it the --repo flag is required.
+func defaultRepo() string {
+	return os.Getenv("GITHUB_REPOSITORY")
+}
+
 func parsePublishConfig() publishConfig {
-	repoFlag := flag.String("repo", "carverauto/serviceradar", "Repository in owner/repo format")
+	repoFlag := flag.String("repo", defaultRepo(), "Repository in owner/repo format (defaults to $GITHUB_REPOSITORY)")
 	tagFlag := flag.String("tag", "", "Release tag to create or update")
 	nameFlag := flag.String("name", "", "Release name (defaults to the tag)")
 	commitFlag := flag.String("commit", "", "Commit SHA to associate with the release tag")
