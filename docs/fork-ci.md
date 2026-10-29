@@ -134,6 +134,7 @@ only through a pull request merged with a merge commit, and the `BazelCI`, `lint
 | File | Trigger | Purpose | State |
 | --- | --- | --- | --- |
 | `golangci-lint.yml` | push, PR | golangci-lint, buf lint and breaking, go mod tidy | kept |
+| `govulncheck.yml` | schedule, dispatch | govulncheck | kept |
 | `elixir-quality.yml` | push, PR (paths) | mix format and credo per touched project; db checks | kept |
 | `elixir-dependency-audit.yml` | schedule, PR/push (paths), dispatch | hex and deps audit | kept |
 | `helm-lint.yml` | push, PR (paths) | helm lint, renders, chart-default guards | kept |
