@@ -763,3 +763,39 @@ workflow runs by name counts: its `srcs` entry is routing, not an exemption.
 The `after_suite` hook in `test_helper.exs` fails a target that executes zero
 tests. It does not see one untagged test inside a shard that still ran
 something; the guard does.
+
+### Direct `mix test` of the whole suite is unsupported
+
+The lanes in the table above hold incompatible startup assumptions. One
+`mix test` with `SERVICERADAR_REQUIRE_DB_TESTS=1` runs them all in a single VM
+and fails dozens of tests, every one a lane mismatch rather than a bug:
+
+- `:db_free` files are written for a VM without the application. With the
+  database required, `test_helper.exs` starts it, and the processes those
+  files start themselves are already running.
+- `:topology_atlas_db` files expect only the Repo, started by
+  `test/db/topology_atlas_db_test_helper.exs`, and `ServiceRadar.TestSupport`
+  from core's `test/support`, which Bazel compiles into
+  `//elixir/serviceradar_core:erlang_app` (`mix_env = "test"`) and Mix never
+  builds for a path dependency.
+- `test/integration` and `test/transport` files need their target's `-r`
+  helper and Bazel-only variables such as `TEST_TMPDIR`.
+- The DB shards run with `max_cases: 1`. A single VM runs async modules
+  concurrently, and registering a user takes the first-user advisory lock
+  (`AssignFirstUserRole`) inside the sandbox transaction, held until the test
+  ends. A test holding that lock then waits on another test's uncommitted
+  `authorization_settings` "default" row while that test waits for the lock.
+  Postgres aborts one side with "could not determine initial admin role";
+  which auth tests fail depends on the seed, and each passes alone.
+
+Run the lane's Bazel target instead; the DB shards need the shared fixture, so
+they run in the PR's BazelCI Web-NG DB action. Locally, one file at a time
+works: a `:db_free` file with `SERVICERADAR_ALLOW_DB_FREE_TESTS=1 mix test
+<file>`, a `:web_ng_shared_fixture_db` file against the fork's `make test-db-up`
+database ("Local test database (fork)" in `docs/agent-runbooks.md`), with
+`SERVICERADAR_REQUIRE_DB_TESTS=1` and the CA passed as PEM contents in
+`SERVICERADAR_TEST_DATABASE_CA_CERT` (web-ng's `config/test.exs` does not read
+the `_FILE` variable). That container writes `tmp/test-db/.env` and `ca.pem`
+into the checkout that started it; from another checkout read them from the
+container (`docker exec serviceradar-test-db-test-db-1 cat /out/.env`), or the
+TLS handshake fails with "Unknown CA".
