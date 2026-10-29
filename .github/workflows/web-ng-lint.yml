@@ -24,6 +24,7 @@ on:
     paths:
       - 'elixir/web-ng/assets/**'
       - '.github/workflows/web-ng-lint.yml'
+      - 'scripts/check-web-ng-overrides.sh'
       - 'scripts/ci/install-sfw.sh'
       - '.tool-versions'
   pull_request:
@@ -31,6 +32,7 @@ on:
     paths:
       - 'elixir/web-ng/assets/**'
       - '.github/workflows/web-ng-lint.yml'
+      - 'scripts/check-web-ng-overrides.sh'
       - 'scripts/ci/install-sfw.sh'
       - '.tool-versions'
 
@@ -48,6 +50,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Check bun and pnpm overrides match
+        working-directory: .
+        run: scripts/check-web-ng-overrides.sh
 
       - name: Install Socket Firewall
         working-directory: .
