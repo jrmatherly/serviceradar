@@ -413,6 +413,7 @@ required_workflow_fragments = [
     "runs-on: ubuntu-24.04",
     "RELEASE_ID: ${{ needs.publish.outputs.release_id }}",
     "RELEASE_ID: ${{ steps.parallel_assets.outputs.release_id }}",
+    'args+=("--repo" "${GITHUB_REPOSITORY}")',
 ]
 for fragment in required_workflow_fragments:
     if fragment not in workflow:

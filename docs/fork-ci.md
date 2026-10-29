@@ -50,6 +50,8 @@ the BuildBuddy toolchain image), `build/rbe/BUILD` (the RBE executor image) and
 every app image, and `scripts/check-dev-image-tags.sh` (run by `make check-dev-image-tags`)
 derives the expected literal from the shell source and fails when compose drifts. The
 rebrand changes those two sources, those three files and the two compose files.
+`release.yml` passes `--repo "${GITHUB_REPOSITORY}"` to `build/release/publish_packages.go`,
+whose `--repo` default names upstream's `carverauto/serviceradar`.
 
 Every compose image, CNPG included, comes from the fork's GHCR packages. CNPG is
 digest-pinned to the fork's `serviceradar-cnpg:18.4.0-sr4` in `docker-compose.yml` (two

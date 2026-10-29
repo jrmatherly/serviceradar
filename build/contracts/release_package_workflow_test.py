@@ -64,6 +64,7 @@ class ReleasePackageWorkflowTest(unittest.TestCase):
             SOURCE_TAG="v9.8.7",
             SOURCE_COMMIT=self.commit,
             RELEASE_COMMIT=self.commit,
+            GITHUB_REPOSITORY="example-owner/example-repo",
             MACOS_RESULT="success",
             RUNNER_TEMP=str(self.root),
             NOTES_FILE="",
@@ -95,7 +96,7 @@ class ReleasePackageWorkflowTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(self.record.read_text().splitlines(), [
             "run", "-c", "opt", "--config=ci", "//build/release:publish_packages", "--",
-            "--tag", "v9.8.7", "--commit", self.commit,
+            "--tag", "v9.8.7", "--commit", self.commit, "--repo", "example-owner/example-repo",
             "--macos_pkg", str(self.root / "macos-release/serviceradar-agent_9.8.7_darwin_arm64.pkg"),
             "--macos_provenance", str(self.root / "macos-release/serviceradar-agent_9.8.7_darwin_arm64.provenance.json"),
             "--windows_dir", str(self.root / "windows-release"), "--draft", "--overwrite_assets=false",

@@ -24,3 +24,256 @@ updates:
         update-types:
           - "minor"
           - "patch"
+
+  - package-ecosystem: "mix"
+    open-pull-requests-limit: 5
+    directory: "/elixir/datasvc"
+    schedule:
+      interval: "weekly"
+    groups:
+      mix:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "mix"
+    open-pull-requests-limit: 5
+    directory: "/elixir/palisade"
+    schedule:
+      interval: "weekly"
+    groups:
+      mix:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "mix"
+    open-pull-requests-limit: 5
+    directory: "/elixir/serviceradar_agent_gateway"
+    schedule:
+      interval: "weekly"
+    groups:
+      mix:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "mix"
+    open-pull-requests-limit: 5
+    directory: "/elixir/serviceradar_core"
+    schedule:
+      interval: "weekly"
+    groups:
+      mix:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "mix"
+    open-pull-requests-limit: 5
+    directory: "/elixir/serviceradar_core_elx"
+    schedule:
+      interval: "weekly"
+    groups:
+      mix:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "mix"
+    open-pull-requests-limit: 5
+    directory: "/elixir/serviceradar_srql"
+    schedule:
+      interval: "weekly"
+    groups:
+      mix:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "mix"
+    open-pull-requests-limit: 5
+    directory: "/elixir/web-ng"
+    schedule:
+      interval: "weekly"
+    groups:
+      mix:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "bun"
+    open-pull-requests-limit: 5
+    directory: "/elixir/web-ng/assets/component"
+    schedule:
+      interval: "weekly"
+    groups:
+      bun:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "npm"
+    open-pull-requests-limit: 5
+    directory: "/docs"
+    schedule:
+      interval: "weekly"
+    groups:
+      npm:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "npm"
+    open-pull-requests-limit: 5
+    directory: "/js/cli"
+    schedule:
+      interval: "weekly"
+    groups:
+      npm:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "npm"
+    open-pull-requests-limit: 5
+    directory: "/js/create-dashboard"
+    schedule:
+      interval: "weekly"
+    groups:
+      npm:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "npm"
+    open-pull-requests-limit: 5
+    directory: "/demo/dashboard-kit"
+    schedule:
+      interval: "weekly"
+    groups:
+      npm:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "gomod"
+    open-pull-requests-limit: 5
+    directory: "/go/cmd/wasm-plugins/alienvault-otx"
+    schedule:
+      interval: "weekly"
+    groups:
+      gomod:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "gomod"
+    open-pull-requests-limit: 5
+    directory: "/go/cmd/wasm-plugins/awx"
+    schedule:
+      interval: "weekly"
+    groups:
+      gomod:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "gomod"
+    open-pull-requests-limit: 5
+    directory: "/go/cmd/wasm-plugins/axis"
+    schedule:
+      interval: "weekly"
+    groups:
+      gomod:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "gomod"
+    open-pull-requests-limit: 5
+    directory: "/go/cmd/wasm-plugins/dusk-checker"
+    schedule:
+      interval: "weekly"
+    groups:
+      gomod:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "gomod"
+    open-pull-requests-limit: 5
+    directory: "/go/cmd/wasm-plugins/netbox"
+    schedule:
+      interval: "weekly"
+    groups:
+      gomod:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "gomod"
+    open-pull-requests-limit: 5
+    directory: "/go/cmd/wasm-plugins/opentext-nom"
+    schedule:
+      interval: "weekly"
+    groups:
+      gomod:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "gomod"
+    open-pull-requests-limit: 5
+    directory: "/go/cmd/wasm-plugins/proxmox"
+    schedule:
+      interval: "weekly"
+    groups:
+      gomod:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "gomod"
+    open-pull-requests-limit: 5
+    directory: "/go/cmd/wasm-plugins/sample-northbound"
+    schedule:
+      interval: "weekly"
+    groups:
+      gomod:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "gomod"
+    open-pull-requests-limit: 5
+    directory: "/go/cmd/wasm-plugins/starlink"
+    schedule:
+      interval: "weekly"
+    groups:
+      gomod:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "gomod"
+    open-pull-requests-limit: 5
+    directory: "/go/cmd/wasm-plugins/unifi-protect"
+    schedule:
+      interval: "weekly"
+    groups:
+      gomod:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "gomod"
+    open-pull-requests-limit: 5
+    directory: "/go/tools/wasm-plugin-harness"
+    schedule:
+      interval: "weekly"
+    groups:
+      gomod:
+        update-types:
+          - "minor"
+          - "patch"
