@@ -615,6 +615,7 @@ services:
       - migrations-data:/var/lib/serviceradar/migrations
       - serviceradar-advisory-feeds:/var/lib/serviceradar/advisory-feeds
       - ${DEVICE_ENRICHMENT_RULES_DIR_HOST:-./docker/compose/rules/device-enrichment}:/var/lib/serviceradar/rules/device-enrichment:ro
+      - coldtier-credentials:/etc/serviceradar/coldtier:ro
     depends_on:
       config-updater:
         condition: service_completed_successfully
@@ -1133,26 +1134,49 @@ services:
   # wiring is a docker-compose.override.yml that adds
   #   services: { core-elx: { env_file: [./docker/compose/coldtier.env] } }
   # so the main file stays cold-tier-free by default.
+  coldtier-credentials:
+    image: alpine:3.20
+    container_name: serviceradar-coldtier-credentials
+    profiles:
+      - coldtier
+    volumes:
+      - coldtier-credentials:/etc/serviceradar/coldtier
+      - coldtier-minio-data:/data/minio:ro
+      - coldtier-head-data:/data/head:ro
+      - ./docker/compose/bootstrap-coldtier-credentials.sh:/bootstrap-coldtier-credentials.sh:ro
+    environment:
+      - SR_COLDTIER_MINIO_USER=${SR_COLDTIER_MINIO_USER:-}
+      - SR_COLDTIER_MINIO_PASSWORD=${SR_COLDTIER_MINIO_PASSWORD:-}
+      - SR_COLDTIER_HEAD_PASSWORD=${SR_COLDTIER_HEAD_PASSWORD:-}
+    command: sh /bootstrap-coldtier-credentials.sh
+    restart: "no"
+    network_mode: none
+
   minio:
     image: minio/minio:latest
     container_name: serviceradar-coldtier-minio
     profiles:
       - coldtier
-    environment:
-      - MINIO_ROOT_USER=${SR_COLDTIER_MINIO_USER:-serviceradar}
-      - MINIO_ROOT_PASSWORD=${SR_COLDTIER_MINIO_PASSWORD:-serviceradarcold}
-    command: ["server", "/data", "--console-address", ":9001"]
+    # The image reads MINIO_ROOT_* from the environment only (no _FILE variant).
+    entrypoint:
+      - /bin/sh
+      - -c
+      - exec env MINIO_ROOT_USER="$$(cat /etc/serviceradar/coldtier/minio-root-user)" MINIO_ROOT_PASSWORD="$$(cat /etc/serviceradar/coldtier/minio-root-password)" minio server /data --console-address :9001
     ports:
       - "127.0.0.1:${SR_COLDTIER_MINIO_PORT:-59000}:9000"
       - "127.0.0.1:${SR_COLDTIER_MINIO_CONSOLE_PORT:-59001}:9001"
     volumes:
       - coldtier-minio-data:/data
+      - coldtier-credentials:/etc/serviceradar/coldtier:ro
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
       interval: 5s
       timeout: 5s
       retries: 12
       start_period: 5s
+    depends_on:
+      coldtier-credentials:
+        condition: service_completed_successfully
     networks:
       - serviceradar-net
     restart: unless-stopped
@@ -1166,15 +1190,14 @@ services:
     container_name: serviceradar-coldtier-minio-init
     profiles:
       - coldtier
-    environment:
-      - SR_COLDTIER_MINIO_USER=${SR_COLDTIER_MINIO_USER:-serviceradar}
-      - SR_COLDTIER_MINIO_PASSWORD=${SR_COLDTIER_MINIO_PASSWORD:-serviceradarcold}
+    volumes:
+      - coldtier-credentials:/etc/serviceradar/coldtier:ro
     entrypoint:
       - /bin/sh
       - -c
       - |
         set -e
-        mc alias set coldtier http://minio:9000 "$${SR_COLDTIER_MINIO_USER}" "$${SR_COLDTIER_MINIO_PASSWORD}"
+        mc alias set coldtier http://minio:9000 "$$(cat /etc/serviceradar/coldtier/minio-root-user)" "$$(cat /etc/serviceradar/coldtier/minio-root-password)"
         mc mb -p coldtier/serviceradar-cold
         mc ls coldtier
     depends_on:
@@ -1212,7 +1235,7 @@ services:
       - "duckdb.allow_community_extensions=false"
     environment:
       - POSTGRES_USER=${SR_COLDTIER_HEAD_USER:-serviceradar}
-      - POSTGRES_PASSWORD=${SR_COLDTIER_HEAD_PASSWORD:-serviceradarcoldhead}
+      - POSTGRES_PASSWORD_FILE=/etc/serviceradar/coldtier/head-password
       - POSTGRES_DB=${SR_COLDTIER_HEAD_DATABASE:-serviceradar}
       - POSTGRES_INITDB_ARGS=--locale=C --encoding=UTF8
     ports:
@@ -1222,12 +1245,16 @@ services:
       # and the image VOLUME moved to the parent — mount /var/lib/postgresql,
       # NOT the legacy /var/lib/postgresql/data.
       - coldtier-head-data:/var/lib/postgresql
+      - coldtier-credentials:/etc/serviceradar/coldtier:ro
       - ./docker/compose/coldtier-head-init.sh:/docker-entrypoint-initdb.d/coldtier-head-init.sh:ro
       # The compose primary's pg_hba enforces hostssl + clientcert=verify-full,
       # so the head's postgres_fdw SERVER options need sslrootcert/sslcert/
       # sslkey under this mount to reach cnpg. Read-only; empty when the head
       # is started standalone (harmless).
       - cert-data:/etc/serviceradar/certs:ro
+    depends_on:
+      coldtier-credentials:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
@@ -1462,6 +1489,8 @@ volumes:
   starrocks-data:
     name: "${SERVICERADAR_VOLUME_PREFIX:-serviceradar}_starrocks-data"
   bmp-data:
+  coldtier-credentials:
+    name: "${SERVICERADAR_VOLUME_PREFIX:-serviceradar}_coldtier-credentials"
   coldtier-minio-data:
     name: "${SERVICERADAR_VOLUME_PREFIX:-serviceradar}_coldtier-minio-data"
   coldtier-head-data:
