@@ -1152,8 +1152,11 @@ services:
     restart: "no"
     network_mode: none
 
+  # minio/minio and minio/mc are no longer published on Docker Hub (pull access
+  # denied, 2026-10-29). Pigsty's rebuilds stand in, pinned by index digest;
+  # the digests below were resolved from Docker Hub on 2026-10-29.
   minio:
-    image: minio/minio:latest
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372
     container_name: serviceradar-coldtier-minio
     profiles:
       - coldtier
@@ -1186,7 +1189,7 @@ services:
   # versioned bucket would silently accumulate full noncurrent copies
   # (design D9 / spike 0.4).
   minio-init:
-    image: minio/mc:latest
+    image: pgsty/mc:RELEASE.2026-10-26T00-00-00Z@sha256:ce62c9053c69ce12a527a322345b5ad9f44b5f8a7b8189f82e516f2e3f30f1d8
     container_name: serviceradar-coldtier-minio-init
     profiles:
       - coldtier
