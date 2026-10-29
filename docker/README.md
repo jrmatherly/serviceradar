@@ -32,8 +32,6 @@ This directory contains Docker configurations for ServiceRadar components.
    This builds the app images from this checkout with Bazel, loads them into Docker as
    `:local`, and then runs the same stack as Option 1 with those images.
    `docker-compose.dev.yml` is an overlay adding the dev-only `faker` service (`--profile faker`).
-   Option 1 needs the fork's images on GHCR, which exist only after `publish-oci.yml` has run
-   once; until then this is the only working path.
 
    Tip: To make the dev overlay the default (no `-f` needed), set this in `.env`:
    ```bash

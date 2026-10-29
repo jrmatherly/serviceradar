@@ -7,7 +7,6 @@ docker compose up
 ```
 
 Uses the fork's pre-built images from GitHub Container Registry (GHCR), `ghcr.io/jrmatherly/serviceradar-*`.
-They exist only after `publish-oci.yml` has been dispatched once; until then use the local build below.
 
 ## Development (Local Build)
 

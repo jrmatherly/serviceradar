@@ -259,7 +259,9 @@ jobs:
           if [[ -n "${EXTRA_TAG}" ]]; then
             cmd+=(-- --tag "${EXTRA_TAG}")
           fi
+          df -h /
           "${cmd[@]}"
+          df -h /
 
           verify_tags=(latest "sha-${GITHUB_SHA}")
           if [[ -n "${EXTRA_TAG}" ]]; then
@@ -330,8 +332,7 @@ jobs:
         run: |
           printf 'Published tags include:\n'
           printf '  - latest\n'
-          sha_prefix="${GITHUB_SHA:0:12}"
-          printf '  - sha-%s\n' "${sha_prefix}"
+          printf '  - sha-%s\n' "${GITHUB_SHA}"
           if [[ -n "${EXTRA_TAG}" ]]; then
             printf '  - %s\n' "${EXTRA_TAG}"
           fi
