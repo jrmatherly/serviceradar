@@ -113,6 +113,20 @@ updates:
           - "minor"
           - "patch"
 
+  # Both bun.lock and pnpm-lock.yaml live here; npm reads pnpm-lock.yaml, the
+  # Bazel release input. scripts/check-web-ng-lockfiles.sh fails a PR that
+  # moves one lockfile without the other.
+  - package-ecosystem: "npm"
+    open-pull-requests-limit: 5
+    directory: "/elixir/web-ng/assets"
+    schedule:
+      interval: "weekly"
+    groups:
+      npm:
+        update-types:
+          - "minor"
+          - "patch"
+
   - package-ecosystem: "npm"
     open-pull-requests-limit: 5
     directory: "/docs"

@@ -25,6 +25,7 @@ on:
       - 'elixir/web-ng/assets/**'
       - '.github/workflows/web-ng-lint.yml'
       - 'scripts/check-web-ng-overrides.sh'
+      - 'scripts/check-web-ng-lockfiles.sh'
       - 'scripts/ci/install-sfw.sh'
       - '.tool-versions'
   pull_request:
@@ -33,6 +34,7 @@ on:
       - 'elixir/web-ng/assets/**'
       - '.github/workflows/web-ng-lint.yml'
       - 'scripts/check-web-ng-overrides.sh'
+      - 'scripts/check-web-ng-lockfiles.sh'
       - 'scripts/ci/install-sfw.sh'
       - '.tool-versions'
 
@@ -54,6 +56,15 @@ jobs:
       - name: Check bun and pnpm overrides match
         working-directory: .
         run: scripts/check-web-ng-overrides.sh
+
+      - name: Check bun and pnpm lockfiles move together
+        if: github.event_name == 'pull_request'
+        working-directory: .
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$BASE_SHA"
+          scripts/check-web-ng-lockfiles.sh "$BASE_SHA" HEAD
 
       - name: Install Socket Firewall
         working-directory: .

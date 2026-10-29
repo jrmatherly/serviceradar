@@ -261,7 +261,7 @@ Expected: no `missing` line; exit 0. After merge, check the repository's Insight
 
 - [ ] **Step 4: Owner flips the settings**
 
-Settings, Code security: enable Dependabot security updates (covers npm, bun, gomod and cargo; not mix). Record the code-scanning decision.
+Settings, Code security: enable Dependabot security updates (covers npm, gomod and cargo; not mix, and not bun, which gets version updates only). Record the code-scanning decision.
 
 - [ ] **Step 5: Commit**
 
