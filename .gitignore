@@ -309,6 +309,7 @@ pkg/cpufreq/hostfreq_darwin_embed.o
 .playwright-cli/
 tmp/fieldsurvey-local/
 tmp/test-db/
+tmp/seed-faker/
 # ExUnit tmp_dir output from the core suite.
 elixir/serviceradar_core/tmp/
 tmp/hpna-local/

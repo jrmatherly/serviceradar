@@ -24,6 +24,24 @@ Tip: To make the dev overlay the default (no `-f` needed), set this in `.env`:
 COMPOSE_FILE=docker-compose.yml:docker-compose.dev.yml
 ```
 
+### Seeding synthetic devices
+
+`make seed-faker` starts the faker (an Armis API emulator) behind the running stack, creates an
+Armis integration source named `faker-seed` that points at it, and waits until the agent's sync
+has written the devices (default 50,000; `SEED_DEVICE_COUNT=2500 make seed-faker` for a small
+fleet). It prints the device count and the SQL it ran. The data is the faker's own generator,
+nothing from a live system. `make seed-faker-status` re-prints the count, and
+`make seed-faker-down` deletes the source, soft-deletes every device in the `faker-seed`
+partition and purges it through the same cleanup path the product uses for expired devices
+(an identity tombstone row stays behind per device, as in production), then stops the faker
+and drops its dataset. Running `make seed-faker` twice reuses the dataset and the
+source, so it does not duplicate devices. While seeded, the `agent` container runs with a
+larger `SWEEP_RESULTS_MAX_CHUNK_BYTES` and the source polls every two hours, because core
+drops the chunks of a run it cannot hold in flight; the script header explains the limits.
+`make seed-faker-down` recreates the agent with its defaults. On Apple Silicon the script adds
+`docker-compose.arm64.yml` itself; set `COMPOSE_PROJECT_NAME` when the stack runs under another
+project name.
+
 ## What happens with one command:
 - ✅ Generate mTLS certificates automatically
 - ✅ Generate random CNPG credentials stored in the cnpg-credentials volume

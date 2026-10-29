@@ -84,6 +84,9 @@ image (`docs/fork-ci.md`); override it with `CNPG_IMAGE`. On Apple Silicon add
   just the ones the arm64 overlay already handles.
 - Verify: `docker compose ps` (one-shot jobs like cert-generator/config-updater exit once finished);
   `make check-dev-image-tags` guards the compose image defaults.
+- Validation data for god view, maps and the Wasm lanes: `make seed-faker` (synthetic Armis
+  devices through the real sync path; `make seed-faker-down` removes them). Details in
+  `DOCKER_QUICKSTART.md`, "Seeding synthetic devices".
 
 ## Machine setup
 
