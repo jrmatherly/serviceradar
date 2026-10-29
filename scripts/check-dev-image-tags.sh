@@ -13,7 +13,7 @@ compose_files=(docker-compose.yml docker-compose.dev.yml)
 # version tag and digest rather than APP_TAG, so only its prefix is checked here.
 cnpg="${registry}/${project}/serviceradar-cnpg"
 cnpg_re="${cnpg//./\\.}"
-third_party='(\$\{[A-Z_]+:-)?(alpine|caddy|docker|nats|minio/|pgduckdb/|starrocks/|dgraph/|'"${cnpg_re}"')'
+third_party='(\$\{[A-Z_]+:-)?(alpine|caddy|docker|nats|pgsty/|pgduckdb/|starrocks/|dgraph/|'"${cnpg_re}"')'
 fail=0
 
 for file in "${compose_files[@]}"; do
