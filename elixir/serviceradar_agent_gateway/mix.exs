@@ -113,7 +113,10 @@ defmodule ServiceRadarAgentGateway.MixProject do
   defp aliases do
     [
       setup: ["deps.get"],
-      test: ["test"]
+      # The suite assumes an unstarted application, as under the Bazel gate's `elixir -r`
+      # (see test/test_helper.exs). A started one brings a live NATS connection and
+      # named singletons such as StatusBuffer that leak state across tests.
+      test: ["test --no-start"]
     ]
   end
 
