@@ -24,7 +24,7 @@ defmodule ServiceRadarWebNGWeb.SAMLController do
   carries no Phoenix CSRF token, and with the `SameSite=Lax` session cookie the
   browser usually sends no session with it either. The route therefore runs in
   the `:saml_acs` pipeline, without `:protect_from_forgery`, and nothing here
-  reads the session. Security rests on four checks instead:
+  reads the session. Security rests on five checks instead:
 
   - **Signature.** The response is parsed with DTDs disabled (`SAMLXml`) and
     its signature is verified against the signing certificates in the IdP
@@ -46,12 +46,22 @@ defmodule ServiceRadarWebNGWeb.SAMLController do
     the same assertion conflicts on the unique identity and is rejected, on any
     web node. A failure to record fails closed.
 
-  What the session used to add, and no longer can: proof that the browser
-  posting the response is the one that started the login. Someone who starts a
-  login, authenticates as themselves and gets a victim's browser to post the
-  result can sign the victim into the attacker's account (login CSRF). The
-  RelayState binding keeps that to responses the attacker obtained for their own
-  request, within the TTL, once.
+  - **Browser binding.** `GET /auth/saml` sets (or reuses) the `sr_saml_browser`
+    cookie, 128 random bits scoped to `/auth/saml` with `SameSite=None; Secure;
+    HttpOnly`, and keys the pending row by RelayState *and* that value. The ACS
+    reads the cookie back; a response posted from a browser without the cookie
+    that started the login finds no pending row and is rejected. This closes the
+    login CSRF the RelayState alone left open: an attacker who starts a login,
+    authenticates as themselves and gets a victim's browser to post the result
+    no longer signs the victim into the attacker's account. The cookie is
+    per-browser, not per-login, so two login tabs share it and both succeed.
+    `SameSite=None` is what lets the IdP's cross-site POST carry it, and that
+    requires `Secure`, so the login works over HTTPS and over `http://localhost`
+    (a secure context), not over plain HTTP to another host.
+
+  Residual, accepted: with IdP-initiated login enabled, an unsolicited response
+  has no pending row and no cookie to check, so that path keeps the login CSRF
+  exposure described above.
 
   The return path is taken from the session when the login starts, stored on
   the pending request, and passed through `UserAuth.log_in_user/3`'s
@@ -115,11 +125,17 @@ defmodule ServiceRadarWebNGWeb.SAMLController do
   """
   def request(conn, _params) do
     if SAMLStrategy.enabled?() do
+      {conn, browser_key} = ensure_browser_key(conn)
       relay_state = generate_relay_state()
       request_id = generate_request_id()
 
       with {:ok, url} <- get_saml_request_url(relay_state, request_id),
-           :ok <- open_pending_request(relay_state, request_id, get_session(conn, :user_return_to)) do
+           :ok <-
+             open_pending_request(
+               pending_key(relay_state, browser_key),
+               request_id,
+               get_session(conn, :user_return_to)
+             ) do
         redirect(conn, external: url)
       else
         {:error, reason} ->
@@ -140,6 +156,24 @@ defmodule ServiceRadarWebNGWeb.SAMLController do
   defp generate_relay_state do
     32 |> :crypto.strong_rand_bytes() |> Base.url_encode64(padding: false)
   end
+
+  @browser_cookie "sr_saml_browser"
+  @browser_cookie_opts [http_only: true, secure: true, same_site: "None", path: "/auth/saml"]
+
+  # 128 bits, 22 characters; RelayState (43) + "." + key (22) stays inside the
+  # 80-byte RelayState cap that SAMLPendingRequest enforces on the pending key.
+  defp ensure_browser_key(conn) do
+    case conn.cookies[@browser_cookie] do
+      <<key::binary-size(22)>> ->
+        {conn, key}
+
+      _ ->
+        key = 16 |> :crypto.strong_rand_bytes() |> Base.url_encode64(padding: false)
+        {put_resp_cookie(conn, @browser_cookie, key, @browser_cookie_opts), key}
+    end
+  end
+
+  defp pending_key(relay_state, browser_key), do: relay_state <> "." <> browser_key
 
   # XML IDs must not start with a digit.
   defp generate_request_id do
@@ -163,11 +197,13 @@ defmodule ServiceRadarWebNGWeb.SAMLController do
   Assertion Consumer Service (ACS) endpoint.
 
   Receives and validates SAML responses from the IdP. Reads nothing from the
-  browser session; the posted RelayState selects the server-side pending
-  request, which is consumed before the response is looked at.
+  browser session; the posted RelayState and the browser cookie select the
+  server-side pending request, which is consumed before the response is looked
+  at.
   """
   def consume(conn, params) do
-    with {:ok, expected_request, return_to} <- take_pending_request(params["RelayState"]),
+    with {:ok, expected_request, return_to} <-
+           take_pending_request(params["RelayState"], conn.cookies[@browser_cookie]),
          {:ok, saml_response} <- fetch_saml_response(params),
          {:ok, config} <- SAMLStrategy.get_config(),
          {:ok, assertion} <- validate_saml_response(saml_response, config, expected_request),
@@ -178,8 +214,11 @@ defmodule ServiceRadarWebNGWeb.SAMLController do
     end
   end
 
-  defp take_pending_request(relay_state) when is_binary(relay_state) and relay_state != "" do
-    case SAMLPendingRequest.take(relay_state, actor: SystemActor.system(:saml_controller)) do
+  defp take_pending_request(relay_state, browser_key)
+       when is_binary(relay_state) and relay_state != "" and is_binary(browser_key) and byte_size(browser_key) == 22 do
+    case SAMLPendingRequest.take(pending_key(relay_state, browser_key),
+           actor: SystemActor.system(:saml_controller)
+         ) do
       {:ok, %SAMLPendingRequest{} = pending} ->
         if DateTime.before?(DateTime.utc_now(), pending.expires_at) do
           {:ok, pending.request_id, pending.return_to}
@@ -196,7 +235,11 @@ defmodule ServiceRadarWebNGWeb.SAMLController do
     end
   end
 
-  defp take_pending_request(_relay_state), do: unsolicited_or(:unsolicited_response)
+  # A RelayState without the browser cookie cannot match any pending row.
+  defp take_pending_request(relay_state, _browser_key) when is_binary(relay_state) and relay_state != "",
+    do: unsolicited_or(:unknown_relay_state)
+
+  defp take_pending_request(_relay_state, _browser_key), do: unsolicited_or(:unsolicited_response)
 
   defp unsolicited_or(reason) do
     if allow_idp_initiated?(), do: {:ok, :unsolicited, nil}, else: {:error, reason}
