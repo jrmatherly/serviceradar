@@ -937,6 +937,7 @@ jobs:
           declare -a args
           args+=("--tag" "$RELEASE_TAG")
           args+=("--commit" "${RELEASE_COMMIT}")
+          args+=("--repo" "${GITHUB_REPOSITORY}")
           if [[ "${MACOS_RESULT}" == "success" ]]; then
             # The publisher checks the installer's provenance against --commit.
             args+=("--macos_pkg" "${RUNNER_TEMP}/macos-release/serviceradar-agent_${VERSION}_darwin_arm64.pkg")
