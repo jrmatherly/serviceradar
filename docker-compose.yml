@@ -1248,7 +1248,7 @@ services:
       - PORT=4000
       - PHX_SERVER=true
       - PHX_HOST=${SERVICERADAR_HOST:-localhost}
-      - PHX_CHECK_ORIGIN=${PHX_CHECK_ORIGIN:-false}
+      - PHX_CHECK_ORIGIN=${PHX_CHECK_ORIGIN:-//${SERVICERADAR_HOST:-localhost}}
       - SERVICERADAR_DEV_ROUTES=${SERVICERADAR_DEV_ROUTES:-false}
       - SERVICERADAR_LOCAL_MAILER=${SERVICERADAR_LOCAL_MAILER:-true}
       # web-ng runs Oban workers, but not Cron scheduling/peer leadership. Queue widths
