@@ -54,8 +54,12 @@ scripts/cut-release.sh --version 1.4.10 --dry-run
 
 The dry-run validates the version, changelog, tag shape, existing local tag,
 Helm metadata changes, and the release branch operation without creating refs.
-It reports the remote-tag check that the real cut will perform but does not
-contact the remote itself.
+It does contact the remote twice: `git ls-remote` checks that the tag is not
+already on the remote, and a Helm probe checks that the chart version is not
+already in the OCI registry. Before the first release the chart package does
+not exist, and GHCR answers an anonymous probe with `403 denied`; the script
+treats that as available. The release workflow probes with credentials and
+still fails on a 403.
 
 For prerelease series, use dot-separated numeric identifiers such as
 `1.4.10-pre.1`, `1.4.10-pre.2`, and `1.4.10-pre.10`. Native add-on sync uses

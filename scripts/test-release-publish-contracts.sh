@@ -270,6 +270,14 @@ case "${FAKE_CHART_PROBE_MODE:-}" in
     echo 'Error: dial tcp: registry unavailable' >&2
     exit 1
     ;;
+  denied)
+    echo 'Error: failed to perform "FetchReference" on source: GET "https://ghcr.io/v2/example/charts/serviceradar/manifests/9.8.7": GET "https://ghcr.io/token?scope=repository%3Aexample%2Fcharts%2Fserviceradar%3Apull&service=ghcr.io": response status code 403: denied: requested access to the resource is denied' >&2
+    exit 1
+    ;;
+  denied_oras_v1)
+    echo 'Error: failed to fetch anonymous token: unexpected status from GET request to https://ghcr.io/token?scope=repository%3Aexample%2Fcharts%2Fserviceradar%3Apull&service=ghcr.io: 403 Forbidden' >&2
+    exit 1
+    ;;
   *)
     echo 'unexpected fake Helm mode' >&2
     exit 3
@@ -313,6 +321,29 @@ if FAKE_CHART_PROBE_MODE=unavailable \
 fi
 if ! grep -q "Unable to verify OCI Helm chart occupancy" "${tmp_dir}/unavailable.out"; then
   echo "OCI chart occupancy guard did not report an unverifiable registry" >&2
+  exit 1
+fi
+
+for mode in denied denied_oras_v1; do
+  if ! FAKE_CHART_PROBE_MODE="${mode}" \
+    SERVICERADAR_HELM_RUNNER="${fake_helm}" \
+    "${check_oci_chart_version_available}" 9.8.7 --anonymous-ok \
+    >"${tmp_dir}/${mode}-anonymous.out" 2>&1 \
+    || ! grep -q "is available" "${tmp_dir}/${mode}-anonymous.out"; then
+    echo "OCI chart occupancy guard rejected an anonymous ${mode} probe of a missing GHCR package" >&2
+    exit 1
+  fi
+done
+
+if FAKE_CHART_PROBE_MODE=denied \
+  SERVICERADAR_HELM_RUNNER="${fake_helm}" \
+  "${check_oci_chart_version_available}" 9.8.7 \
+  >"${tmp_dir}/denied.out" 2>&1; then
+  echo "OCI chart occupancy guard accepted a denied probe without --anonymous-ok" >&2
+  exit 1
+fi
+if ! grep -q "Unable to verify OCI Helm chart occupancy" "${tmp_dir}/denied.out"; then
+  echo "OCI chart occupancy guard did not report a denied probe as unverifiable" >&2
   exit 1
 fi
 
@@ -409,7 +440,7 @@ if '"${script_dir}/validate-release-tag.sh" "${tag}"' not in cut_release:
 
 remote_tag_check = cut_release.index('git ls-remote --exit-code --tags')
 oci_occupancy_check = cut_release.index(
-    '"${script_dir}/check-oci-chart-version-available.sh" "$version"'
+    '"${script_dir}/check-oci-chart-version-available.sh" "$version" --anonymous-ok'
 )
 first_release_mutation = cut_release.index("printf '%s\\n' \"$version\" > VERSION")
 if not remote_tag_check < oci_occupancy_check < first_release_mutation:
@@ -430,6 +461,8 @@ for fragment in (
         raise SystemExit(f"Helm publication is missing protected contract: {fragment}")
 if "\n          OCI_USERNAME:" in chart_step or "\n          OCI_TOKEN:" in chart_step:
     raise SystemExit("Helm publication still consumes general image-publisher credentials")
+if "--anonymous-ok" in chart_step:
+    raise SystemExit("Helm publication must not treat a denied authenticated probe as an absent chart")
 if "run-helm.sh" not in chart_step:
     raise SystemExit("Helm publication does not use run-helm.sh")
 if 'helm_runner}" package' not in chart_step or 'helm_runner}" push' not in chart_step:
