@@ -191,7 +191,7 @@ case "$remote_tag_status" in
         ;;
 esac
 
-"${script_dir}/check-oci-chart-version-available.sh" "$version"
+"${script_dir}/check-oci-chart-version-available.sh" "$version" --anonymous-ok
 
 if [[ "$dry_run" == "false" || "$push" == "true" ]]; then
     if [[ -z "$current_branch" ]]; then

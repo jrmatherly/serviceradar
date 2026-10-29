@@ -79,3 +79,146 @@ e541642dd71ef1cb04faaea78a4df9fe77c84bd1:demo/rtsp-replayer/lock_test.go:generic
 # the first 16 hex characters of a SHA-256 hash of an example query string;
 # it is not a credential.
 9c4929c3dffe18574c1e468f5d68fab5ab0e3ee0:openspec/changes/refactor-sweep-config-shared-targets/design.md:generic-api-key:196
+
+# 2026-10 history baseline: test fixtures and vendored checksums, triaged 2026-10-29
+# No value that may ever have been live is listed; those findings stay failing.
+# Synthetic inputs in test/ trees: PEM- and token-shaped fixtures, credential IDs, object keys.
+098354f4e665835f0cdaf1e5b2a3c89eaf80e42f:elixir/serviceradar_core/test/serviceradar/automation/ansible/awx_client_test.exs:private-key:885
+098354f4e665835f0cdaf1e5b2a3c89eaf80e42f:elixir/serviceradar_core/test/serviceradar/automation/ansible/controller_provenance_test.exs:generic-api-key:388
+098354f4e665835f0cdaf1e5b2a3c89eaf80e42f:elixir/serviceradar_core/test/serviceradar/automation/ansible/controller_provenance_test.exs:generic-api-key:389
+098354f4e665835f0cdaf1e5b2a3c89eaf80e42f:elixir/serviceradar_core/test/serviceradar/automation/ansible/controller_provenance_test.exs:generic-api-key:390
+098354f4e665835f0cdaf1e5b2a3c89eaf80e42f:elixir/serviceradar_core/test/serviceradar/credentials/credential_secret_builder_test.exs:private-key:146
+098354f4e665835f0cdaf1e5b2a3c89eaf80e42f:elixir/serviceradar_core/test/serviceradar/edge/remote_access_broker_test.exs:private-key:929
+098354f4e665835f0cdaf1e5b2a3c89eaf80e42f:elixir/serviceradar_core/test/serviceradar/edge/remote_access_sessions_test.exs:private-key:2319
+098354f4e665835f0cdaf1e5b2a3c89eaf80e42f:elixir/serviceradar_core/test/serviceradar/edge/remote_access_ssh_session_credentials_test.exs:private-key:119
+098354f4e665835f0cdaf1e5b2a3c89eaf80e42f:elixir/serviceradar_core/test/serviceradar/identity/access_credential_changes_test.exs:generic-api-key:23
+098354f4e665835f0cdaf1e5b2a3c89eaf80e42f:elixir/serviceradar_core/test/serviceradar/notifications/transports/slack_test.exs:slack-bot-token:51
+098354f4e665835f0cdaf1e5b2a3c89eaf80e42f:elixir/serviceradar_core/test/serviceradar/notifications/transports/stream_test.exs:generic-api-key:108
+098354f4e665835f0cdaf1e5b2a3c89eaf80e42f:elixir/serviceradar_core/test/serviceradar/notifications/transports/stream_test.exs:generic-api-key:255
+098354f4e665835f0cdaf1e5b2a3c89eaf80e42f:elixir/web-ng/test/app_domain/edge/bundle_generator_test.exs:private-key:588
+098354f4e665835f0cdaf1e5b2a3c89eaf80e42f:elixir/web-ng/test/phoenix/live/agent_live/show_test.exs:generic-api-key:193
+098354f4e665835f0cdaf1e5b2a3c89eaf80e42f:elixir/web-ng/test/phoenix/live/agent_live/show_test.exs:generic-api-key:200
+123e64614e9902464abee7742efe68be73904178:elixir/serviceradar_core/test/serviceradar/automation/ansible/controller_provenance_test.exs:generic-api-key:388
+123e64614e9902464abee7742efe68be73904178:elixir/serviceradar_core/test/serviceradar/automation/ansible/controller_provenance_test.exs:generic-api-key:389
+123e64614e9902464abee7742efe68be73904178:elixir/serviceradar_core/test/serviceradar/automation/ansible/controller_provenance_test.exs:generic-api-key:390
+123e64614e9902464abee7742efe68be73904178:elixir/serviceradar_core/test/serviceradar/automation/ansible/secure_child_launcher_test.exs:generic-api-key:146
+123e64614e9902464abee7742efe68be73904178:elixir/serviceradar_core/test/serviceradar/automation/ansible/secure_child_launcher_test.exs:generic-api-key:147
+1e1887b665be9ae3943f722af55a2e705b9e5401:elixir/web-ng/test/phoenix/live/agent_live/show_test.exs:generic-api-key:123
+1e1887b665be9ae3943f722af55a2e705b9e5401:elixir/web-ng/test/phoenix/live/agent_live/show_test.exs:generic-api-key:130
+239fb73dc4d43e4935bc6ccedcd48a9a8f00793b:elixir/serviceradar_core/test/serviceradar/notifications/transports/slack_test.exs:slack-bot-token:51
+239fb73dc4d43e4935bc6ccedcd48a9a8f00793b:elixir/serviceradar_core/test/serviceradar/notifications/transports/stream_test.exs:generic-api-key:108
+239fb73dc4d43e4935bc6ccedcd48a9a8f00793b:elixir/serviceradar_core/test/serviceradar/notifications/transports/stream_test.exs:generic-api-key:254
+35704480767a655cbe37f2db78a0a3880472181a:elixir/serviceradar_core/test/serviceradar/automation/ansible/awx_client_test.exs:private-key:711
+3a792db84c16a7296e89d9f33d71b85cf8cd8706:elixir/serviceradar_core/test/serviceradar/identity/access_credential_changes_test.exs:generic-api-key:29
+3e908d0810ff33ae387edcaca0910121e0414d22:elixir/serviceradar_core/test/serviceradar/credentials/credential_redactor_test.exs:private-key:38
+430a09376390da6acbf08c8ec3495fdc90a6ef38:web-ng/test/serviceradar_web_ng/edge/bundle_generator_test.exs:private-key:286
+b273444d2873433ec48697915720637d438268f9:elixir/serviceradar_core/test/serviceradar/edge/proxmox_console_sessions_test.exs:private-key:141
+d50c5d6f05d39d8bab6946dcc53c5416e9ebbdfc:elixir/serviceradar_core/test/serviceradar/credentials/network_credential_secret_redaction_test.exs:private-key:127
+e261da6e887d3583df966d1031d9074545b00f22:elixir/serviceradar_core/test/serviceradar/edge/remote_access_broker_test.exs:private-key:176
+ee9e1bf4294dc0486d396e64bb7532ce9b6bd9bb:elixir/serviceradar_core/test/serviceradar/edge/remote_access_sessions_test.exs:private-key:183
+f912d0ecbaea2763026c9697c22c5bd4531386bc:elixir/serviceradar_core/test/serviceradar/edge/remote_access_ssh_session_credentials_test.exs:private-key:37
+fc491f2bb0808370029abc11fdaceac903b667b6:elixir/serviceradar_core/test/serviceradar/credentials/credential_secret_builder_test.exs:private-key:146
+# Vendored SNMP MIB definitions: the rules match object-type names, not values.
+87c0b5640178564570923daf28081b2c2a2a7452:contrib/snmp/mibs/cisco-mibs/v1/AIRESPACE-WIRELESS-MIB-V1SMI.my:generic-api-key:466
+87c0b5640178564570923daf28081b2c2a2a7452:contrib/snmp/mibs/cisco-mibs/v1/AIRESPACE-WIRELESS-MIB-V1SMI.my:generic-api-key:474
+87c0b5640178564570923daf28081b2c2a2a7452:contrib/snmp/mibs/cisco-mibs/v1/AWCVX-MIB-V1SMI.my:generic-api-key:2443
+87c0b5640178564570923daf28081b2c2a2a7452:contrib/snmp/mibs/cisco-mibs/v1/AWCVX-MIB-V1SMI.my:generic-api-key:2501
+87c0b5640178564570923daf28081b2c2a2a7452:contrib/snmp/mibs/cisco-mibs/v1/CISCO-DOT11-IF-MIB-V1SMI.my:generic-api-key:1330
+87c0b5640178564570923daf28081b2c2a2a7452:contrib/snmp/mibs/cisco-mibs/v1/CISCO-DOT11-IF-MIB-V1SMI.my:generic-api-key:1836
+87c0b5640178564570923daf28081b2c2a2a7452:contrib/snmp/mibs/cisco-mibs/v1/CISCO-DOT11-IF-MIB-V1SMI.my:generic-api-key:3835
+87c0b5640178564570923daf28081b2c2a2a7452:contrib/snmp/mibs/cisco-mibs/v1/CISCO-DYNAMIC-TEMPLATE-MIB-V1SMI.my:generic-api-key:1615
+87c0b5640178564570923daf28081b2c2a2a7452:contrib/snmp/mibs/cisco-mibs/v1/CISCO-DYNAMIC-TEMPLATE-MIB-V1SMI.my:generic-api-key:1618
+87c0b5640178564570923daf28081b2c2a2a7452:contrib/snmp/mibs/cisco-mibs/v1/CISCO-IPSEC-FLOW-MONITOR-MIB-V1SMI.my:generic-api-key:1440
+87c0b5640178564570923daf28081b2c2a2a7452:contrib/snmp/mibs/cisco-mibs/v1/CISCO-LWAPP-WLAN-SECURITY-MIB-V1SMI.my:generic-api-key:324
+87c0b5640178564570923daf28081b2c2a2a7452:contrib/snmp/mibs/cisco-mibs/v1/CISCO-LWAPP-WLAN-SECURITY-MIB-V1SMI.my:generic-api-key:641
+87c0b5640178564570923daf28081b2c2a2a7452:contrib/snmp/mibs/cisco-mibs/v1/CISCO-NETSYNC-MIB-V1SMI.my:etsy-access-token:429
+87c0b5640178564570923daf28081b2c2a2a7452:contrib/snmp/mibs/cisco-mibs/v1/CISCO-NETSYNC-MIB-V1SMI.my:etsy-access-token:668
+87c0b5640178564570923daf28081b2c2a2a7452:contrib/snmp/mibs/cisco-mibs/v1/DOCS-BPI-PLUS-MIB-V1SMI.my:generic-api-key:1754
+87c0b5640178564570923daf28081b2c2a2a7452:contrib/snmp/mibs/cisco-mibs/v1/DOCS-BPI-PLUS-MIB-V1SMI.my:generic-api-key:1756
+87c0b5640178564570923daf28081b2c2a2a7452:contrib/snmp/mibs/cisco-mibs/v1/DOCS-BPI-PLUS-MIB-V1SMI.my:generic-api-key:563
+87c0b5640178564570923daf28081b2c2a2a7452:contrib/snmp/mibs/cisco-mibs/v1/DOCS-BPI-PLUS-MIB-V1SMI.my:generic-api-key:565
+87c0b5640178564570923daf28081b2c2a2a7452:contrib/snmp/mibs/cisco-mibs/v1/DOCS-IETF-BPI2-MIB-V1SMI.my:generic-api-key:2021
+87c0b5640178564570923daf28081b2c2a2a7452:contrib/snmp/mibs/cisco-mibs/v1/DOCS-IETF-BPI2-MIB-V1SMI.my:generic-api-key:2023
+87c0b5640178564570923daf28081b2c2a2a7452:contrib/snmp/mibs/cisco-mibs/v1/DOCS-IETF-BPI2-MIB-V1SMI.my:generic-api-key:688
+87c0b5640178564570923daf28081b2c2a2a7452:contrib/snmp/mibs/cisco-mibs/v1/DOCS-IETF-BPI2-MIB-V1SMI.my:generic-api-key:690
+87c0b5640178564570923daf28081b2c2a2a7452:contrib/snmp/mibs/cisco-mibs/v1/IEEE8023-LAG-MIB-V1SMI.my:generic-api-key:111
+87c0b5640178564570923daf28081b2c2a2a7452:contrib/snmp/mibs/cisco-mibs/v1/IEEE8023-LAG-MIB-V1SMI.my:generic-api-key:1144
+87c0b5640178564570923daf28081b2c2a2a7452:contrib/snmp/mibs/cisco-mibs/v1/IEEE8023-LAG-MIB-V1SMI.my:generic-api-key:115
+87c0b5640178564570923daf28081b2c2a2a7452:contrib/snmp/mibs/cisco-mibs/v2/DOCS-BPI-PLUS-MIB.my:generic-api-key:1784
+87c0b5640178564570923daf28081b2c2a2a7452:contrib/snmp/mibs/cisco-mibs/v2/DOCS-BPI-PLUS-MIB.my:generic-api-key:1786
+87c0b5640178564570923daf28081b2c2a2a7452:contrib/snmp/mibs/cisco-mibs/v2/DOCS-BPI-PLUS-MIB.my:generic-api-key:566
+87c0b5640178564570923daf28081b2c2a2a7452:contrib/snmp/mibs/cisco-mibs/v2/DOCS-BPI-PLUS-MIB.my:generic-api-key:568
+# Vendored crate .cargo-checksum.json: SHA-256 file digests published by crates.io.
+098354f4e665835f0cdaf1e5b2a3c89eaf80e42f:third_party/netprobe_ebpf_vendor/cc/.cargo-checksum.json:generic-api-key:1
+098354f4e665835f0cdaf1e5b2a3c89eaf80e42f:third_party/netprobe_ebpf_vendor/libc/.cargo-checksum.json:generic-api-key:1
+098354f4e665835f0cdaf1e5b2a3c89eaf80e42f:third_party/netprobe_ebpf_vendor/quote/.cargo-checksum.json:generic-api-key:1
+098354f4e665835f0cdaf1e5b2a3c89eaf80e42f:third_party/netprobe_ebpf_vendor/rustversion/.cargo-checksum.json:generic-api-key:1
+098354f4e665835f0cdaf1e5b2a3c89eaf80e42f:third_party/netprobe_ebpf_vendor/serde_json/.cargo-checksum.json:generic-api-key:1
+098354f4e665835f0cdaf1e5b2a3c89eaf80e42f:third_party/netprobe_ebpf_vendor/syn/.cargo-checksum.json:generic-api-key:1
+19cf9ac663f285446a93608cee968ca9cbfaffe3:rust/netprobe/ebpf/vendor/cc/.cargo-checksum.json:generic-api-key:1
+19cf9ac663f285446a93608cee968ca9cbfaffe3:rust/netprobe/ebpf/vendor/libc/.cargo-checksum.json:generic-api-key:1
+19cf9ac663f285446a93608cee968ca9cbfaffe3:rust/netprobe/ebpf/vendor/quote/.cargo-checksum.json:generic-api-key:1
+19cf9ac663f285446a93608cee968ca9cbfaffe3:rust/netprobe/ebpf/vendor/rustversion/.cargo-checksum.json:generic-api-key:1
+19cf9ac663f285446a93608cee968ca9cbfaffe3:rust/netprobe/ebpf/vendor/serde_json/.cargo-checksum.json:generic-api-key:1
+19cf9ac663f285446a93608cee968ca9cbfaffe3:rust/netprobe/ebpf/vendor/syn/.cargo-checksum.json:generic-api-key:1
+4f3641d4af89c4423c150aa97518f05b1ac7b321:third_party/netprobe_ebpf_vendor/libc/.cargo-checksum.json:generic-api-key:1
+# Rapid7 Recog corpus <example> cookies, upstream sample data for the fingerprint patterns.
+098354f4e665835f0cdaf1e5b2a3c89eaf80e42f:third_party/netprobe_corpora/recog/xml/http_cookies.xml:bitbucket-client-id:281
+098354f4e665835f0cdaf1e5b2a3c89eaf80e42f:third_party/netprobe_corpora/recog/xml/http_cookies.xml:gitlab-session-cookie:339
+9d701122047862815b5f790a61202ba427572260:rust/netprobe/recog-corpus/xml/http_cookies.xml:bitbucket-client-id:281
+9d701122047862815b5f790a61202ba427572260:rust/netprobe/recog-corpus/xml/http_cookies.xml:gitlab-session-cookie:339
+# Go and Rust test constants: a switch port name, token123/abc123 headers, a seed of bytes
+# 0x00..0x1f, test PEMs found in no non-test file, and a PEM whose body is "fake".
+098354f4e665835f0cdaf1e5b2a3c89eaf80e42f:go/pkg/agent/syncsources/armis/update_test.go:generic-api-key:249
+098354f4e665835f0cdaf1e5b2a3c89eaf80e42f:go/pkg/edgeonboarding/mtls/token_test.go:generic-api-key:31
+098354f4e665835f0cdaf1e5b2a3c89eaf80e42f:go/pkg/edgeonboarding/token_test.go:generic-api-key:10
+098354f4e665835f0cdaf1e5b2a3c89eaf80e42f:go/pkg/logger/example_otel_test.go:generic-api-key:54
+098354f4e665835f0cdaf1e5b2a3c89eaf80e42f:rust/otel/src/tls.rs:private-key:153
+1563680304f56c5752e827b11500713d39d28509:go/pkg/agent/syncsources/armis/update_test.go:generic-api-key:247
+32c45daa81855151467a497f6e91cd8b4d68415a:rust/otel/src/tls.rs:private-key:150
+5438c4d0ac8887fc48b438c5914f7617383958ba:pkg/grpc/security_test.go:private-key:448
+5438c4d0ac8887fc48b438c5914f7617383958ba:pkg/grpc/security_test.go:private-key:466
+56e7448287d17d5d4988824bbfcce9493e2d6c75:go/pkg/edgeonboarding/mtls/token_test.go:generic-api-key:31
+56e7448287d17d5d4988824bbfcce9493e2d6c75:go/pkg/edgeonboarding/token_test.go:generic-api-key:10
+88f02cfc3261c8a830deeba5ab98f708cf7272db:pkg/logger/example_otel_test.go:generic-api-key:53
+977a84f3cfa542d921fb4b3ffe5d8c89ff67e9fa:pkg/logger/example_otel_test.go:generic-api-key:54
+b662309e53776cd38b5226e3dc606a8926a0e9e1:pkg/config/kv_client_test.go:private-key:11
+ed095ddac8a56ac2e73cd55c0c949955874f9847:pkg/config/kv_client_test.go:private-key:12
+# Documentation and UI placeholders: YOUR_ACCESS_TOKEN, fake-token, <pem-or-base64-key>,
+# abc123-style tokens, and sample credentials built from repeating character patterns.
+098354f4e665835f0cdaf1e5b2a3c89eaf80e42f:elixir/web-ng/lib/serviceradar_web_ng_web/live/user_live/api_credentials.ex:curl-auth-header:259
+098354f4e665835f0cdaf1e5b2a3c89eaf80e42f:go/cmd/faker/README.md:curl-auth-header:71
+2108b750c9b8b0458e5ece7fd8d03155f9027484:go/cmd/faker/README.md:curl-auth-header:71
+26ee4dc83817dddf84dcc64a221c4ea9a87e7e9f:pkg/edgeonboarding/README.md:generic-api-key:63
+9f921a67a274f2a4bcd70199d8c436375b2e8bef:docs/docs/api-credentials.md:curl-auth-header:83
+9f921a67a274f2a4bcd70199d8c436375b2e8bef:docs/docs/api-credentials.md:generic-api-key:48
+9f921a67a274f2a4bcd70199d8c436375b2e8bef:docs/docs/api-credentials.md:generic-api-key:64
+9f921a67a274f2a4bcd70199d8c436375b2e8bef:docs/docs/api-credentials.md:generic-api-key:71
+9f921a67a274f2a4bcd70199d8c436375b2e8bef:web-ng/lib/serviceradar_web_ng_web/live/user_live/api_credentials.ex:curl-auth-header:245
+a1aec4159e7fc33bb2bbd661840577e4c146634e:elixir/web-ng/lib/serviceradar_web_ng_web/live/user_live/api_credentials.ex:curl-auth-header:263
+beef4441fe48a9fec2bc00711a2c7209d69a4d26:scripts/sign-wasm-plugin-publish.sh:generic-api-key:55
+dd8164e07dfaf2f8cf9e474f11323a1dc508b381:docs/docs/docker-setup.md:generic-api-key:50
+efcc2a5c99d2bb24a1fe1df0f12fea9ed959c407:scripts/sign-oci-publish.sh:generic-api-key:48
+# k8s demo Secret template: every flagged value decodes to a changeme-* placeholder.
+4ce6abbda103e166af55662a35805ffb214e63a8:k8s/demo/base/secrets.yaml:generic-api-key:18
+ba18881b63f68c56271f26156632850cad05fd4c:k8s/demo/base/secrets.yaml:generic-api-key:12
+ba18881b63f68c56271f26156632850cad05fd4c:k8s/demo/base/secrets.yaml:generic-api-key:13
+ba18881b63f68c56271f26156632850cad05fd4c:k8s/demo/base/secrets.yaml:generic-api-key:14
+ba18881b63f68c56271f26156632850cad05fd4c:k8s/demo/base/secrets.yaml:generic-api-key:26
+ba18881b63f68c56271f26156632850cad05fd4c:k8s/demo/base/secrets.yaml:kubernetes-secret-yaml:6
+ede041471cb184510d4030ead124e1807d9d3f59:k8s/demo/base/secrets.yaml:generic-api-key:16
+ede041471cb184510d4030ead124e1807d9d3f59:k8s/demo/base/secrets.yaml:generic-api-key:27
+# Hashes and code, not credentials: a PyPI SHA-256, React bundle and Go identifiers, and
+# the stock ClickHouse users.yaml example password hashes.
+098354f4e665835f0cdaf1e5b2a3c89eaf80e42f:elixir/web-ng/priv/react/server.js:generic-api-key:42147
+24cb2fb949ee7b20aec3eec88bcc988c3ef09b19:elixir/web-ng/priv/react/server.js:generic-api-key:42147
+632323538dcd9ba6b7f2babeb1fbcd3e3ec1a5cc:pkg/discovery/utils.go:generic-api-key:272
+632323538dcd9ba6b7f2babeb1fbcd3e3ec1a5cc:pkg/discovery/utils.go:generic-api-key:275
+691fa59c7650804c32c6154b48214bab41365f27:packaging/proton/config/users.yaml:generic-api-key:37
+691fa59c7650804c32c6154b48214bab41365f27:packaging/proton/config/users.yaml:generic-api-key:41
+af636fa21110710eea86ad4a230b7630b28a29e4:pkg/registry/device_identity.go:generic-api-key:361
+af636fa21110710eea86ad4a230b7630b28a29e4:pkg/registry/device_identity.go:generic-api-key:364
+af636fa21110710eea86ad4a230b7630b28a29e4:pkg/registry/device_identity.go:generic-api-key:367
+ba15830b19a0af5586c1c5e93ca7c4241f8b8a3c:MODULE.bazel.lock:generic-api-key:1998
+c62149b794f2016cf881a6a8ca6dc72a0777b92b:pkg/discovery/utils.go:generic-api-key:171
+c62149b794f2016cf881a6a8ca6dc72a0777b92b:pkg/discovery/utils.go:generic-api-key:174

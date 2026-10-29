@@ -689,6 +689,7 @@ NETWORKS_LIVE_DB_SHARD_SRCS = [
         "test/phoenix/controllers/auth_controller_test.exs",
         "test/phoenix/controllers/dashboard_package_publish_controller_test.exs",
         "test/phoenix/controllers/dashboard_package_read_controller_test.exs",
+        "test/phoenix/controllers/dev_routes_test.exs",
         "test/phoenix/controllers/error_json_test.exs",
         "test/phoenix/controllers/metrics_controller_test.exs",
         "test/phoenix/controllers/oauth_controller_test.exs",

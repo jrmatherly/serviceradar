@@ -3,8 +3,8 @@ set -euo pipefail
 # shellcheck source=scripts/lib/fork-registry.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/fork-registry.sh"
 
-if [[ "$#" -ne 1 ]]; then
-  echo "usage: $0 <chart-version>" >&2
+if ! [[ "$#" -eq 1 || ( "$#" -eq 2 && "$2" == "--anonymous-ok" ) ]]; then
+  echo "usage: $0 <chart-version> [--anonymous-ok]" >&2
   exit 1
 fi
 
@@ -39,7 +39,15 @@ if [[ "${probe_status}" -eq 0 ]]; then
   exit 1
 fi
 
-if grep -Eiq 'manifest unknown|manifest_unknown|no such manifest|(^|: )[[:space:]]*not found([[:space:]]|$)' <<<"${probe_output}"; then
+absent_pattern='manifest unknown|manifest_unknown|no such manifest|(^|: )[[:space:]]*not found([[:space:]]|$)'
+# GHCR refuses an anonymous token for a package that does not exist yet
+# (oras-go v2 and v1 wordings). CI probes with credentials and never passes
+# this flag.
+if [[ "${2:-}" == "--anonymous-ok" ]]; then
+  absent_pattern+='|ghcr\.io/token\?.*(response status code 403: denied|: 403 Forbidden)'
+fi
+
+if grep -Eiq "${absent_pattern}" <<<"${probe_output}"; then
   echo "OCI Helm chart version ${version} is available."
   exit 0
 fi
