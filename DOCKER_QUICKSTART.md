@@ -32,6 +32,10 @@ COMPOSE_FILE=docker-compose.yml:docker-compose.dev.yml
 - ✅ Set up networking and persistent volumes
  - ✅ Run the core-elx migration runner to bootstrap schema/extensions
 
+Developer routes are off by default. `SERVICERADAR_DEV_ROUTES=true docker compose up` (or the
+same line in `.env`) enables `/dev/dashboard`, `/dev/mailbox` and `/dev/ash`; these pages have no
+login, so leave them off on any host you do not fully control.
+
 ## Alternative Commands
 
 ```bash
