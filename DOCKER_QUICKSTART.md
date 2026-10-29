@@ -52,6 +52,16 @@ make -f Makefile.docker start
 make -f Makefile.docker up-full
 ```
 
+## Reaching the stack by another hostname
+
+web-ng accepts LiveView websocket connections only from the origin it is configured for. The
+compose default is `//<SERVICERADAR_HOST>` (`localhost` when unset), which covers both
+`http://` and `https://` on that host, so `SERVICERADAR_HOST=192.0.2.10 docker compose up`
+accepts browsers that open `https://192.0.2.10`. `SERVICERADAR_HOST` is a bare hostname or IP,
+no port. For more than one hostname, set `PHX_CHECK_ORIGIN` to a comma-separated list such as
+`//localhost,//192.0.2.10`, or to `true`, which accepts whatever host the browser used.
+`PHX_CHECK_ORIGIN=false` disables the check and is not a production setting.
+
 ## Check Status
 
 ```bash
