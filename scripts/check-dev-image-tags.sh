@@ -9,9 +9,11 @@ read -r registry project < <(env -u OCI_REGISTRY -u OCI_PROJECT bash -c '. scrip
 prefix="\${OCI_REGISTRY:-${registry}}/\${OCI_PROJECT:-${project}}/"
 prefix_re=$(printf '%s' "$prefix" | sed 's/[$.{}]/\\&/g')
 compose_files=(docker-compose.yml docker-compose.dev.yml)
-# Images compose runs that the fork does not build, plus CNPG, which stays on upstream's
-# digest until the fork publishes it (docs/fork-ci.md, "Fork identity in code").
-third_party='(\$\{[A-Z_]+:-)?(alpine|caddy|docker|nats|minio/|pgduckdb/|starrocks/|dgraph/|ghcr\.io/carverauto/serviceradar-cnpg)'
+# Images compose runs that the fork does not build, plus CNPG, which carries a PostgreSQL
+# version tag and digest rather than APP_TAG, so only its prefix is checked here.
+cnpg="${registry}/${project}/serviceradar-cnpg"
+cnpg_re="${cnpg//./\\.}"
+third_party='(\$\{[A-Z_]+:-)?(alpine|caddy|docker|nats|minio/|pgduckdb/|starrocks/|dgraph/|'"${cnpg_re}"')'
 fail=0
 
 for file in "${compose_files[@]}"; do
@@ -41,6 +43,15 @@ fi
 
 if ! grep -q -E 'static_tags = \["latest"\] \+ target.get\("static_tags", \[\]\)' docker/images/push_targets.bzl; then
   echo "Expected docker/images/push_targets.bzl to include latest in static tags." >&2
+  fail=1
+fi
+
+# Every CNPG pin site must carry the same digest, so a bump that misses one fails here.
+cnpg_pins=(docker-compose.yml docker/compose/test-db/compose.yml docker/compose/migrate-cnpg-pg16-to-pg18.sh)
+cnpg_digests=$({ grep -h -o -E "${cnpg_re}[^@[:space:]]*@sha256:[0-9a-f]{64}" "${cnpg_pins[@]}" || true; } | sed 's/.*@//' | sort -u)
+if [[ $(printf '%s\n' "$cnpg_digests" | grep -c .) -ne 1 ]]; then
+  echo "CNPG pins must agree on one ${cnpg} digest across ${cnpg_pins[*]}; found:" >&2
+  { grep -n -H -E "${cnpg_re}" "${cnpg_pins[@]}" || true; } >&2
   fail=1
 fi
 

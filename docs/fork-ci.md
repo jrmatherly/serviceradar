@@ -51,16 +51,15 @@ every app image, and `scripts/check-dev-image-tags.sh` (run by `make check-dev-i
 derives the expected literal from the shell source and fails when compose drifts. The
 rebrand changes those two sources, those three files and the two compose files.
 
-The fork has published no images yet (`publish-oci.yml` is manual and has never run), so
-`docker compose up` with the defaults fails to pull until it runs once; until then
-`make compose-load-local` is the only working path. CNPG is the one compose image kept on
-upstream's digest-pinned `ghcr.io/carverauto/serviceradar-cnpg` even after that. After the
-first `publish-oci.yml` run, move the pin in `docker-compose.yml` (two services),
-`docker/compose/test-db/compose.yml`, the `TARGET_IMAGE` default in
-`docker/compose/migrate-cnpg-pg16-to-pg18.sh` and the comments in
-`config/environments/localhost.textproto`, and drop the `serviceradar-cnpg` exemption from
-`scripts/check-dev-image-tags.sh`. To test a fork CNPG change before that, run
-`COMPOSE_LOCAL_IMAGES=cnpg make compose-load-local` and set
+Every compose image, CNPG included, comes from the fork's GHCR packages. CNPG is
+digest-pinned to the fork's `serviceradar-cnpg:18.4.0-sr4` in `docker-compose.yml` (two
+services), `docker/compose/test-db/compose.yml` and the `TARGET_IMAGE` default of
+`docker/compose/migrate-cnpg-pg16-to-pg18.sh`; `scripts/check-dev-image-tags.sh` checks its
+prefix, since it carries a PostgreSQL version tag rather than `APP_TAG`, and fails when those
+three files disagree on the digest. The migration script's pg16 `SOURCE_IMAGE` stays on
+upstream's package because the fork never published a pg16 image, and the Helm chart and
+`k8s/` manifests keep upstream's registry throughout. To test a fork CNPG change before
+publishing it, run `COMPOSE_LOCAL_IMAGES=cnpg make compose-load-local` and set
 `CNPG_IMAGE=ghcr.io/jrmatherly/serviceradar-cnpg:local`.
 
 The ARC runner images and upstream's prebuilt `serviceradar-tools` pull are gone

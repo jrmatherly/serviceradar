@@ -6,7 +6,7 @@ name: serviceradar-test-db
 
 services:
   test-db:
-    image: ghcr.io/carverauto/serviceradar-cnpg@sha256:59e442dec59fac3149e3a3c49ba0cc2987bfb052bca1a0ea8c01b4bb31427d1d
+    image: ghcr.io/jrmatherly/serviceradar-cnpg@sha256:dbbb0eb52eb6b9da95125124796665a0fcdc07c5d1523414ca36b951e115b005
     platform: linux/amd64
     entrypoint: ["/bin/sh", "/test-db/entrypoint.sh"]
     environment:
