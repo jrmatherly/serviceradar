@@ -154,9 +154,9 @@ defmodule ServiceRadarWebNGWeb.Router do
   # `require_authenticated_user` redirects unauthenticated browsers to log in.
   # The SwaggerUI mounted on this pipeline is configured as an RBAC-backed API
   # console — see the `/api/v2/swaggerui` route below.
-  # Config.CSP: the pipeline passes @api_docs_csp to put_secure_browser_headers;
-  # Plugs.SecurityHeaders
-  # csp_mode decides enforce vs report-only.
+  # Config.CSP: put_api_docs_csp passes @api_docs_csp (plus a per-request script
+  # nonce) to put_secure_browser_headers; Plugs.SecurityHeaders csp_mode decides
+  # enforce vs report-only.
   # sobelow_skip ["Config.CSP"]
   pipeline :api_docs_ui do
     plug(:accepts, ["html"])
@@ -164,7 +164,7 @@ defmodule ServiceRadarWebNGWeb.Router do
     plug(:fetch_live_flash)
     plug(:put_root_layout, html: {ServiceRadarWebNGWeb.Layouts, :root})
     plug(:protect_from_forgery)
-    plug(:put_secure_browser_headers, %{"content-security-policy" => @api_docs_csp})
+    plug(:put_api_docs_csp)
     plug(SecurityHeaders)
     plug(GatewayAuth)
     plug(:fetch_current_scope_for_user)
@@ -948,7 +948,8 @@ defmodule ServiceRadarWebNGWeb.Router do
       path: "/api/v2/open_api",
       default_model_expand_depth: 4,
       with_credentials: true,
-      persist_authorization: true
+      persist_authorization: true,
+      csp_nonce_assign_key: %{script: :script_src_nonce}
     )
 
     forward("/redoc", Redoc.Plug.RedocUI, spec_url: "/api/v2/open_api")
@@ -1491,6 +1492,19 @@ defmodule ServiceRadarWebNGWeb.Router do
 
     # Legacy session routes (kept for logout handling)
     delete("/users/log-out", UserSessionController, :delete)
+  end
+
+  # SwaggerUI boots from an inline <script>; the nonce lets the api-docs policy
+  # allow exactly that script and nothing else inline.
+  defp put_api_docs_csp(conn, _opts) do
+    nonce = Base.url_encode64(:crypto.strong_rand_bytes(16), padding: false)
+
+    csp =
+      String.replace(@api_docs_csp, "script-src 'self'", "script-src 'self' 'nonce-#{nonce}'")
+
+    conn
+    |> Plug.Conn.assign(:script_src_nonce, nonce)
+    |> Phoenix.Controller.put_secure_browser_headers(%{"content-security-policy" => csp})
   end
 
   defp ensure_dev_routes_enabled(conn, _opts) do

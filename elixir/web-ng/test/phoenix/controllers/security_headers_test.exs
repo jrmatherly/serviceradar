@@ -47,6 +47,20 @@ defmodule ServiceRadarWebNGWeb.SecurityHeadersTest do
     end
   end
 
+  describe "api docs" do
+    setup :register_and_log_in_user
+
+    test "SwaggerUI's inline script carries the nonce the api-docs CSP allows", %{conn: conn} do
+      conn = get(conn, "/api/v2/swaggerui")
+      body = html_response(conn, 200)
+
+      assert [csp] = get_resp_header(conn, "content-security-policy-report-only")
+      assert [_, nonce] = Regex.run(~r/script-src 'self' 'nonce-([A-Za-z0-9_-]{22})'/, csp)
+      assert body =~ ~s(<script nonce="#{nonce}">)
+      refute body =~ ~r/<script>/
+    end
+  end
+
   defp put_csp_mode(mode) do
     config = Application.get_env(:serviceradar_web_ng, SecurityHeaders, [])
 
