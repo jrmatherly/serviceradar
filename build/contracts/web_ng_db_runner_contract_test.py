@@ -111,6 +111,7 @@ SHARED_FIXTURE_SOURCES = {
     "test/phoenix/controllers/dashboard_package_asset_controller_test.exs",
     "test/phoenix/controllers/dashboard_package_publish_controller_test.exs",
     "test/phoenix/controllers/dashboard_package_read_controller_test.exs",
+    "test/phoenix/controllers/dev_routes_test.exs",
     "test/phoenix/controllers/error_html_test.exs",
     "test/phoenix/controllers/error_json_test.exs",
     "test/phoenix/controllers/health_controller_test.exs",
