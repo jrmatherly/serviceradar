@@ -86,7 +86,8 @@ defmodule ServiceRadarCoreElx.MixProject do
       {:membrane_mpeg_ts_plugin, "~> 2.4", override: true},
       {:mpeg_ts, "~> 3.3", override: true},
       {:boombox, path: "../../third_party/hex_vendored/boombox"},
-      {:bandit, "~> 1.13"},
+      # bandit 1.14.1 closes EEF-CVE-2026-116078 (1.14.0 is not enough); do not lower.
+      {:bandit, "~> 1.14.1"},
       {:plug, "~> 1.18"},
       {:telemetry_metrics_prometheus_core, "~> 1.2"},
       {:bundlex, github: "membraneframework/bundlex", tag: "v1.5.4", override: true},
