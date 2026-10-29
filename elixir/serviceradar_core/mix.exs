@@ -83,18 +83,13 @@ defmodule ServiceRadarCore.MixProject do
       {:serviceradar_srql, path: "../serviceradar_srql"},
 
       # Ash Framework
-      # CVE-2026-67579: keyset cursor injection is fixed in 3.31.3.
-      # EEF-CVE-2026-93477: private action arguments settable through bulk
-      # update/destroy input is fixed in 3.33.11.
-      # CVE-2026-94201: filtering on an atom created atoms; fixed in 3.34.3.
-      # EEF-CVE-2026-101028: Ash.count/exists/aggregate skipping related
-      # resources' read policies in filters and sorts; fixed in 3.34.6.
-      {:ash, "~> 3.34.6"},
-      # The floors below are the first releases carrying the fixes for the Hex
-      # advisories open against the previously locked versions
-      # (`mix hex.audit`); do not lower them. ash_postgres 2.14 is the
-      # temporal release that matches Ash 3.34; its advisory floor was 2.13.
-      {:ash_postgres, "~> 2.14"},
+      # Floors are the first releases carrying the fixes for the Hex advisories
+      # open against the previously locked versions (`mix hex.audit`); do not
+      # lower them. ash 3.37.2 closes EEF-CVE-2026-96581 and EEF-CVE-2026-114214;
+      # ash_postgres 2.15.2 closes EEF-CVE-2026-115627 and EEF-CVE-2026-115635
+      # and requires ash_sql 0.8.4.
+      {:ash, "~> 3.37.2"},
+      {:ash_postgres, "~> 2.15.2"},
       {:ash_oban, "~> 0.8.14"},
       {:ash_state_machine, "~> 0.2"},
       {:ash_json_api, "~> 1.4"},
