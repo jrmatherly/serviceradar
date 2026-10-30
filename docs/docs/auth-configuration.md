@@ -143,7 +143,7 @@ are checked separately against the allowed namespace URIs.
 If an IdP response is rejected, inspect the web-ng warning beginning
 `Rejected SAML response XML:` for the unsupported name or limit, then adjust
 the IdP's response format. The exact allowlists are maintained in
-[`SAMLXml`](https://github.com/carverauto/serviceradar/blob/staging/elixir/web-ng/lib/serviceradar_web_ng_web/auth/saml_xml.ex).
+[`SAMLXml`](https://github.com/jrmatherly/serviceradar/blob/staging/elixir/web-ng/lib/serviceradar_web_ng_web/auth/saml_xml.ex).
 Operator-supplied IdP metadata retains its general XML parser to support
 vendor metadata extensions; response restrictions do not apply to metadata.
 
