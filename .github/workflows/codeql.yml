@@ -24,7 +24,7 @@ permissions:
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
-    # Swift analysis needs Xcode; every other language is extracted without a build.
+    # Swift analysis needs Xcode; Go and Swift autobuild, the rest are extracted without a build.
     runs-on: ${{ matrix.language == 'swift' && 'macos-15' || 'ubuntu-24.04' }}
     timeout-minutes: 120
     permissions:
@@ -40,7 +40,8 @@ jobs:
           - language: c-cpp
             build-mode: none
           - language: go
-            build-mode: none
+            # Go rejects build-mode none ("Go does not support the none build mode").
+            build-mode: autobuild
           - language: javascript-typescript
             build-mode: none
           - language: python

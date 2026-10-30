@@ -176,7 +176,8 @@ files it touches, so a backlog in test code turns every batch PR red.
 
 `codeql.yml` is the replacement: `github/codeql-action` per language (actions, c-cpp,
 go, javascript-typescript, python, ruby, rust, swift, the set default setup scanned),
-`build-mode: none` everywhere except Swift, which autobuilds on `macos-15`, and
+`build-mode: none` everywhere except Go (the Go extractor rejects it) and Swift, which
+autobuilds on `macos-15`, and
 `.github/codeql/codeql-config.yml` with `paths-ignore` for test directories, `*_test.go`,
 `*_test.rs`, `*.test.{js,mjs,ts,tsx}`, `third_party/` and `vendor/`. The analysis
 category is `/language:<name>`, the same as default setup, so existing alerts and
@@ -186,14 +187,17 @@ Limitation: a path filter cannot reach a `#[cfg(test)]` module inside a producti
 Rust file. A new alert there is still reported and is triaged by hand; the rule stays
 on for production code.
 
-Owner action, once: default setup and the workflow double-report while both run, and
-the switch is a repository setting, not a commit. After the workflow's first green run
-on `staging`, open Settings > Code security > Code scanning > CodeQL analysis and
-disable default setup (the "..." menu next to "CodeQL analysis", "Disable CodeQL"),
-or run `gh api -X PATCH repos/<owner>/serviceradar/code-scanning/default-setup
--f state=not-configured`. The workflow's uploads are refused while default setup is
-enabled for the same languages, so the first green run proves the config parses and
-the languages extract; alerts appear after the switch.
+Owner action, once: the switch is a repository setting, not a commit, and the two
+cannot coexist. While default setup is enabled, GitHub rejects every SARIF the workflow
+uploads ("CodeQL analyses from advanced configurations cannot be processed when the
+default setup is enabled", observed on PR 54), so the `Analyze` step fails and the
+workflow cannot go green first. The order is therefore: merge the workflow (CodeQL is
+not a required check in the `staging` ruleset), then open Settings > Code security >
+Code scanning > CodeQL analysis and disable default setup (the "..." menu next to
+"CodeQL analysis", "Disable CodeQL"), or run
+`gh api -X PATCH repos/<owner>/serviceradar/code-scanning/default-setup -f state=not-configured`,
+then dispatch `codeql.yml` on `staging`. Existing alerts and dismissals carry over
+because the analysis category is unchanged.
 
 ## buildbuddy.yaml
 
