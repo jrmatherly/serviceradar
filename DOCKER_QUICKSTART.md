@@ -36,11 +36,13 @@ partition and purges it through the same cleanup path the product uses for expir
 (an identity tombstone row stays behind per device, as in production), then stops the faker
 and drops its dataset. Running `make seed-faker` twice reuses the dataset and the
 source, so it does not duplicate devices. While seeded, the `agent` container runs with a
-larger `SWEEP_RESULTS_MAX_CHUNK_BYTES` and the source polls every two hours, because core
-drops the chunks of a run it cannot hold in flight; the script header explains the limits.
-`make seed-faker-down` recreates the agent with its defaults. On Apple Silicon the script adds
-`docker-compose.arm64.yml` itself; set `COMPOSE_PROJECT_NAME` when the stack runs under another
-project name.
+larger `SWEEP_RESULTS_MAX_CHUNK_BYTES` and the source's discovery interval is two hours,
+because core rejects the chunks of a run it cannot hold in flight; the script header explains
+the limits. Every seeded run is marked incomplete, so its Armis snapshot is never activated,
+because the run's final marker is the one message over core's cap; the devices still land.
+`make seed-faker-down` recreates the agent with its defaults.
+On Apple Silicon the script adds `docker-compose.arm64.yml` itself; set `COMPOSE_PROJECT_NAME`
+when the stack runs under another project name.
 
 ## What happens with one command:
 - ✅ Generate mTLS certificates automatically
