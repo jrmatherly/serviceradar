@@ -3,6 +3,8 @@ defmodule ServiceRadar.Admission.Lane do
 
   use GenServer
 
+  require Logger
+
   @envelope_overhead_bytes 256
   @max_queue_wait_ms 2_000
   @max_worker_timeout_ms 20_000
@@ -192,6 +194,7 @@ defmodule ServiceRadar.Admission.Lane do
           Keyword.get(opts, :lease_supervisor, Keyword.fetch!(opts, :task_supervisor)),
         processor: Keyword.fetch!(opts, :processor),
         on_accepted_result: Keyword.get(opts, :on_accepted_result),
+        on_execution_timeout: Keyword.get(opts, :on_execution_timeout),
         preserve_result: Keyword.get(opts, :preserve_result, false),
         execution_gate: Keyword.get(opts, :execution_gate),
         source_max_bytes: Keyword.fetch!(opts, :source_max_bytes),
@@ -531,9 +534,13 @@ defmodule ServiceRadar.Admission.Lane do
 
   defp begin_execution_termination(state, job, reason) do
     Process.cancel_timer(job.execution_timer)
-    reply(job.reply_to, {:error, reason})
     Process.exit(job.lease, :kill)
     Process.exit(job.worker, :kill)
+    # The killed worker's transaction rolls back, so the coordinator records the
+    # timeout itself, and before replying so the count is committed before the
+    # caller can redeliver.
+    notify_execution_timeout(state.on_execution_timeout, job.status, job.payload_bytes)
+    reply(job.reply_to, {:error, reason})
 
     emit(
       state.lane,
@@ -775,6 +782,20 @@ defmodule ServiceRadar.Admission.Lane do
   end
 
   defp notify_accepted_result(_callback, _result), do: :ok
+
+  defp notify_execution_timeout(nil, _status, _payload_bytes), do: :ok
+
+  # A failing callback must not take the coordinator, and every job it holds,
+  # down with it; it is logged instead.
+  defp notify_execution_timeout({module, function, extra_args}, status, payload_bytes) do
+    apply(module, function, [status, payload_bytes | extra_args])
+  catch
+    kind, reason ->
+      Logger.warning(
+        "Admission lane execution-timeout callback failed: " <>
+          Exception.format_banner(kind, reason)
+      )
+  end
 
   defp dispatch(state) when map_size(state.running) >= state.concurrency, do: state
 

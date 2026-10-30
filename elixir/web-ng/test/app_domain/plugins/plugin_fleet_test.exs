@@ -50,7 +50,7 @@ defmodule ServiceRadarWebNG.Plugins.PluginFleetTest do
     end
   end
 
-  test "known assignment drift and wrapped results preserve safe runtime evidence" do
+  test "wrapped results preserve only the matching assignment's safe runtime evidence" do
     package = package()
     assignment = assignment(package)
     old_id = Ecto.UUID.generate()
@@ -61,20 +61,18 @@ defmodule ServiceRadarWebNG.Plugins.PluginFleetTest do
       "labels" => %{"assignment_id" => old_id, "package_version" => "1.0.0", "token" => "synthetic-secret"}
     }
 
-    state = state(details: Jason.encode!(%{"reported_result" => result}))
+    for {reported_id, category, observed_id} <- [
+          {old_id, "unavailable", nil},
+          {assignment.id, "healthy", assignment.id}
+        ] do
+      result = put_in(result, ["labels", "assignment_id"], reported_id)
+      state = state(details: Jason.encode!(%{"reported_result" => result}))
 
-    assert [
-             %{
-               "assignment_drift" => true,
-               "observed_assignment_id" => ^old_id,
-               "version_drift" => false,
-               "result_status" => "OK",
-               "category" => "action_required"
-             } = row
-           ] =
-             PluginFleet.build_rows([assignment], [package], [state], @now)
-
-    refute Jason.encode!(row) =~ "synthetic-secret"
+      assert [row] = PluginFleet.build_rows([assignment], [package], [state], @now)
+      assert row["category"] == category
+      assert row["observed_assignment_id"] == observed_id
+      refute Jason.encode!(row) =~ "synthetic-secret"
+    end
   end
 
   test "an assignment a rollout holds is reported at the candidate it runs, not as version drift" do

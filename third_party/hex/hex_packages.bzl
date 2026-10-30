@@ -41,7 +41,7 @@ HEX_PACKAGES = [
     ("conv_case", "conv_case", "0.2.3", "88f29a3d97d1742f9865f7e394ed3da011abb7c5e8cc104e676fdef6270d4b4a"),
     ("corsica", "corsica", "2.1.3", "616c08f61a345780c2cf662ff226816f04d8868e12054e68963e95285b5be8bc"),
     ("cowboy", "cowboy", "2.19.0", "986dae81f99fcb78ef2d8efc21d738cee189410840eeaf32eca84ada81dcf6d4"),
-    ("cowlib", "cowlib", "2.20.0", "7d41a0dd2c093041ff3779ac5fe8a1585a68ec7cb2dd1de0536bdd2452fd7ba1"),
+    ("cowlib", "cowlib", "2.21.0", "0960248773762a5319b3c17285028bc76f54f58ef0f9451367401bdf67b46274"),
     ("crc", "crc", "0.11.0", "b9e37d3e54c2d828611ad83dc2e0ea448c37cdb60a8b481355f9f68d69c9c3fc"),
     ("credo", "credo", "1.7.19", "2d8bc95d5a7bb99dd2613621d4f08c6a3575c3fd4b62e6a2b48a100352a557b8"),
     ("crux", "crux", "0.1.5", "56f4941d362a262a83e5f2ba4fae2173ac2f556a03b5b3965f58b6eb0aedbba3"),

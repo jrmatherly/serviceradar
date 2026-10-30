@@ -8,6 +8,7 @@ defmodule ServiceRadar.Ingestion.ResultIngestor do
   alias ServiceRadar.NetworkDiscovery.MapperResultsIngestor
   alias ServiceRadar.Observability.MtrResultPublisher
   alias ServiceRadar.Observability.PluginResultIngestor
+  alias ServiceRadar.Observability.PluginResultQuarantine
   alias ServiceRadar.Observability.ServiceStateRegistry
   alias ServiceRadar.Observability.ServiceStatusPubSub
   alias ServiceRadar.SweepJobs.SweepResultsIngestor
@@ -19,15 +20,46 @@ defmodule ServiceRadar.Ingestion.ResultIngestor do
   @doc false
   @spec process_retained_plugin(map()) :: :ok | {:error, term()}
   def process_retained_plugin(status) when is_map(status) do
+    attempt = PluginResultQuarantine.identity(status)
+
+    case PluginResultQuarantine.lookup(attempt) do
+      # Repeatedly over budget: acknowledge so the agent drops it.
+      :quarantined ->
+        :ok
+
+      prior ->
+        conclude_retained_plugin(status, attempt, prior)
+    end
+  end
+
+  @doc false
+  @spec reingest_quarantined_plugin(map()) :: :ok | {:error, term()}
+  def reingest_quarantined_plugin(status) when is_map(status) do
+    attempt = PluginResultQuarantine.identity(status)
+    conclude_retained_plugin(status, attempt, :quarantined)
+  end
+
+  defp conclude_retained_plugin(status, attempt, prior) do
     case handle_plugin_results(status) do
+      :ok ->
+        clear_attempts(attempt, prior)
+
       # PluginResultIngestor returns the handler-domain error after it has
       # durably committed the corresponding failure marker. Retained delivery
       # may therefore acknowledge this terminal outcome, while persistence
       # failures below remain retryable.
-      {:error, {:plugin_result_handlers_failed, _errors}} -> :ok
-      result -> result
+      {:error, {:plugin_result_handlers_failed, _errors}} ->
+        clear_attempts(attempt, prior)
+
+      result ->
+        result
     end
   end
+
+  defp clear_attempts(attempt, prior) when prior in [:attempted, :quarantined],
+    do: PluginResultQuarantine.clear(attempt)
+
+  defp clear_attempts(_attempt, :none), do: :ok
 
   def process_and_publish(status, opts \\ []) do
     # No per-message log here — hot path. Breadcrumbs come from the OTel span.
