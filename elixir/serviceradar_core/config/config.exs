@@ -66,6 +66,8 @@ config :serviceradar_core, Oban,
        {"*/5 * * * *", ServiceRadar.Jobs.RootSpanRatioWorker, queue: :maintenance},
        {"*/15 * * * *", ServiceRadar.Jobs.ReapStalePeriodicJobsWorker, queue: :maintenance},
        {"17 * * * *", ServiceRadar.Jobs.PruneStaleAgentsWorker, queue: :maintenance},
+       {"* * * * *", ServiceRadar.Inventory.ExposureDeviceRefreshWorker, queue: :maintenance},
+       {"7 4 * * *", ServiceRadar.Inventory.ExposureDimensionRefreshWorker, queue: :maintenance},
        {"17 3 * * *", ServiceRadar.Observability.DataRetentionWorker, queue: :maintenance},
        {"41 * * * *", Worker, args: %{"trigger" => "cron"}, queue: :maintenance},
        {"47 * * * *", SeasonalDispositionWorker,
@@ -90,6 +92,9 @@ config :serviceradar_core, Oban,
        # in step with serviceradar_core's runtime.exs and serviceradar_core_elx's runtime.exs.
        {"* * * * *", ServiceRadar.Inventory.Availability.ResolverWorker, queue: :maintenance},
        {"* * * * *", ServiceRadar.Inventory.Availability.ExpiryWorker, queue: :maintenance},
+       # Moves the availability mode on by itself (legacy -> shadow -> cutover) as the
+       # deployment's mode control says. Kept in step with the two entries above.
+       {"* * * * *", ServiceRadar.Inventory.Availability.ProgressionWorker, queue: :maintenance},
        {"*/30 * * * *", ServiceRadar.Observability.ResolveStaleAnomaliesWorker,
         queue: :maintenance}
      ]}

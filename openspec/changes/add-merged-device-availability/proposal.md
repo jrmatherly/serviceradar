@@ -33,9 +33,10 @@ reachability. Agent check-in sets the bit true, and nothing ever clears it.
 - **The per-agent ledger stays first-class and lossless.**
   `device_agent_availability` keeps every agent's latest result per device,
   including negative results, each with its own timestamp. The merged value
-  is a summary derived from it. It never prunes, ages out or rewrites
-  per-agent rows. The only change to the ledger is one additive hysteresis
-  counter.
+  is a summary derived from it. It never prunes or ages out per-agent rows,
+  and writers do not change a row's stored result or timestamps. The only
+  schema change to the ledger is one additive hysteresis counter (design,
+  "Tier 1a: the per-agent ledger").
 - **An evidence contract for every other source.** Non-probe sources submit
   *evidence* through one core interface,
   `ServiceRadar.Inventory.Availability.record_evidence/2`. These are
@@ -95,12 +96,19 @@ reachability. Agent check-in sets the bit true, and nothing ever clears it.
     metadata, the point of no easy return.
   - Phase 1 (stages a and b, no behavior change) ships and is reviewed on
     demo before phase 2 (stages c and d) begins.
+  - Core moves through stages a to c by itself: it enters `shadow` once the
+    running release supports it and cuts over when a set of readiness
+    conditions holds, so no customer runs a command. A deployment mode
+    control (`auto`, `hold_legacy`, `hold_shadow`), editable in Settings
+    and pinnable by a Helm value, holds or rolls back (design.md,
+    Decision 10, "Automatic progression").
 - **BREAKING (after stage c):**
   - Unknown devices keep their last `is_available` value; readers that need
     unknown must read `availability_state`.
   - The Available and Unavailable counts change where they were inflated by
     `DEFAULT true` or by stale writes.
-  - Direct writes to `is_available` stop taking effect.
+  - A direct write to `is_available` stays written until the next resolution.
+    Stage d only appends a violation row (design.md, Open Question 7).
 
 ## Impact
 
@@ -133,8 +141,8 @@ reachability. Agent check-in sets the bit true, and nothing ever clears it.
   - `elixir/web-ng`:
     - device list and detail pages;
     - dashboards;
-    - API device JSON, `priv/static/openapi.json` and
-      `priv/mcp/srql-cookbook.md`.
+    - API device JSON, `priv/mcp/srql-cookbook.md`, and
+      `priv/static/openapi.json` (design.md owns how that file was updated).
   - `go/`: plugin manifests for the in-repo plugins that set availability.
   - `rust/correlation-engine`: receives one transition per real change.
 - Unchanged by design: every per-agent ledger consumer, namely

@@ -32,6 +32,8 @@ diesel::table! {
         status -> Text,
         superseded_by -> Nullable<Text>,
         superseded_at -> Nullable<Timestamptz>,
+        display_name -> Nullable<Text>,
+        description -> Nullable<Text>,
     }
 }
 
@@ -201,6 +203,13 @@ diesel::table! {
         availability_source_agent_id -> Nullable<Text>,
         discovery_sources -> Nullable<Array<Text>>,
         is_available -> Nullable<Bool>,
+        // Canonical merged availability (`available | unavailable | unknown`), its
+        // provenance and the per-agent summary. `is_available` stays the last decided boolean.
+        availability_state -> Text,
+        availability_decided_by -> Nullable<Jsonb>,
+        availability_changed_at -> Nullable<Timestamp>,
+        availability_conflict -> Bool,
+        availability_agents -> Nullable<Jsonb>,
         is_active -> Nullable<Bool>,
         tags -> Nullable<Jsonb>,
         metadata -> Nullable<Jsonb>,

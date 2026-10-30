@@ -7,6 +7,7 @@ defmodule ServiceRadarWebNGWeb.DeviceLive.DeviceTabRuntime do
   import ServiceRadarWebNGWeb.DeviceLive.VisibilityComponents,
     only: [active_fingerprint_tab_visible?: 2]
 
+  alias ServiceRadarWebNG.Devices.MergedAvailability
   alias ServiceRadarWebNGWeb.DeviceLive.AvailabilityData
   alias ServiceRadarWebNGWeb.DeviceLive.FlowData
   alias ServiceRadarWebNGWeb.DeviceLive.InterfaceData
@@ -181,7 +182,7 @@ defmodule ServiceRadarWebNGWeb.DeviceLive.DeviceTabRuntime do
     if is_nil(socket.assigns[:availability_request_ref]) do
       scope = socket.assigns.current_scope
       request_ref = make_ref()
-      device_is_available = device_row_is_available(socket.assigns[:device_row])
+      device_state = merged_availability_state(uid, socket.assigns[:merged_availability])
 
       socket
       |> assign(:availability_request_ref, request_ref)
@@ -189,7 +190,7 @@ defmodule ServiceRadarWebNGWeb.DeviceLive.DeviceTabRuntime do
       |> start_async({:device_availability, uid, request_ref}, fn ->
         AvailabilityData.load_availability(srql_module, uid, scope,
           agent_id: agent_id,
-          device_is_available: device_is_available
+          device_state: device_state
         )
       end)
     else
@@ -197,11 +198,18 @@ defmodule ServiceRadarWebNGWeb.DeviceLive.DeviceTabRuntime do
     end
   end
 
-  defp device_row_is_available(row) when is_map(row) do
-    Map.get(row, "is_available") || Map.get(row, :is_available)
-  end
+  # The details batch that loads the device's canonical availability runs alongside this
+  # refresh, so until it lands the state is read on demand inside the async task.
+  defp merged_availability_state(_uid, %{state: state}), do: state
 
-  defp device_row_is_available(_), do: nil
+  defp merged_availability_state(uid, _availability) do
+    fn ->
+      case MergedAvailability.load([uid]) do
+        %{^uid => %{state: state}} -> state
+        _ -> :unknown
+      end
+    end
+  end
 
   def finish_availability_refresh(socket, uid, request_ref, result) do
     source = {uid, AvailabilityData.source_agent_id(socket.assigns[:device_row])}

@@ -125,7 +125,14 @@ defmodule ServiceRadar.EventWriter.Config do
     # Core's standalone log promotion consumer. The LOGS consumer below already
     # promotes every log on the same stream, so the two promoted each processed
     # log twice, under different event ids.
-    %{stream_name: "events", consumer_name: "log-promotion"}
+    %{stream_name: "events", consumer_name: "log-promotion"},
+    # The retired Go db-event-writer service, which this EventWriter replaced.
+    %{stream_name: "events", consumer_name: "db-event-writer"},
+    # The retired zen rules engine; the LOGS consumer reads its logs.* subjects.
+    %{stream_name: "events", consumer_name: "zen-consumer"},
+    # EventWriter's former FLOW_ATTRIBUTION stream config; EVENTS now reads
+    # events.flow.attribution and routes it to the :flow_attribution batcher.
+    %{stream_name: "events", consumer_name: "serviceradar-event-writer-flow-attribution"}
   ]
 
   defstruct [
@@ -769,6 +776,33 @@ defmodule ServiceRadar.EventWriter.Config do
     }
   end
 
+  @doc "Assessment after-images on the stream owned by the transactional outbox relay."
+  @spec exposure_transitions_stream() :: stream_config()
+  def exposure_transitions_stream do
+    %{
+      name: "EXPOSURE_TRANSITIONS",
+      subject: "vulnerability.assessment.transitions.>",
+      processor: ServiceRadar.EventWriter.Processors.ExposureTransitions,
+      ensure_stream: false,
+      consumer_max_deliver: -1,
+      batch_size: 100,
+      batch_timeout: 1_000
+    }
+  end
+
+  @doc "CVE and package descriptions on the stream owned by the dimension outbox relay."
+  @spec exposure_dimensions_stream() :: stream_config()
+  def exposure_dimensions_stream do
+    %{
+      name: "EXPOSURE_DIMENSIONS",
+      subject: "exposure.dimensions.*",
+      processor: ServiceRadar.EventWriter.Processors.ExposureDimensions,
+      ensure_stream: false,
+      batch_size: 100,
+      batch_timeout: 1_000
+    }
+  end
+
   @doc """
   Returns the default stream configurations.
 
@@ -880,6 +914,8 @@ defmodule ServiceRadar.EventWriter.Config do
       },
       scan_results_stream(),
       mtr_results_stream(),
+      exposure_transitions_stream(),
+      exposure_dimensions_stream(),
       %{
         name: "BMP_CAUSAL",
         stream_name: "events",
@@ -1375,6 +1411,10 @@ defmodule ServiceRadar.EventWriter.Config do
     config
     |> load_streams()
     |> Enum.reject(&flow_stream?/1)
+    |> Enum.reject(
+      &(Map.get(&1, :name) in ["EXPOSURE_TRANSITIONS", "EXPOSURE_DIMENSIONS"] and
+          not ServiceRadar.Analytics.StarRocks.Destination.enabled?())
+    )
   end
 
   defp load_flow_streams(config) do

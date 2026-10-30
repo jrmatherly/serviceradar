@@ -362,15 +362,21 @@ spec:
           value: "true"
         - name: SERVICERADAR_CORE_VAULT_ENABLED
           value: "true"
+        {{- $availabilityModeControl := (default (dict) $coreVals.availability).modeControl | default "" | toString | trim }}
+        {{- if $availabilityModeControl }}
+        {{- if not (has $availabilityModeControl (list "auto" "hold_legacy" "hold_shadow")) }}
+        {{- fail (printf "core.availability.modeControl must be auto, hold_legacy or hold_shadow, got %q" $availabilityModeControl) }}
+        {{- end }}
+        # Pins the merged availability mode control; the settings UI shows it read-only.
+        - name: SERVICERADAR_AVAILABILITY_MODE_CONTROL
+          value: {{ $availabilityModeControl | quote }}
+        {{- end }}
         {{- if not (hasKey (default (dict) $coreVals.extraEnv) "SERVICERADAR_LOCAL_MAILER") }}
         - name: SERVICERADAR_LOCAL_MAILER
           value: "false"
         {{- end }}
         {{- if not (hasKey (default (dict) $coreVals.extraEnv) "SERVICERADAR_ALERT_EVALUATION_MODE") }}
-        {{- $alertEvaluationMode := toString (default "prepared" (default (dict) $coreVals.alertEvaluation).mode) }}
-        {{- if not (has $alertEvaluationMode (list "prepared" "active" "draining")) }}
-        {{- fail (printf "core.alertEvaluation.mode must be prepared, active or draining, got %q" $alertEvaluationMode) }}
-        {{- end }}
+        {{- $alertEvaluationMode := include "serviceradar.alertEvaluationMode" . }}
         - name: SERVICERADAR_ALERT_EVALUATION_MODE
           value: {{ $alertEvaluationMode | quote }}
         {{- end }}
@@ -530,6 +536,8 @@ spec:
           value: {{ $coreJs.notifications.maxBytes | quote }}
         - name: {{ include "serviceradar.jetstreamEnvName" (dict "stream" $coreJs.exposureTransitions.stream "suffix" "MAX_BYTES") }}
           value: {{ $coreJs.exposureTransitions.maxBytes | quote }}
+        - name: {{ include "serviceradar.jetstreamEnvName" (dict "stream" $coreJs.exposureDimensions.stream "suffix" "MAX_BYTES") }}
+          value: {{ $coreJs.exposureDimensions.maxBytes | quote }}
         - name: SERVICERADAR_OTX_RAW_MAX_BUCKET_BYTES
           value: {{ $coreJs.threatIntel.maxBytes | quote }}
 
@@ -758,6 +766,20 @@ spec:
           value: {{ default 4 $observabilityRetention.timeseriesMetricsChunkIntervalHours | quote }}
         - name: SERVICERADAR_HOURLY_ROLLUP_RETENTION_DAYS
           value: {{ default 395 $observabilityRetention.hourlyRollupDays | quote }}
+        - name: SERVICERADAR_ADHOC_SCAN_RESULTS_RETENTION_DAYS
+          value: {{ default 30 $observabilityRetention.adhocScanResultsDays | quote }}
+        - name: SERVICERADAR_SERVICE_STATUS_RETENTION_DAYS
+          value: {{ default 14 $observabilityRetention.serviceStatusDays | quote }}
+        - name: SERVICERADAR_ENDPOINT_INVENTORY_HISTORY_RETENTION_DAYS
+          value: {{ default 395 $observabilityRetention.endpointInventoryHistoryDays | quote }}
+        - name: SERVICERADAR_SPANS_RED_RETENTION_DAYS
+          value: {{ default 90 $observabilityRetention.spansRedDays | quote }}
+        - name: SERVICERADAR_OTEL_METRICS_HOURLY_STATS_RETENTION_DAYS
+          value: {{ default 90 $observabilityRetention.otelMetricsHourlyStatsDays | quote }}
+        {{- if $observabilityRetention.tracesStatsDays }}
+        - name: SERVICERADAR_TRACES_STATS_RETENTION_DAYS
+          value: {{ $observabilityRetention.tracesStatsDays | quote }}
+        {{- end }}
         - name: SERVICERADAR_OTEL_TRACES_CHUNK_INTERVAL_HOURS
           value: {{ default 6 $observabilityRetention.otelTracesChunkIntervalHours | quote }}
         - name: SERVICERADAR_LOGS_CHUNK_INTERVAL_HOURS

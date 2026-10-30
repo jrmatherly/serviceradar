@@ -126,6 +126,9 @@ Keying on the local endpoint is what makes this cheap:
   belongs to. The agent also publishes **address leases** (its local addresses, renewed like
   socket leases, closed on removal), and re-expands wildcard leases when its addresses change.
 - **Unconnected UDP sockets are one lease** however many peers they talk to.
+- **Datagram key eligibility follows Decision 12.** An unbound UDP socket without a local
+  endpoint has no lease. ICMP socket/peer bindings require known addresses and zero ports,
+  survive idle intervals, and end on socket close; shared keys retain socket references.
 - **Outbound connections** are one event per new local ephemeral key, which bounds the volume
   from above.
 
@@ -158,10 +161,11 @@ event, on a running shard and after a rebuild alike (Decision 2).
 
 Wire format: extend `FlowAttributionEvent` with `lease_op`, `first_seen_unix_nano`,
 `last_seen_unix_nano`, `ttl_seconds`, and `closed`, and add `AddressLease` and
-`snapshot_complete` to `FlowAttributionEventBatch`. The `flow-attribution` delivery source,
-retained delivery, and gateway path are unchanged. During rollout, an event without `lease_op`
-(an old netprobe) is applied as an `OPEN` with a 10-minute TTL. This is only a decoding default
-for mixed versions; nothing is dual-written.
+`snapshot_complete` to `FlowAttributionEventBatch`. The `flow-attribution` delivery source
+and retained delivery stay the existing path. Agent and gateway relays must preserve the new
+fields before a new producer is enabled; the wire-compatibility section is the check. During
+rollout, the new decoder applies an event without `lease_op` (an old netprobe) as an `OPEN`
+with a 10-minute TTL. This is only a decoding default for mixed versions; nothing is dual-written.
 
 ### 2. A central endpoint ownership index, sharded by key
 
@@ -181,6 +185,9 @@ with `::ffff:` stripped):
   `(partition, proto, node_ip, remote_ip, remote_port)` for each outbound `connected` lease
   whose local address is not one of the agent's node addresses. The node IP comes from the
   agent's registered address, as the correlator uses today.
+  ICMP socket/peer bindings require known local and peer addresses, use zero ports, and
+  remain eligible until socket close. Shared keys retain references to their contributing
+  sockets; an idle socket is not expired using the legacy observation cache TTL.
 - **Address presence** `A = (partition, ip)`: a reference count of active leases and address
   leases on an address. It answers "is this a monitored address" (Decision 4).
 
@@ -519,7 +526,9 @@ ownership index never reads them, and attribution never depends on them.
 
 - **Key**: `(agent_id, owner, local_ip, local_port, peer_ip, peer_port, proto, direction)`,
   where `owner` is the interned attribution key (tgid, process start time, container id) and
-  `direction` is `inbound` (accepted) or `outbound` (connected). Every field keeps its observed
+  `direction` for TCP is `inbound` (accepted) or `outbound` (connected). For UDP, ICMP and
+  ICMPv6 it is `outbound` for a successful socket send-message operation and `inbound` for
+  a successful consuming receive-message operation, per Decision 12. Every field keeps its observed
   value, including the ephemeral ports, so within the budget a network-observed flow can be
   matched to the host-observed connection on its full endpoints. Connections that share the
   full key within one interval share one row.
@@ -527,8 +536,12 @@ ownership index never reads them, and attribution never depends on them.
   interval, and bytes and packets in each direction when netprobe has the counters (null
   otherwise). Each row carries provenance: `source = netprobe`, the agent id, the netprobe
   version, the owner record, and the aggregation level.
-- **Interval**: default 60 s, aligned per agent. A key with no connection in the interval emits
-  nothing.
+  Connection count means distinct socket lifetimes for TCP and successful message operations
+  for UDP/ICMP, not packets or batched API calls. Successful zero-length UDP counts; failed
+  operations and receive peeks do not.
+- **Interval**: default 60 s, aligned per agent. TCP connections contribute in every interval
+  they overlap, including idle connections. Datagram keys contribute only in intervals with
+  successful message activity. Any other key emits nothing.
 - **Budget**: a per-agent cap N on summary rows per interval (default 2,000, minimum 16). Below
   the cap nothing is aggregated. Over the cap, netprobe degrades in stages, applying each stage
   to the lowest-count rows first and stopping as soon as the interval fits:
@@ -551,9 +564,10 @@ ownership index never reads them, and attribution never depends on them.
   `attribution` retention dataset. Rows are never updated or deleted individually.
 
 Volume is bounded by the budget, not by connection count: at most 2,000 rows per agent per
-minute, about 33 rows/s. Full keys make rows roughly one per connection per minute below the
-cap. With an assumed median of 200-600 distinct full keys per host per minute, 20k hosts
-produce about 67k-200k rows/s (about 6-17B rows/day), and the strict cap bounds the worst case
+minute, about 33 rows/s. Below the cap there is one row per distinct full key per minute.
+TCP keys include idle sockets; datagram keys require successful message activity in that
+minute (Decision 12). With an assumed median of 200-600 distinct full keys per host per
+minute, 20k hosts produce about 67k-200k rows/s (about 6-17B rows/day), and the strict cap bounds the worst case
 at about 670k rows/s. Busy listeners reach the cap and degrade to `peer_ip` or `service` rows. Phase 0 measures the per-host
 distribution on the lab before this is sized.
 
@@ -564,6 +578,556 @@ distribution on the lab before this is sized.
     connection that the network saw but the host did not. Rejected.
   - *Drop rows over budget.* Silent loss defeats evasion detection. Rejected in favour of
     explicit, counted aggregation.
+
+### 10. Approved: coordinate the central cutover before enabling lease producers
+
+Status: approved by the coordinator on 2026-10-22. This approves the plan for deploying the
+already-approved straight switch. It does not authorize a rollout or waive Phase 0, and flows
+remain StarRocks-only. New lease producers cannot run against old core, and the old correlator
+must not write concurrently with the new attribution path. Neither combination is made safe by
+adding protobuf fields, a decode or drop fallback, another producer mode, mixed central writers,
+or dual-write.
+
+Prepare the compatible gateway and agent transport first, while netprobe still sends the
+old event shape. At the central cutover, drain old attribution admission and stop the old
+correlator and flow consumers, with the upstream flow stream retaining incoming work. Bring
+up the candidate core and EventWriter against the candidate streams and warehouse schema,
+then resume consumption. Enable the candidate netprobe only after every relay and central
+consumer on its route is compatible. Until then, and again whenever that route or core is the
+previous release, the candidate netprobe stays stopped. Old netprobe events arriving at the
+new core use Decision 1's `OPEN` / 10-minute TTL default, with no observation dual-write.
+
+The release rehearsal must prove that the existing stream and retained-delivery capacities
+cover this bounded interruption. If the drain cannot finish, the buffers cannot cover it,
+or an old central writer remains active, stop the cutover. A rolling mixture of old and new
+central writers is not the fallback. Roll back as described in the Migration Plan: stop
+candidate lease emission before old consumers return, restore the previous release and the
+previous netprobe artifact, and verify relay compatibility so that artifact's sighting
+heartbeats reach the previous central release. The previous correlator needs a fresh
+30-minute observation window; this is a recovery delay, not an immediate restoration of
+attribution coverage.
+
+### 11. Approved: a diagnostics prerequisite for the lab gates
+
+**Status: approved by the coordinator on 2026-10-22.** Decision 10 and the implementation
+sequence landed in PR #5934. This decision changes only the sequencing needed to obtain
+Phase 0 evidence; it does not waive any numeric gate or authorize a rollout.
+
+The read-only warehouse source retains repeated endpoint sightings but not `event_kind`,
+socket direction, close/state transitions or listener-coverage relationships. Those fields
+cannot be reconstructed from port-number heuristics. The available metric probe did not
+find centrally retained attribution-record or cache-entry series. Therefore it cannot prove
+the accepted/outbound split in task 0.1 or the full connection-summary key counts in 0.4.
+
+Permit a separate, bounded diagnostics-only netprobe change before implementation tasks
+1.x. It observes the existing socket lifecycle and owner cache while preserving the
+existing attribution payloads and delivery behavior. Its measurements must use the exact
+Decision 1 listener-coverage/promotion rules and Decision 9 full summary keys; it must not
+substitute raw sighting counts or approximate port classifications. Coordinate ownership of
+the touched netprobe files with #5752 before implementation.
+
+The diagnostics report aggregate counts only: covered accepts, outbound and promoted keys,
+projected OPEN/CLOSE/RENEW events, active local keys, history-depth distribution within the
+15-minute horizon, full summary-key counts per interval, and cap-reaching intervals. Keep
+diagnostic state bounded; a truncated cache, overflow, restart or incomplete warm-up marks
+the affected measurement window incomplete instead of making it look cheaper. Saturated
+summary counts may report an explicit lower bound above the cap, never an exact count.
+Use the existing metrics path through JetStream, with bounded labels and no socket,
+process, executable, address or package identifiers as metric labels. Persist only rounded,
+anonymous aggregate results in this change.
+
+The coordinator separately schedules any lab rollout. Record the observed window duration,
+coverage and incomplete windows, and review that evidence against tasks 0.1 and 0.4 before
+starting runtime implementation. The diagnostics are not ownership leases, production
+connection summaries, a replacement attribution writer, or a fallback producer mode.
+The 5 events/s, 200 bytes/key, 2-minute replay and summary-cap gates remain unchanged.
+Exposure task 0.5 also remains open; these diagnostics do not supply its missing address
+intervals or mapped evidence batches.
+
+### 12. Approved: diagnostic input completeness and datagram direction
+
+**Status: approved by the coordinator on 2026-10-23.** This fills gaps found while preparing
+Decision 11 after PR #5914 merged. It does not authorize a rollout, change the capacity
+targets, or permit runtime implementation before the Phase 0 gates pass.
+
+The current `FLOW_EVENTS` input cannot certify the measurements. Both emitters in
+`rust/netprobe/ebpf/src/lib.rs` suppress observations using coalesced attribution keys
+before publishing them, and ring reservation failures are not counted. Records lack kernel
+event timestamps. The userspace `AyaAttributionReader` starts with an empty socket inventory;
+the older procfs snapshot helper is not a complete census. Current process generations can
+be first-observation or exec times rather than process start times. UDP probes observe call
+entry and cannot supply an unconnected receive's peer or prove successful transfer.
+
+#### Capture and the initial population
+
+Add a separate, bounded diagnostic observation path before attribution coalescing. Preserve
+the existing attribution wire records, suppression rules, owner-cache behavior and delivery.
+Diagnostic observations carry kernel monotonic time, socket lifetime identity, full
+endpoints, lifecycle origin and owner-resolution status. Count failed observations and
+state updates independently of the diagnostic ring so a full ring cannot hide its own loss.
+Missing required hooks, unsupported layouts and failed reads are coverage failures.
+
+Start capture before a bounded, namespace-aware census of sockets, process owners and local
+addresses, then reconcile observations concurrent with that census. A census must report
+errors and truncation; an empty or partial result is not proof that no sockets exist. Keep
+the bootstrap's entry, byte and work limits explicit. Do not add privileges, change the
+executable resolver, or alter its cache contract as an incidental diagnostic change. If
+the existing privilege boundary cannot supply a required input, report that limitation for
+review instead of claiming completeness.
+
+A census can find an established TCP socket without recovering whether it was accepted or
+connected, or which listener covered it. Preserve that uncertainty. The affected whole-host
+measurement remains incomplete until authoritative observations resolve it or the socket
+retires and its affected history ages out. Waiting fifteen minutes alone does not make an
+unknown active socket known. A separately scheduled workload restart may establish a fresh
+baseline, but this decision does not authorize one. Do not silently restrict the population
+to sockets created after capture began or omit hosts whose windows remain incomplete.
+
+Owner comparisons use the actual `(tgid, process start time, container id)` identity from
+Decision 9. Resolve and validate process start time independently of the legacy generation
+field. Distinguish confirmed host ownership from unresolved container metadata. An
+unresolved identity, ambiguous socket holder or unreconciled namespace keeps the affected
+measurement incomplete; it must not become a synthetic shared owner or a covered accept.
+Wildcard expansion uses the reconciled address inventory, including changes during capture.
+
+#### TCP and datagram summary direction
+
+For TCP, retain the accepted/connected meaning of Decision 9 using lifecycle provenance,
+not ports or listener presence. A connection open during any part of a minute contributes
+its full key to that minute, including an idle connection. Listener coverage affects the
+projected ownership events, never whether its accepted peers count toward summary capacity.
+
+For UDP, ICMP and ICMPv6, define `outbound` as a successfully completed socket send-message
+operation and `inbound` as a successfully completed consuming receive-message operation
+with a known peer. Failed calls and receive peeks do not count; successful zero-length UDP
+operations do count. Count individual message operations within a batched API, not the
+batch call itself or the number of packets produced by segmentation or aggregation. Both
+directions for the same owner and endpoints produce separate keys when both occur in an
+interval. Preserve observed UDP ports; ICMP ports remain zero. The summary
+`connection_count` is the number of distinct socket lifetimes for TCP and successful
+message operations for these datagram protocols; byte and packet counters remain separate
+and optional.
+
+Only sockets with an eligible ownership key contribute to active keys or renewals: an
+unbound UDP socket without an assigned local endpoint does not qualify. ICMP requires known
+local and peer addresses for Decision 2's relaxed peer key, with zero ports; retain that
+observed socket/peer binding until its socket closes. Count distinct endpoint and derived
+peer keys separately, retaining reference counts when sockets share a key. A datagram
+socket with an eligible ownership key can remain active while idle, but contributes no
+summary key without message activity in that interval. Missing close or peer provenance
+is incomplete input, not permission to expire the socket using the legacy cache's TTL.
+
+These TCP population and datagram rules complete Decision 9's interval and direction
+contract. The diagnostic must not infer
+a conversation initiator from a first message, a low port, or the legacy UDP service
+heuristic. Unconnected UDP still projects one local ownership lease across all peers under
+Decision 1. Missing datagram receive, peer, close or owner observations prevent a complete
+whole-host gate result; a TCP-only result must not pass the whole-host gates.
+
+#### Windows, loss and delivery
+
+Project Decision 1 events in five-second batches using event time, preserving promotions
+ahead of listener changes and coalescing short OPEN/CLOSE pairs. Use the approved thirty-
+minute renewal period. Report renewal volume as the analytic active-lease-seconds divided
+by 1,800, separately from observed projected OPEN/CLOSE counts; do not present it as an
+observed or simulated renewal schedule. Measure history
+over a full fifteen-minute horizon. Report sixty-second full-key counts exactly until a
+bounded set saturates above the 2,000-row cap; beyond saturation report only an explicit
+lower bound and cap-reaching status. Publish the configured bounds with the measurements.
+
+Input loss or state truncation invalidates every later window that depends on the lost
+state. Recover only after a reconciled census has repaired active state and the affected
+history has aged out; unresolved provenance can keep recovery incomplete for longer.
+Restart and initial warm-up follow the same rule. Incomplete windows remain visible with
+bounded reason codes and are excluded from gate arithmetic, with their population and
+duration reported alongside the complete windows for coordinator review.
+
+Send the aggregate records through `addon_sdk::serviceradar_metric_record`, netprobe's
+existing `AddonService` stream, the agent add-on telemetry path and the gateway metrics
+publisher to JetStream and EventWriter. No new metric protocol or direct database writer
+is needed. The local Prometheus endpoint alone is not delivery evidence. Use fixed metric
+names and finite protocol, direction, completeness-reason and history-depth bucket labels;
+never put socket, process, executable, address, package or boot identifiers in labels.
+
+The existing add-on transport is bounded and may drop a report. StarRocks metric rows do not
+retain native start/reset metadata, so every value needed for the audit must be a persisted
+scalar measurement. Each sixty-second report has a format-versioned fixed set of names and
+finite label combinations, including explicit zeros. Its control gauges carry the format
+version, a generated diagnostic session token in four exact 32-bit limbs, interval sequence,
+start/end Unix seconds, and completeness with finite reason indicators. All integer values
+must fit exactly in DOUBLE (at most 2^53); do not encode epoch nanoseconds as a scalar.
+Use one canonical timestamp for all members of a report. Native reset metadata may be
+included as supplementary context, but is not warehouse completeness evidence.
+
+Finalize each report once and replay only identical timestamps, labels and values. Publish
+at most one report per producer and interval timestamp; do not publish corrections under
+the same key. Only report full intervals begun after the diagnostic session starts, so a
+restart does not publish a second version of an earlier session's interval. Clock regression
+or a timestamp collision invalidates gate use. The warehouse replaces rows with the same
+primary key and cannot prove that conflicting duplicates never occurred; producer boundary
+tests must prove immutability and restart handling instead of claiming warehouse detection.
+
+The separately scheduled measurement must have a private expected-host roster, start/end
+times and cadence independent of received metrics. Its read-only audit enumerates every
+expected host/interval and left-joins the received reports, including hosts with no reports.
+Missing edges, partial sets, unexplained resets and entirely absent sessions remain
+unavailable or incomplete, never zero activity. Only a full expected set whose controls
+agree is usable. Transport gaps do not themselves corrupt the collector's socket state,
+but the missing measurements remain unavailable. Commit only rounded anonymous coverage
+and results, never that private roster or raw reports.
+
+Implementation proceeds as a bounded input/census adapter, a separate diagnostic projection
+model, then native aggregate metric delivery. Synthetic lifecycle and stream-boundary tests
+must prove full-key preservation, same-owner listener coverage, promotion order, identity
+reuse, interval boundaries, datagram direction, saturation and recovery after loss. Existing
+attribution behavior must remain unchanged. Phase 0 tasks remain open until separately
+scheduled measurements meet their gates with reviewed coverage.
+
+
+### 13. Approved: finite capture closure before accepting measurements
+
+**Status: approved by the coordinator on 2026-10-23.** Decisions 11-12 authorize the
+diagnostic collector. They do not specify how a finite audit proves that its last
+coverage observation is final. The unpublished experimental collector cannot supply that proof.
+This decision does not authorize a lab rollout, new privileges, a dependency upgrade,
+or a separate BPF loader.
+
+An ordinary interval report is provisional. An audit must also receive one immutable
+terminal receipt for the same session, expected capture endpoint and final interval
+sequence. That receipt certifies that every source capable of changing the accepted
+prefix has finished or has made the session explicitly unavailable. Missing receipt,
+partial delivery, failed proof or expired completion budget means unavailable, never
+zero activity or implicit success. An earlier `complete` interval cannot bypass this
+requirement. Session-wide invalidation still excludes earlier reports from that session.
+Issuing the receipt must close that session token: resumed capture needs a new token
+and initial proof. Contradictory evidence after termination rejects the certificate;
+the implementation must not ignore late evidence merely because it already sent a receipt.
+
+The source review found two independent closure failures:
+
+- Disabling a map or draining the ring does not stop callbacks before the BPF program's
+  own entry counter. Ordinary `membarrier(GLOBAL)` waits for ordinary RCU, while BPF
+  trampoline retirement also protects instructions outside that region with RCU Tasks.
+- Detaching an exit hook can suppress a successful completion before it reaches any
+  diagnostic counter. A task can return from `sock_sendmsg`, pause before the exit
+  callback, and resume after teardown patched that callback away. Waiting for detached
+  callbacks cannot recover the missing record. The timestamp inside `emit()` is too
+  late to prove that the suppressed completion belonged after the measurement endpoint.
+
+These are properties of [trampoline teardown][closure-trampoline] and the
+[x86 return/callback sequence][closure-x86], not failures that a longer grace period fixes.
+
+**Spike result:** the bounded investigation approved as the next step is recorded in
+[closure-spike.md](closure-spike.md). No examined mechanism met the obligations below.
+A future proof must account for operations at entry and successful completion, retain
+exit delivery through the cutoff, and establish a source-reviewed completion barrier
+before issuing the terminal receipt. Pending, nested, missing or truncated operation
+state must make coverage unavailable. It must not silently move a completion across an
+interval boundary, discard the last interval, or treat a timeout as a barrier.
+
+Before implementation resumes, that proof must still establish all of the following:
+
+1. A finite cutoff that preserves or explicitly rejects every pending completion and
+   every unorderable source failure, including a task paused around an exit callback.
+2. A barrier supported by the pinned loader and existing privileges, with explicit
+   kernel eligibility and observable failure. A version string alone is insufficient.
+3. Bounded state and work, plus a bounded wait whose expiry leaves the receipt absent
+   or unsuccessful. The ordinary attribution path continues independently.
+4. Fixed scalar terminal membership through the existing telemetry path, with identical
+   replay and an audit that rejects a missing or contradictory terminal set.
+5. Synthetic negative controls for dropped completion, late loss, restart, failed
+   barrier and missing receipt, including operations in progress before entry accounting
+   starts and task-ID reuse. Live kernel validation remains separately scheduled.
+
+A per-link kprobe-multi sentinel is only a candidate, not an approved mechanism.
+The [older fprobe teardown][closure-old-fprobe] reaches a synchronous Tasks RCU wait;
+the [upstream 6.14 shared-graph implementation][closure-new-fprobe] does not guarantee
+that wait when another probe remains. Pinned Aya 0.13.1 also lacks a public multi-probe
+load/attach API. A raw syscall shim or dependency change, and any restriction of the
+eligible kernel population, must return as a concrete decision with spike evidence.
+Neither a sentinel alone nor a successful `close()` solves the pending-exit failure.
+
+Until this closure gate is satisfied, the collector stays exploratory and Phase 0
+measurements remain unavailable for acceptance. Tasks 0.6-0.8 stay exploratory. Do not
+label the prerequisite ready or start P2-P8. The recorded investigation is task 0.9 only.
+
+[closure-trampoline]: https://kernel.googlesource.com/pub/scm/linux/kernel/git/torvalds/linux/+/refs/tags/v6.8/kernel/bpf/trampoline.c
+[closure-x86]: https://kernel.googlesource.com/pub/scm/linux/kernel/git/torvalds/linux/+/refs/tags/v6.8/arch/x86/net/bpf_jit_comp.c
+[closure-old-fprobe]: https://kernel.googlesource.com/pub/scm/linux/kernel/git/torvalds/linux/+/refs/tags/v6.8/kernel/trace/fprobe.c
+[closure-new-fprobe]: https://kernel.googlesource.com/pub/scm/linux/kernel/git/torvalds/linux/+/refs/tags/v6.14/kernel/trace/fprobe.c
+
+## Implementation plan
+
+This is the reviewed implementation plan for #5738. The shared
+`ExecutableOwnership` message and its initial producer/ingest path landed through
+[#5919](https://github.com/carverauto/serviceradar/pull/5919). Exposure task 0.3
+records that delivery. This plan does not certify live validation of that
+workstream.
+
+**Current pickup:** Decision 13's bounded source investigation found no acceptable
+closure mechanism under the approved constraints. The [spike findings](closure-spike.md)
+record independent bootstrap, completion-time and terminal-barrier gaps. The
+[executable models](../../../build/tla/netprobe_closure/README.md) preserve the counterexamples and conditional
+protocol checks; they do not prove that a kernel barrier exists. The experimental
+collector remains unpublished. Tasks 0.6-0.8 and all measurement gates remain open;
+resolve the source proof and review any required architecture or scope change before
+expanding the collector or starting P2-P8. No lab rollout is authorized.
+
+### PR sequence and review boundaries
+
+Each row is a separately reviewable PR. Runtime PRs form one ordered integration stack;
+they are not individually deployable releases. The coordinator releases the complete
+stack only after its capacity and compatibility checks pass. New components can be tested
+in isolation before final wiring; no temporary production dual-write or second correlator
+is introduced to make an intermediate PR deployable.
+
+| Order | Scope and tasks | Evidence required before advancing |
+| --- | --- | --- |
+| P0 | This plan and approved Decision 10 | Strict OpenSpec validation; coordinator approval of Decision 10 recorded on 2026-10-22. That approval covers the plan only and is not a deployment authorization |
+| P1 | Phase 0 measurements and synthetic store/replay spike (0.1-0.5) | Median projected ownership rate <= 5 events/s/host; 2.5M-key shard including 15-minute history <= 200 bytes/key; two-hour replay ready <= 2 minutes; full summary-key distribution and cap frequency recorded, with only rounded anonymous lab measurements |
+| P2 | Additive lease, address, snapshot and summary wire messages; regenerated bindings; agent relay support (1.1, transport portion of 2.1, wire portion of 5.3) | Old-producer/new-consumer decoding; complete synthetic batches survive netprobe -> agent -> gateway -> core, including `ExecutableOwnership`; protobuf breaking and generated-artifact checks |
+| P3 | Ownership/summary publishers, streams, NATS permissions, history and summary warehouse processors (2.3-2.5, 5.1-5.2, 5.4-5.5) | Disjoint subjects, retention-bound refusal, whole-unit publish acknowledgement, append-only history/summary rows, retry behavior and StarRocks-required behavior |
+| P4 | Bounded index, time history, owner interning, expiry, placement, replay and batched lookup (3.1-3.8) | Port reuse, duplicate/reordered events, snapshots, history eviction, budget refusal, shard movement and warming tests; measured P1 store representation carried forward |
+| P5 | Netprobe lease lifecycle and bounded connection summaries, reconnect snapshots and version bumps (1.2-1.9, remainder of 2.1 and 5.3, 5.6) | Loaded-kernel TCP open/close gate; listener promotion; wildcard/address changes; renewal shedding; strict summary cap with every connection accounted for; package ownership preserved in both leases and summaries |
+| P6 | Flow-tier supervision, ingest attribution, hold and late decisions, versioned warehouse updates and diagnostics (4.1-4.7, 6.1-6.2) | Protocol/topology precedence parity; cross-shard subscribe-with-snapshot; delivery permutations converge; shrink/enrichment and evidence-only updates; cutoff, budget and failover accounting; other EventWriter pipelines remain coordinator-only |
+| P7 | Full capacity harness, integrated release wiring and removal of the old path (7.1-7.6, 8.1-8.4, 9.1-9.2) | All capacity targets; no acknowledged loss; exact-version artifact chain; workspace search for removed active references; release rehearsal of Decision 10 and rollback |
+| P8 | Coordinator-controlled lab rollout and post-rollout verification (8.5) | Post-rollout lease, summary and attributed-flow artifacts; positive delivery control and eligible exporter overlap; every failed or inconclusive case remains explicit |
+
+Task 2.2 belongs to the core-admission owner: this workstream supplies publisher completion
+and retry contracts plus integration tests, and consumes that owner's reviewed change for
+configurable concurrency and whole-unit JetStream acknowledgement. Do not edit `admission/`,
+`StatusHandler` or gateway StatusBuffer as an incidental part of P3/P5/P6. P7 cannot release
+until that dependency is satisfied. Matcher, threat-intel, identity/topology, Stream Load
+internals and CI routing remain outside these PRs.
+
+P1 is a build gate, not merely a benchmark to run after implementation. A failing gate is
+recorded with the measured margin and a proposed design adjustment before runtime work
+continues. Existing observations may lack the lifecycle/owner information needed for an
+exact projection; document that limitation rather than counting repeated sightings as
+connections or claiming a missing measurement passed. A successful pre-aggregation proxy
+from the exposure spike does not satisfy any of these gates.
+
+Approved Decision 11 permits the bounded diagnostics prerequisite within P1 to obtain its
+missing lab measurements. It does not permit P2-P8 runtime implementation to bypass P1.
+
+### Wire compatibility and retained delivery
+
+- Reuse `ExecutableOwnership` on lease owner records and summaries. Keep the canonical
+  assessment identity and installed version; preserve non-resolved states and provenance.
+  Do not infer a package from process names or replace the shared message with a second
+  schema. Overflow summaries retain Decision 9's explicitly reduced owner information.
+- Allocate unused protobuf tags, preserve existing tags/reservations, and regenerate Go,
+  Rust and Elixir bindings through the repository's generation targets. Keep absence of
+  `lease_op` distinguishable as the legacy default. An old sighting becomes an `OPEN` with
+  a 10-minute TTL only at the new decoder; an old consumer is not a supported lease decoder.
+- Verify fields through the actual relay conversions, including retained retries and
+  reconnects. Protobuf unknown-field behavior alone is not evidence that a JSON conversion
+  or a manually reconstructed batch preserves addresses, summaries or snapshot completion.
+  Do not enable a new producer through a relay that has not passed this test.
+- Preserve one producer batch as one acknowledgement unit under the existing row, byte and
+  deadline bounds. Splitting it by ownership bucket and summary subject cannot acknowledge
+  a successful prefix. Test failure after some publishes and retry of the complete batch.
+  Snapshot omission may only take effect when the complete snapshot has arrived; its
+  completion marker must survive chunking, reconnect and retry without closing live leases.
+- Duplicate lease delivery must leave the index unchanged. Separately verify the effect of
+  retained redelivery on append-only history/summary counts; an index idempotence test does
+  not prove summary-count idempotence. Any required change to the approved append-only
+  storage or delivery contract is a proposed Decision before implementation.
+- Bump the native add-on manifest, Bazel `NETPROBE_VERSION` and in-source producer-version
+  constants together for every relevant netprobe change. A manifest-only bump cannot prove
+  that the running producer contains the lease or summary implementation.
+
+### Compatibility matrix and deployment order
+
+| Producer and route | Central consumer | Supported behavior |
+| --- | --- | --- |
+| Old netprobe, old or transport-compatible relay | Old release | Existing sightings/correlator until cutover |
+| Old netprobe, transport-compatible relay | New release | Legacy decode to 10-minute leases; ownership stream only; no fabricated connection summaries |
+| New netprobe, compatible agent and gateway | New release | Native leases, complete snapshots, address presence and connection summaries |
+| New netprobe with an old relay or old core | Either | Unsupported. The candidate netprobe stays stopped while its route or core is old; no decode, drop, or new-producer fallback |
+| Any producer with old and new central attribution writers active together | Mixed | Unsupported central cutover; drain the old writers first |
+
+Under approved Decision 10, the release runbook will use this order:
+
+1. Prove P1-P7 on synthetic fixtures and the complete candidate stack. Compare the same
+   synthetic protocol/topology cases against the existing precedence contract, including
+   expected differences for late shrinkage and ambiguity; never run two production writers
+   to obtain parity evidence. Verify stream capacity for the cutover and the rollback
+   artifacts before changing the deployment.
+2. Prepare compatible gateway and agent transports with the old netprobe still emitting
+   sightings. Confirm the retained-delivery route preserves all new fields in tests.
+3. Drain and stop old central attribution writers; retain incoming flow work in JetStream.
+   Apply the candidate schema/stream changes and start the candidate core and EventWriter.
+   Do not drop the observation table while an old correlator or observation consumer can
+   still access it. Verify subject ownership, NATS permissions and replay readiness before
+   resuming the candidate flow consumers.
+4. Enable the matching netprobe artifact on routes whose agent, gateway and core are ready.
+   Confirm reconnect snapshots and new summaries. The mixed-producer period has reduced
+   host evidence for old netprobes and does not satisfy exposure's live-summary gate.
+5. After rollout completion, verify exact running artifacts and use the spec's controlled
+   TCP stimulus and positive delivery control. Require the resulting lease, matching flow
+   and committed attributed row, plus summary evidence. Health messages or acknowledgements
+   alone do not pass the gate. The coordinator performs rollout/stimulus actions; the
+   exposure measurement session remains read-only on the lab.
+
+On failure, stop candidate lease emission before old consumers return. Restore the previous
+core and EventWriter and, where the route requires it, the previous gateway and agent.
+Restore the previous netprobe artifact and its sighting heartbeats for the previous central
+release, and verify relay compatibility before those heartbeats resume. Recreate the
+observation subject, permissions, and DDL in that same coordinated rollback. A candidate
+netprobe stays stopped while its route or core is old. Verify restored sighting writes
+before counting the fresh 30-minute observation window. No decode or drop fallback, new
+producer mode, mixed central writers, dual-write, CNPG fallback, backfill, or warehouse
+rescan is part of recovery.
+
+### Dependency back to exposure intelligence
+
+This change supplies exposure task 0.4: the ownership index, late decisions, address
+presence and `host_connection_summaries` carrying executable ownership. It does not supply
+exposure's `exposure_device_addresses` intervals or per-side device ordinal/outcome columns;
+those belong to exposure tasks 2.1-2.4. Exposure task 0.5 remains open until its real evidence
+keys and per-batch ratios can be measured, including host summaries and mapped network
+sides. Neither a raw-tuple ratio nor the existence of a summary table passes it.
+
+Exposure Decision 21
+(`openspec/changes/add-srql-exposure-intelligence/design.md`) lets the assessment
+foundation in tasks 1.x proceed while the remaining Phase 0 attribution and
+measurement gates still block traffic evidence integration and launch. The network
+measurement still needs the later address and stamping work. This plan does not
+move or waive that gate. If the measured network
+ratio exceeds 25%, its approved async-view fallback must be selected before exposure
+3.x; a failed host ratio requires its own design review.
+
+## Phase 0 preflight evidence (2026-10-22)
+
+No Phase 0 task is checked off by these preliminary results. Lab tasks 0.1 and 0.4 lack the
+inputs described in Decision 11. The complete store/history and replay gates still
+need measurement, and no default history cap has been selected from lab data.
+
+### Synthetic ETS memory floor
+
+The executable experiment lives in
+`elixir/serviceradar_core/bench/ownership_store_spike_test.exs`. Each profile ran in its own
+fresh OTP 28 VM on remote Bazel with 2.5M keys, approximately 20k interned owners (one per
+128 keys), and 1,000-key lookup batches. All addresses, owners and distributions were invented.
+Keys were 80% endpoint, 15% exact-peer and 5% relaxed-peer, with packed IPv6 addresses.
+Histories contain 32-byte intervals within the 15-minute horizon, including an active interval.
+
+| Synthetic history profile | Mean depth | Memory floor per key | Populate rate | Lookup rate |
+| --- | --- | --- | --- | --- |
+| One interval per key | 1.0 | ~160 bytes | ~0.6M keys/s | ~0.8M keys/s |
+| 90% depth 1, 9% depth 4, 1% depth 32 | 1.6 | ~190 bytes | ~0.9M keys/s | ~1.0M keys/s |
+| 70% depth 1, 25% depth 4, 5% depth 32 | 3.3 | ~270 bytes | ~0.5M keys/s | ~0.6M keys/s |
+
+The reuse stress profile exceeds 200 bytes/key by about 70 bytes (~35%) before a complete
+shard exists. The lighter profiles are lower bounds, not passing store results. The experiment
+includes the key/history ETS table and both directions of owner interning. It adds the larger
+of the observed VM binary-memory growth and the known off-heap binary payload to ETS word
+accounting, so large history and owner binaries are not omitted. Whole-VM growth is also
+reported, but no claim about resident process memory or allocator fragmentation is made.
+
+Missing costs include expiry, snapshot membership, address-presence indexes, owner reclamation,
+owner enrichment, concurrent access, shard placement and notification bookkeeping. The compact
+intervals also omit connected-peer context stored outside the lookup key. Rates are single-run
+table-level observations, including fixture/request construction; they are not distributed
+lookup throughput, a production apply rate, or replay readiness. This memory-only experiment
+did not run JetStream replay; the separate replay baseline below does. Task 0.3 cannot be
+inferred by multiplying the populate rate by an event count.
+
+All three corpus checks passed: keys did not collide, current and historical intervals resolved,
+and expired/missing intervals returned no owner. A passing ExUnit result verifies the experiment;
+the printed `memory_floor_gate` is the separate capacity verdict. No Rust implementation is
+selected from these assumed distributions alone. Decision 2's Rust fallback remains the approved
+choice if the complete, representative ETS store exceeds the gate.
+
+Reproduce the scale run (small 25k-key corpora run by default in the benchmark targets):
+
+```sh
+bazel test -c opt --config=remote \
+  //elixir/serviceradar_core:ownership_store_spike_single_test \
+  //elixir/serviceradar_core:ownership_store_spike_mixed_test \
+  //elixir/serviceradar_core:ownership_store_spike_reuse_test \
+  --test_env=OWNERSHIP_SPIKE_KEYS=2500000 --test_output=all --test_timeout=600
+```
+
+Validation: [remote scale invocation](https://carverauto.buildbuddy.io/invocation/858965ae-f166-492f-9e2f-9ee9fe45817c).
+An earlier combined-VM calibration was superseded because delayed cleanup from one profile
+could contaminate the next profile's memory baseline.
+
+### Synthetic JetStream replay baseline (2026-10-23)
+
+`elixir/serviceradar_core/bench/ownership_replay_spike_test.exs` measures acknowledged
+publishing, persistence across a graceful broker restart, and reconstruction of empty packed
+ETS tables through a new explicit-ack pull consumer. All three 2.5M-key corpora passed their
+correctness checks, but **all three exceeded both the 120-second replay target and the
+200-byte/key memory target**. Tasks 0.2 and 0.3 remain open; this is not a complete shard.
+
+| Invented history profile | Events over two logical hours | JSON payload | Replay time | Memory floor per active key |
+| --- | --- | --- | --- | --- |
+| One interval per key | ~12.5M | ~9 GB | ~151 s | ~270 bytes |
+| 90% depth 1, 9% depth 4, 1% depth 32 | ~15.2M | ~11 GB | ~237 s | ~310 bytes |
+| 70% depth 1, 25% depth 4, 5% depth 32 | ~23.3M | ~17 GB | ~385 s | ~390 bytes |
+
+Replay exceeded the target by about 31, 117 and 265 seconds, respectively. Each profile
+starts with 2.5M keys at logical time -7200 seconds. Four fleet-wide renewals of that
+original lease follow, at -7200, -5400, -3600 and -1800 seconds. A later per-key tail then
+renews an unchanged lease or closes and reuses the key so the retained 15-minute history
+matches the selected depth. Six additional control events exercise duplicate closure, a
+stale renewal after closure, and expiry inside/outside the history horizon. These are
+invented distributions, not measurements of host activity.
+
+The pinned NATS 2.14 server runs beside OTP 28 on the remote executor, with a file-backed,
+single-replica stream, `max_age` two hours, `discard: new`, and a 24 GiB byte limit. Each JSON
+message contains up to 500 events, each carrying its owner context; pulls request eight
+messages. The BEAM uses four schedulers. Profiles were submitted concurrently to shared RBE,
+without dedicated hardware or a CPU reservation. The link is loopback without TLS. Event time
+is accelerated: this does not test two hours of wall-clock retention or a cold filesystem
+cache. JSON maps and prepacked base64 keys are an experiment encoding, not a production wire
+decision; address normalization and bucket routing are not measured.
+
+The timer includes table/subscription/consumer creation, pulls, JSON decoding, owner interning,
+interval updates and final acknowledgement settlement. It excludes corpus generation and
+publishing, broker restart, connection setup, the final corpus scan and memory accounting.
+Readiness of this experiment requires every numbered batch and independently counted event,
+zero pending and unacknowledged messages, and the expected final acknowledgement sequence.
+Every active key's current owner and history depth are checked after replay, together with a
+historical owner on each reused key and close/expiry boundaries. A deliberately broken close
+guard failed at the closed-interval lookup; the exact correct source was restored before scale.
+
+Memory includes the key/history table and both owner-interning tables, plus the larger of VM
+binary-memory growth and known off-heap history/owner payload. Whole-VM growth was approximately
+0.7, 0.8 and 1.0 GB, respectively; resident memory, allocator fragmentation and the separate
+broker are not measured by this figure. These values include allocations from decoding and
+incremental updates, with a different serialized owner context from the preloaded experiment.
+They are not a production regression comparison or an explanation of the allocation difference.
+
+Missing shard costs remain expiry scheduling, snapshot membership and omission handling,
+address-presence indexes, owner reclamation/enrichment, placement, notifications, budgets and
+concurrent readers/writers. The experiment prunes against a fixed replay-time cutoff, and does
+not prove all production ordering, snapshot or replay-to-live handoff semantics. Passing ExUnit
+checks confirms corpus reconstruction; the printed timing/memory verdicts are separate. No
+default history cap or Rust implementation is selected from these assumed profiles. Before
+accepting P1, the complete representative store and replay path must meet the original gates;
+any architecture adjustment still requires a concrete reviewed decision.
+
+Evidence for this uninstrumented baseline: [all three scale runs](https://carverauto.buildbuddy.io/invocation/36684ef2-51b7-4560-8892-f463319a71d1),
+[small corpus checks](https://carverauto.buildbuddy.io/invocation/4ac6a3cf-4ae6-456a-a527-e351b34c2076),
+and [close-guard negative control](https://carverauto.buildbuddy.io/invocation/82e8a2fc-5111-41cc-a75f-ff96b446f6a6).
+That run submitted the three scale targets together. Default 2,500-key runs only check correctness:
+
+```sh
+bazel test -c opt --config=remote \
+  //elixir/serviceradar_core:ownership_replay_spike_single_test \
+  //elixir/serviceradar_core:ownership_replay_spike_mixed_test \
+  //elixir/serviceradar_core:ownership_replay_spike_reuse_test \
+  --test_env=OWNERSHIP_REPLAY_KEYS=2500000 --test_timeout=1800 \
+  --test_output=all --flaky_test_attempts=1
+```
+
+Those targets now print `protocol=2` and time phase instrumentation inside replay, so this
+command does not reproduce the table. The [replay cost investigation](replay-costs.md) records
+that instrumented protocol, the copy modes and the later measurements. It keeps this corpus,
+its correctness checks and the original gates.
 
 ## Known edge cases and deferred decisions
 
@@ -651,21 +1215,31 @@ Load is generated from invented data in 192.0.2.0/24, 198.51.100.0/24, 203.0.113
 ## Migration Plan
 
 Straight switch in one release, following `move-flow-attribution-to-starrocks`: attribution
-state is ephemeral, and only the team's own deployments run flow attribution.
+state is ephemeral, and only the team's own deployments run flow attribution. Approved
+Decision 10 (2026-10-22) is the no-overlap cutover and rollback order for that switch. The
+approval is of the plan only and does not authorize deployment.
 
 1. Ship netprobe and agent lease emission, the ownership publisher and stream, the index, and
-   on-ingest attribution together, with the correlator deleted in the same release.
-2. While old netprobe versions roll forward, their events decode as `OPEN` with a 10-minute TTL
-   (Decision 1). Their heartbeats keep those leases alive until the agent upgrades.
-3. Drop `flow_process_attribution_observations` and remove `flows.attribution.observations`
+   on-ingest attribution in the same release, with the correlator deleted in that release.
+   Enable them only in the Decision 10 order: a candidate netprobe stays stopped until every
+   relay and central consumer on its route is compatible.
+2. While old netprobe versions roll forward against the new core, their events decode as
+   `OPEN` with a 10-minute TTL (Decision 1). Their heartbeats keep those leases alive until
+   the agent upgrades.
+3. After the old correlator and observation consumers are stopped, drop
+   `flow_process_attribution_observations` and remove `flows.attribution.observations`
    from the `flows` stream, the NATS permissions and the EventWriter config. Create
    `flow_ownership_leases` and the `flow_ownership` stream.
 4. Run the post-rollout verification against the lab.
 
-Rollback: redeploy the previous release together with the previous netprobe add-on version,
-because the correlator needs sighting heartbeats. It works again once 30 minutes of new
-observations have arrived. Flows written while this change was live remain attributed. The dropped
-observation table is recreated by its DDL.
+Rollback: stop candidate lease emission before old consumers return, then redeploy the
+previous release together with the previous netprobe add-on. Verify relay compatibility
+before that artifact resumes sighting heartbeats; the previous central release needs those
+heartbeats. A candidate netprobe stays stopped while its route or core is the previous
+release. The correlator works again once 30 minutes of new observations have arrived. Flows
+written while this change was live remain attributed. The dropped observation table is
+recreated by its DDL. No decode or drop fallback, new producer mode, mixed central writers,
+dual-write, CNPG fallback, backfill, or warehouse rescan is part of recovery.
 
 ## Open Questions
 

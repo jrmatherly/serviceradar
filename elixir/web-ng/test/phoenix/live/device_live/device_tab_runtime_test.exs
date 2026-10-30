@@ -77,6 +77,62 @@ defmodule ServiceRadarWebNGWeb.DeviceLive.DeviceTabRuntimeTest do
       assert is_nil(completed.assigns.availability_request_ref)
     end
 
+    test "synthesizes fallback availability from the canonical state, keeping unknown unknown" do
+      for {merged_availability, expected_uptime, expected_source} <- [
+            {%{state: :unavailable}, 0.0, :plugin_reported},
+            {%{state: :available}, 100.0, :plugin_reported},
+            {%{state: :unknown}, nil, nil}
+          ] do
+        socket =
+          Phoenix.Component.assign(availability_socket(), :merged_availability, merged_availability)
+
+        pending =
+          DeviceTabRuntime.maybe_reload_availability_for_active_tab(
+            socket,
+            "details",
+            @device_uid,
+            __MODULE__
+          )
+
+        assert_receive {:availability_query, task, query}
+        assert query =~ "metric_name:icmp_available"
+        request_ref = pending.assigns.availability_request_ref
+        send(task, :finish)
+
+        assert_receive {:availability_query, ^task, sweep_query}
+        assert sweep_query =~ "metric_name:sweep.host.available"
+        send(task, :finish)
+
+        assert_receive {:phoenix, :async_result,
+                        {:start,
+                         {_async_ref, nil, {:device_availability, @device_uid, ^request_ref}, {:ok, availability}}}}
+
+        completed =
+          DeviceTabRuntime.finish_availability_refresh(
+            pending,
+            @device_uid,
+            request_ref,
+            {:ok, availability}
+          )
+
+        assert completed.assigns.availability.uptime_pct == expected_uptime
+        assert Map.get(completed.assigns.availability, :source) == expected_source
+
+        if expected_source == :plugin_reported do
+          observed =
+            completed.assigns.availability.offline_checks + completed.assigns.availability.online_checks
+
+          assert observed == completed.assigns.availability.bucket_count
+          assert completed.assigns.availability.unknown_checks == 0
+        else
+          assert completed.assigns.availability.offline_checks == 0
+
+          assert completed.assigns.availability.unknown_checks ==
+                   completed.assigns.availability.bucket_count
+        end
+      end
+    end
+
     test "a source change cancels the old scan and starts one for the selected agent" do
       pending =
         DeviceTabRuntime.maybe_reload_availability_for_active_tab(

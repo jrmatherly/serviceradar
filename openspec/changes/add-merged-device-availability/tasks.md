@@ -1,8 +1,9 @@
 ## 0. Preconditions
 
 - [ ] 0.1 Archive `add-per-agent-availability` so that its device-inventory requirements are in `specs/` before this change archives
-- [ ] 0.2 Get the user's decisions on the remaining design.md Open Questions (Q5, Q6, Q7 and Q11); Q1-Q4, Q8-Q10 and Q12 are decided
-- [ ] 0.3 Fix the readers marked "fix" in design.md before stage c: `device_tab_runtime.ex:201` turning false into nil, and the `basic_summaries.ex` retired filter.
+- [x] 0.2 Get the user's decisions on the remaining design.md Open Questions (Q5, Q6, Q7 and Q11); Q1-Q4, Q8-Q10 and Q12 are decided
+  - Decided 2026-10-24 (design.md, Open Questions): the pin outranks `operator_policy` (Q5); event gating is a deployment setting with the sweep-group flag as a filter (Q6); no restoring trigger, an append-only violation trigger plus accept-list removal and a static check (Q7); W19 survivor-wins is out of scope (Q11).
+- [x] 0.3 Pre-stage-c reader fixes in the design.md web-ng reader table: `device_row_is_available/1` and `basic_summaries.ex`
 
 Phasing: phase 1 is sections 1 and 2 (capture plus shadow and the divergence report, no behavior change). It ships and is reviewed on demo before phase 2 (sections 3 and 4) begins.
 
@@ -15,7 +16,7 @@ Phasing: phase 1 is sections 1 and 2 (capture plus shadow and the divergence rep
   - the mode-aware mirror trigger that keeps `availability_state` equal to the projection of `is_available` in `legacy` and `shadow`;
   - the Armis source attribute `northbound_availability_semantics`, with existing sources set to `legacy`.
 - [x] 1.2 Source registration descriptors `{source_kind, authority_class, default_ttl, min_ttl, max_ttl}`, and Ash resources for the new tables.
-- [x] 1.3 A `BEFORE INSERT OR UPDATE` trigger on `device_agent_availability` maintains `consecutive_down` from `OLD`/`NEW` `is_available`, advancing only when `checked_at` advances. A separate `AFTER INSERT OR UPDATE` trigger appends the device to the invalidation log only when the stored result can change a decision (insert, changed value or counter, or an unchanged renewal whose previous `checked_at` is older than half the row's freshness TTL). W4, W18 and W19 need no code change. No other ledger change; the ledger is never pruned or rewritten by availability code.
+- [x] 1.3 A `BEFORE INSERT OR UPDATE` trigger on `device_agent_availability` maintains `consecutive_down` from `OLD`/`NEW` `is_available`, advancing only when `checked_at` advances and recomputing when `is_available` changes at an equal `checked_at` (migration `20261025150000`, which also seeds unavailable rows left at 0). A separate `AFTER INSERT OR UPDATE` trigger appends the device to the invalidation log only when the stored result can change a decision (insert, changed value or counter, or an unchanged renewal whose previous `checked_at` is older than half the row's freshness TTL). W4, W18 and W19 need no code change. No other ledger change; availability code does not prune the ledger or change a row's stored result or timestamps.
   - Stage a: the invalidation triggers append only outside `legacy` mode, because nothing consumes the log before the stage-b worker; the switch to `shadow` starts from a full resolution. A moved row (W19), a changed sweep group and a changed reporter expectation also append, since each can change a decision.
 - [x] 1.4 `Availability.record_evidence/2`, write-on-change, with decision-bearing fields written immediately and lease coalescing for unchanged observations.
 - [x] 1.5 Submit evidence from every non-ledger writer (capture only, best effort, switchable with `SERVICERADAR_AVAILABILITY_EVIDENCE_CAPTURE`):
@@ -30,7 +31,7 @@ Phasing: phase 1 is sections 1 and 2 (capture plus shadow and the divergence rep
   - The sync path records only registered sources: the Go `DeviceUpdate.IsAvailable` is a plain boolean, so an unregistered sync source's value is not evidence (design, Go readers).
 - [ ] 1.5a Legacy writers (W1-W3, W5-W11, the W14 create default) also maintain `device_availability_legacy`, write-on-change, with their full computation; legacy publishers emit only in `legacy` and `shadow`.
   - Stage a (done): in `legacy` and `shadow` an `ocsf_devices` trigger copies every change of the value the legacy writers computed (`is_available`, including the create default) into the table, write-on-change. The publishers still emit unconditionally, which is the same thing while `legacy` is the only reachable mode.
-  - Remaining for stage c (3.1, 3.2, 3.5): writers that write the table directly and compute against it in `cutover`, and publishers gated on the mode read under the draining lock.
+  - Stage c: in `cutover` and `authoritative`, sweep, sync, camera and composite writers compute against the compatibility table and write only it, reading the mode under the shared lock. An agent check-in reads `Mode.current/0` without that lock (`LegacyWrites`). Legacy publishers emit only in `legacy` and `shadow`.
 - [x] 1.5b Add the plugin manifest `availability_authority` for proxmox, starlink and opentext-nom, and `inventory_declared` for the awx `enabled` flag, before shadow collection starts.
 - [x] 1.6 The composite evaluation pass materializes vantage expectations, write-on-change; every expectation change appends its device to the invalidation log.
 - [x] 1.6a `availability_invalidations (id bigserial, device_uid, enqueued_at)`, written only by plain `INSERT` (no `ON CONFLICT`, no reads) from the ledger `AFTER` trigger, an `AFTER UPDATE` trigger on `availability_source_agent_id`, the expectation trigger and the availability source profile update path.
@@ -62,21 +63,20 @@ Phasing: phase 1 is sections 1 and 2 (capture plus shadow and the divergence rep
   - per-source Armis canonical push changes;
   - sample uids.
   - `Availability.DivergenceReport` (read-only transaction, statement timeout, one aggregate pass per section), printed by `Availability.Operator.report/1` (`bin/serviceradar_core rpc` or `eval`) and `mix serviceradar.availability.report`. It also reports R5: evidence flips to `down` within half a lease of the stored `up` (marked by `EvidencePlan` in the record's `detail`) and decisions within half a lease of a disagreeing observation.
-  - Entering `shadow` (`Mode.enter_shadow/0`, `mix serviceradar.availability.mode shadow`) enqueues one full paged resolution and seeds `device_availability_legacy` for every device (write-on-change, `SKIP LOCKED`); `legacy` is the rollback and drops the shadow rows.
-- [ ] 2.6 Run on demo and the lab deployment, including the Wi-Fi AP split, and review with the user. This review ends phase 1 and is the gate for phase 2.
+  - Entering `shadow` (`Mode.enter_shadow/1`, `mix serviceradar.availability.mode shadow`) enqueues one full paged resolution and seeds `device_availability_legacy` for every device (write-on-change, `SKIP LOCKED`); `legacy` is the rollback and drops the shadow rows.
+- [x] 2.6 Run on demo and the lab deployment, including the Wi-Fi AP split, and review with the user. This review ends phase 1 and is the gate for phase 2.
+  - Reviewed 2026-10-24 on the demo report (design.md, "Phase-1 review"). The user confirmed the Wi-Fi AP split: the managing controller wins over a failing sweep.
 
 ## 3. Stage c: cutover (`cutover` then `authoritative`)
 
-- [ ] 3.1 The mode switch takes an advisory lock that drains in-flight writers; writers read the mode under the shared lock.
+- [ ] 3.1 The mode switch takes an advisory lock that drains in-flight writers. Sweep, sync, camera and composite writers read the mode under the shared lock. An agent check-in reads `Mode.current/0` without it (`LegacyWrites`).
 - [ ] 3.2 Under the drained switch to `cutover`, seed `device_availability_legacy` from `is_available` before any reader switches. In `cutover`, legacy writers write only that table, computing against it, and the resolver suppresses all transition side effects.
-- [ ] 3.3 The reconciliation job:
-  - re-resolves every device from its current ledger rows, evidence and vantage expectations under the device lock, through `resolve_devices/2` (never copying shadow output), writing false where `is_available` is NULL;
-  - refreshes the rollups once;
-  - reconciles stateful alerts;
-  - emits one summary event;
-  - moves the mode to `authoritative` only when it has finished.
-- [ ] 3.3a Rollback to `legacy`: under the drain, restore `is_available` from `device_availability_legacy` in uid-ordered pages so the mirror re-derives `availability_state`; legacy publishers resume with the mode.
-- [ ] 3.4 Rollup migration: an `unknown` key, the trigger counting by state, and a narrowed `WHEN`.
+- [ ] 3.3 The reconciliation job (`CutoverWorker`, phase `reconcile`):
+  - re-resolves every device from its current ledger rows, evidence and vantage expectations under the device lock, through `Resolution.resolve_locked/2` (never copying shadow output), writing false where `is_available` is NULL, and stops if the mode leaves `cutover`;
+  - refreshes the rollups once, still in `cutover`;
+  - moves the mode to `authoritative` only when that pass finishes, and enqueues `announce` in the same transaction. Announce publishes the summary and, when transition events are on, `device.available` for devices whose legacy value was false and whose merged state is available. Announce stops unless the mode is still `authoritative`.
+- [ ] 3.3a Rollback to `legacy`: the switch deletes waiting transition jobs and enqueues a paged restore of `is_available` from `device_availability_legacy`. The restore runs after the switch commits and stops unless the mode is still `legacy`; the mirror re-derives `availability_state`. Legacy publishers resume with the mode. A transition job already running publishes nothing once the mode is no longer `authoritative`.
+- [ ] 3.4 Rollup migration: an `unknown` key and triggers that count by `availability_state`. The statement triggers keep their shape; migration `20261024120000` records why a `WHEN` clause cannot narrow them.
 - [ ] 3.5 Resolver-emitted transitions go through the outbox and are emitted only in `authoritative`. Display-only changes broadcast a UI invalidation only. `state_events.ex` publishes `is_available` only in `legacy` and `shadow`.
 - [ ] 3.6 Armis runner:
   - the canonical path reads `device_availability_legacy` for `legacy` sources in every mode, and the state (withholding unknown) for `merged` sources;
@@ -87,26 +87,39 @@ Phasing: phase 1 is sections 1 and 2 (capture plus shadow and the divergence rep
   - the `availability`, `availability_source`, `availability_class`, `agent_reachability` and `availability_policy` fields, plus `agents_up` and `agents_total`;
   - default order by availability rank;
   - the summary `unknown` count.
-- [ ] 3.8 web-ng:
+- [x] 3.8 web-ng:
   - the badge from state;
   - "up from N of M agents" and the partial-reachability marker;
   - the negative-control indicators;
   - an Unknown card;
   - the evidence section and the agent role labels on the device page;
-  - the API JSON and `openapi.json`;
+  - the API JSON;
   - the MCP cookbook.
+  - `elixir/web-ng/priv/static/openapi.json` is generated from the core Device Ash resource. This cutover edited that generated document in place (the merged availability read attributes and the `is_available` description) because regenerating it needs `mix`.
 - [ ] 3.9 Lab-deployment proof, each check with an explicit failure branch:
   - order, count and badge agree for every device;
   - Armis agent-path candidate rows are byte-identical to stage a for the same ledger contents;
   - no per-device event burst at cutover;
   - WAL per hour is at or below the baseline.
 
+### 3a. Automatic progression (decided 2026-10-25; design.md, Decision 10)
+
+- [x] 3a.1 Migration: `availability_settings.mode_control` (default `auto`), `mode_control_pin`, `shadow_entered_at`, `shadow_resolved_at`, `readiness`, `readiness_checked_at`; a deployment already in `shadow` takes `shadow_entered_at` from `updated_at`. Helm `core.migrations.expectedVersion` bumped.
+- [x] 3a.2 `ModeControl`: the three controls, the `SERVICERADAR_AVAILABILITY_MODE_CONTROL` pin (an invalid value holds), and `set/2`, which runs `Setting.set_mode_control` and enqueues a run. The action is refused while a pin is recorded.
+- [x] 3a.3 `Readiness`: the five conditions, each one bounded query; `CaptureBackfillWorker.pending?/0` and `DivergenceReport.policy_violations/1` share their owners' predicates. `ShadowEntryWorker` records `shadow_resolved_at` after a full pass that started after the entry.
+- [x] 3a.4 `ProgressionWorker` (cron every minute, `maintenance`, unique): records the pin and the readiness, takes one step through the existing switches, and re-enqueues a missing restore when the compatibility snapshot still differs instead of entering `shadow`. It records `availability_cutover_readiness` unhealthy when the conditions are unmet 24 hours after the entry, and records it healthy on a later run only when that check is already unhealthy and the stall no longer holds. Switches take `control:` and refuse a changed control; `Mode.enter_legacy/1` in `legacy` changes nothing, so a repeated rollback keeps the restore.
+- [x] 3a.5 `Operator.switch/1` sets the matching control; `Operator.control/1`; `status/0` reports the control, the pin and the readiness. Both refuse while pinned.
+- [x] 3a.6 Helm `core.availability.modeControl` (validated) as the env pin; the settings panel on Availability Sources (mode, control, readiness; read-only when pinned).
+- [x] 3a.7 Runbook rewritten: nothing to do by default, with an operator appendix. CHANGELOG Unreleased entry.
+- [ ] 3a.8 Tests (`availability_progression_integration_test.exs`, DB tier; `progression_worker_test.exs`, unit): legacy and zero-device installs reach `authoritative` unattended; each unmet condition blocks and is named; the 24-hour warning; `hold_legacy` and `hold_shadow` from `authoritative`; the pin; two concurrent runs switch once. Run in BazelCI Core Integration.
+- [ ] 3a.9 First live upgrade from `shadow`: the progression enqueues the full pass the deployment never recorded, then cuts over when ready; verify with the runbook's checks.
+
 ## 4. Stage d: removal (gated on no Armis source left in `legacy`)
 
 - [ ] 4.1 Delete the legacy writes from W1, W2 and W5-W11. Keep the compatibility table, the mode setting, the mirror trigger and the `metadata.sweep_*` keys intact through a rollback window of at least one release.
 - [ ] 4.2 Remove `is_available` from the Device accept lists. Delete `:set_availability`, the unused `:available` read action and the unused `status_color` calc, or switch them to the state.
 - [ ] 4.3 Delete `effective_availability/2`, `ServiceRadar.Core.ResultProcessor`, and the dead Go `service_registration.go` constructors.
-- [ ] 4.4 Migration (additive, with a down migration): the backstop trigger and violations table (per Q7).
+- [ ] 4.4 Migration (additive, with a down migration): `availability_write_violations` and an `AFTER UPDATE OF is_available` trigger that only appends a violation row when the column changes in `cutover` or `authoritative` without a matching state change. It never restores or rejects a write (Q7). A static check fails the build when code outside the resolver writes `is_available`.
 - [ ] 4.5 Rollback drill on the lab deployment: revert the stage-d release and confirm the stage-c writers resume against the retained objects.
 
 ## 4e. Stage e: cleanup (after the stage-d rollback window; the point of no easy return)
@@ -153,11 +166,11 @@ Each contract has one owner-boundary test. No contract is replayed at another la
   - `availability_policy:violation`;
   - unchanged `unavailable_from_agent`;
   - the summary `unknown` count.
-- [ ] 5.10 **web-ng** (LiveView, at the badge and row component boundary):
+- [x] 5.10 **web-ng** (LiveView, at the badge and row component boundary):
   - the three states;
   - "N of M agents" with the partial marker;
   - the negative-control indicators.
-- [ ] 5.11 **Backstop trigger** (DB tier). A direct `UPDATE ... SET is_available` leaves the value unchanged and appends a violation row.
+- [ ] 5.11 **Write-violation audit** (DB tier). In `authoritative`, a direct `UPDATE ... SET is_available` commits as written (the trigger neither restores nor rejects it) and appends one violation row; a resolver write appends none. The static check fails on an invented writer outside the resolver.
 
 ## 6. Validation
 

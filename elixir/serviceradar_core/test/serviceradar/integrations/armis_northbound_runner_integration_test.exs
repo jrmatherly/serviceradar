@@ -241,6 +241,92 @@ defmodule ServiceRadar.Integrations.ArmisNorthboundRunnerIntegrationTest do
              ArmisNorthboundRunner.load_candidates(source)
   end
 
+  # add-merged-device-availability, Decision 13: what a run pushes per source.
+  describe "availability semantics" do
+    test "an agent-selected source pushes the agent's result whether or not resolution ran",
+         %{actor: actor} do
+      source =
+        create_source!(actor, "armis-control-agent",
+          northbound_availability_source_agent_id: "agent-control"
+        )
+
+      ip = TestSupport.unique_device_ip()
+      ingest_armis_update(actor, source.id, ip, "armis-control-1", true)
+      device = ip |> Device.get_by_ip(false, actor: actor) |> elem(1) |> single_result()
+
+      # The agent that should be blocked cannot reach the device; another agent can.
+      create_agent_availability!(actor, device.uid, "agent-control", false)
+      create_agent_availability!(actor, device.uid, "agent-witness", true)
+      before = Repo.all(ArmisNorthboundRunner.candidates_query(source))
+
+      # Resolution, as stage c runs it: the device row carries the merged state.
+      set_availability_mode!("authoritative")
+      set_canonical_state!(device.uid, "available", true)
+
+      assert Repo.all(ArmisNorthboundRunner.candidates_query(source)) == before
+      assert [%{armis_device_id: "armis-control-1", is_available: false}] = before
+    end
+
+    test "a legacy source pushes the compatibility value after cutover, not the merged state",
+         %{actor: actor} do
+      source = actor |> create_source!("armis-legacy") |> keep_legacy_semantics!()
+
+      ip = TestSupport.unique_device_ip()
+      ingest_armis_update(actor, source.id, ip, "armis-legacy-1", true)
+      device = ip |> Device.get_by_ip(false, actor: actor) |> elem(1) |> single_result()
+
+      # Seeded at cutover; no legacy writer touches it afterwards, while the resolver
+      # decides the device unavailable.
+      seed_legacy_value!(device.uid, true)
+      set_availability_mode!("authoritative")
+      set_canonical_state!(device.uid, "unavailable", false)
+
+      assert {:ok, [%{armis_device_id: "armis-legacy-1", is_available: true}]} =
+               ArmisNorthboundRunner.load_candidates(source)
+    end
+
+    test "a merged source pushes the canonical state and withholds unknown devices",
+         %{actor: actor} do
+      source = create_source!(actor, "armis-merged")
+      assert source.northbound_availability_semantics == :merged
+
+      [known_ip, unknown_ip] = for _ <- 1..2, do: TestSupport.unique_device_ip()
+      ingest_armis_update(actor, source.id, known_ip, "armis-merged-1", true)
+      ingest_armis_update(actor, source.id, unknown_ip, "armis-merged-2", true)
+
+      [known, unknown] =
+        for ip <- [known_ip, unknown_ip] do
+          ip |> Device.get_by_ip(false, actor: actor) |> elem(1) |> single_result()
+        end
+
+      set_availability_mode!("authoritative")
+      set_canonical_state!(known.uid, "unavailable", false)
+      # Unknown keeps its last decided boolean, which merged semantics must not push.
+      set_canonical_state!(unknown.uid, "unknown", true)
+
+      assert {:ok, [%{armis_device_id: "armis-merged-1", is_available: false}]} =
+               ArmisNorthboundRunner.load_candidates(source)
+    end
+
+    test "a new source cannot choose legacy without an agent; adopting merged is explicit",
+         %{actor: actor} do
+      assert_raise Ash.Error.Invalid,
+                   ~r/legacy availability is kept only for existing sources/,
+                   fn ->
+                     create_source!(actor, "armis-new-legacy",
+                       northbound_availability_semantics: :legacy
+                     )
+                   end
+
+      source = actor |> create_source!("armis-adopt") |> keep_legacy_semantics!()
+
+      assert {:ok, %{northbound_availability_semantics: :merged}} =
+               source
+               |> Ash.Changeset.for_update(:adopt_merged_availability, %{})
+               |> Ash.update(actor: actor)
+    end
+  end
+
   test "run_for_source does not start another run while one is already running", %{actor: actor} do
     source = create_source!(actor, "armis-single-active-run")
 
@@ -334,6 +420,180 @@ defmodule ServiceRadar.Integrations.ArmisNorthboundRunnerIntegrationTest do
     assert Enum.map(retained_targets, & &1.outcome) == [:unattempted]
   end
 
+  test "records partial batch failure and retains failed and withheld conflict rows across retention prune",
+       %{actor: actor} do
+    source = create_source!(actor, "armis-partial-and-conflict-retention")
+
+    devices =
+      Enum.map(1..3, fn index ->
+        armis_id = "armis-partial-#{index}"
+        ip = TestSupport.unique_device_ip()
+        ingest_armis_update(actor, source.id, ip, armis_id, true)
+        {:ok, device} = Device.get_by_ip(ip, false, actor: actor)
+        {armis_id, single_result(device)}
+      end)
+
+    {_conflict_id, conflict_device} = Enum.at(devices, 2)
+
+    register_identifier!(
+      actor,
+      conflict_device.uid,
+      :armis_device_id,
+      "armis-partial-conflict-extra",
+      %{"sync_service_id" => source.id}
+    )
+
+    activate_collection!(source, devices)
+
+    execute_batches = fn _source, candidates, _opts ->
+      ids = Enum.map(candidates, & &1.armis_device_id)
+      assert ids == ["armis-partial-1", "armis-partial-2"]
+
+      {:error,
+       %{
+         device_count: 2,
+         updated_count: 1,
+         skipped_count: 0,
+         error_count: 1,
+         batch_count: 2,
+         errors: [%{batch_index: 1, reason: {:http_status, 502, %{"message" => "bad gateway"}}}],
+         accepted_ids: ["armis-partial-1"],
+         failed_ids: ["armis-partial-2"],
+         unattempted_ids: []
+       }}
+    end
+
+    assert {:error, %{run: run, result: result}} =
+             ArmisNorthboundRunner.run_for_source(source,
+               actor: actor,
+               execute_batches: execute_batches
+             )
+
+    assert run.collection_id == "collection-accounted"
+    assert run.distinct_source_ids == 3
+    assert run.eligible_count == 2
+    assert run.withheld_count == 1
+    assert run.accepted_count == 1
+    assert run.failed_count == 1
+    assert run.unattempted_count == 0
+    assert run.reconciliation_status == :degraded
+    assert result.withheld_reason_counts == %{"multiple_typed_ids_per_device" => 1}
+
+    assert {:ok, 1} =
+             ArmisNorthboundRetention.prune(
+               now: ~U[2100-01-01 00:00:00.000000Z],
+               retention_days: 30,
+               batch_size: 100
+             )
+
+    assert {:ok, retained_targets} =
+             IntegrationUpdateRunTarget.list_by_run(run.id, actor: actor)
+
+    assert Enum.map(retained_targets, &{&1.source_object_id, &1.outcome, &1.reason}) == [
+             {"armis-partial-2", :failed, nil},
+             {"armis-partial-3", :withheld, "multiple_typed_ids_per_device"}
+           ]
+
+    assert {:ok, examples} = ArmisNorthboundLedger.examples(run.id)
+
+    assert Enum.map(examples, &{&1.source_object_id, &1.outcome, &1.reason}) == [
+             {"armis-partial-2", "failed", nil},
+             {"armis-partial-3", "withheld", "multiple_typed_ids_per_device"}
+           ]
+  end
+
+  test "idempotent rerun against the same activated collection preserves exact population and reconciliation counts",
+       %{actor: actor} do
+    source = create_source!(actor, "armis-idempotent-rerun")
+
+    devices =
+      Enum.map(1..3, fn index ->
+        armis_id = "armis-rerun-#{index}"
+        ip = TestSupport.unique_device_ip()
+        ingest_armis_update(actor, source.id, ip, armis_id, true)
+        {:ok, device} = Device.get_by_ip(ip, false, actor: actor)
+        {armis_id, single_result(device)}
+      end)
+
+    activate_collection!(source, devices)
+
+    execute_batches = fn _source, candidates, _opts ->
+      ids = Enum.map(candidates, & &1.armis_device_id)
+
+      {:ok,
+       %{
+         device_count: length(ids),
+         updated_count: length(ids),
+         skipped_count: 0,
+         error_count: 0,
+         batch_count: 1,
+         errors: [],
+         accepted_ids: ids,
+         failed_ids: [],
+         unattempted_ids: []
+       }}
+    end
+
+    assert {:ok, %{run: first_run, result: first_result}} =
+             ArmisNorthboundRunner.run_for_source(source,
+               actor: actor,
+               execute_batches: execute_batches
+             )
+
+    assert {:ok, %{run: second_run, result: second_result}} =
+             ArmisNorthboundRunner.run_for_source(source,
+               actor: actor,
+               execute_batches: execute_batches
+             )
+
+    for run <- [first_run, second_run] do
+      assert run.collection_id == "collection-accounted"
+      assert run.distinct_source_ids == 3
+      assert run.eligible_count == 3
+      assert run.withheld_count == 0
+      assert run.accepted_count == 3
+      assert run.failed_count == 0
+      assert run.unattempted_count == 0
+      assert run.reconciliation_status == :reconciled
+    end
+
+    assert first_result.accepted_count == second_result.accepted_count
+    assert first_result.collection == second_result.collection
+
+    assert {:ok, population} =
+             ServiceRadar.Integrations.ArmisNorthboundPopulation.load(source)
+
+    assert {:ok, refinalized} =
+             ArmisNorthboundLedger.finalize(first_run, population, first_result)
+
+    assert refinalized.accepted_count == 3
+    assert refinalized.reconciliation_status == :reconciled
+  end
+
+  test "legacy collection without exact accounting stays accounting_unavailable", %{actor: actor} do
+    source = create_source!(actor, "armis-legacy-collection")
+
+    devices =
+      Enum.map(1..3, fn index ->
+        armis_id = "armis-legacy-#{index}"
+        ip = TestSupport.unique_device_ip()
+        ingest_armis_update(actor, source.id, ip, armis_id, true)
+        {:ok, device} = Device.get_by_ip(ip, false, actor: actor)
+        {armis_id, single_result(device)}
+      end)
+
+    activate_collection!(source, devices, %{"accounting_status" => "unavailable"})
+
+    assert {:error, %{run: run, result: result}} =
+             ArmisNorthboundRunner.run_for_source(source, actor: actor)
+
+    assert run.status == :failed
+    assert run.collection_id == nil
+    assert run.reconciliation_status == :unavailable
+    assert run.error_message =~ "accounting_unavailable"
+    assert result.errors == [%{reason: :accounting_unavailable}]
+  end
+
   # One target row per distinct Armis source ID, 11 bound parameters each: a
   # collection of a few thousand IDs crosses Postgres's 65535-parameter
   # statement limit, which failed the whole bind with "postgresql protocol can
@@ -422,6 +682,45 @@ defmodule ServiceRadar.Integrations.ArmisNorthboundRunnerIntegrationTest do
     |> Ash.load!([:credentials_encrypted, :credentials], actor: actor)
   end
 
+  # A source created before merged availability: `legacy` semantics, which new sources
+  # cannot choose.
+  defp keep_legacy_semantics!(source) do
+    Repo.query!(
+      "UPDATE platform.integration_sources SET northbound_availability_semantics = 'legacy' WHERE id = $1",
+      [Ecto.UUID.dump!(source.id)]
+    )
+
+    %{source | northbound_availability_semantics: :legacy}
+  end
+
+  defp set_availability_mode!(mode) do
+    Repo.query!("UPDATE platform.availability_settings SET mode = $1", [mode])
+  end
+
+  # The device row as the resolver leaves it from cutover on.
+  defp set_canonical_state!(uid, state, available?) do
+    Repo.query!(
+      """
+      UPDATE platform.ocsf_devices
+      SET availability_state = $2, is_available = $3,
+          availability_decided_by = jsonb_build_object('rule', 'highest_class')
+      WHERE uid = $1
+      """,
+      [uid, state, available?]
+    )
+  end
+
+  defp seed_legacy_value!(uid, available?) do
+    Repo.query!(
+      """
+      INSERT INTO platform.device_availability_legacy (device_uid, is_available)
+      VALUES ($1, $2)
+      ON CONFLICT (device_uid) DO UPDATE SET is_available = EXCLUDED.is_available
+      """,
+      [uid, available?]
+    )
+  end
+
   defp create_connected_agent!(actor) do
     uid = "armis-northbound-agent-#{System.unique_integer([:positive])}"
 
@@ -430,7 +729,7 @@ defmodule ServiceRadar.Integrations.ArmisNorthboundRunnerIntegrationTest do
     |> Ash.create!(actor: actor)
   end
 
-  defp activate_collection!(source, devices) do
+  defp activate_collection!(source, devices, metadata_overrides \\ %{}) do
     observed_at = ~U[2026-09-01 08:00:00.000000Z]
     content_hash = String.duplicate("a", 64)
 
@@ -442,16 +741,20 @@ defmodule ServiceRadar.Integrations.ArmisNorthboundRunnerIntegrationTest do
       content_hash: content_hash,
       query_hash: nil,
       observed_at: observed_at,
-      metadata: %{
-        "accounting_status" => "exact",
-        "raw_rows" => 4,
-        "excluded_rows" => 0,
-        "invalid_rows" => 0,
-        "valid_occurrences" => 4,
-        "distinct_source_ids" => 3,
-        "duplicate_occurrences" => 1,
-        "conflicting_duplicate_ids" => 0
-      }
+      metadata:
+        Map.merge(
+          %{
+            "accounting_status" => "exact",
+            "raw_rows" => 4,
+            "excluded_rows" => 0,
+            "invalid_rows" => 0,
+            "valid_occurrences" => 4,
+            "distinct_source_ids" => 3,
+            "duplicate_occurrences" => 1,
+            "conflicting_duplicate_ids" => 0
+          },
+          metadata_overrides
+        )
     }
 
     observations =

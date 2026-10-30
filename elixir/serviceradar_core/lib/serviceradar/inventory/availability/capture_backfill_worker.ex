@@ -7,8 +7,7 @@ defmodule ServiceRadar.Inventory.Availability.CaptureBackfillWorker do
      device, the value the mirror trigger keeps for every later write.
   2. Seeds `device_agent_availability.consecutive_down` for each unreachable ledger row
      from its device's `metadata.sweep_consecutive_failures`, at least 1 and capped at
-     the `active_probe` threshold of 2. Apart from the legacy hysteresis computation,
-     this is the only reader of that key.
+     the `active_probe` threshold of 2.
 
   Vantage expectations and `operator_policy` evidence need no backfill here: the next
   full pass of each enabled composite check writes both.
@@ -97,9 +96,7 @@ defmodule ServiceRadar.Inventory.Availability.CaptureBackfillWorker do
         ledger_rows_counted: counted
       )
 
-      if pending?(@projection_pending) or pending?(@counter_pending),
-        do: {:snooze, @retry_seconds},
-        else: :ok
+      if pending?(), do: {:snooze, @retry_seconds}, else: :ok
     else
       # The mirror only applies in legacy and shadow; another mode owns the state.
       :ok
@@ -120,9 +117,8 @@ defmodule ServiceRadar.Inventory.Availability.CaptureBackfillWorker do
     # never depends on how Elixir would compare the keys.
     {:ok, [count, last]} =
       Repo.transaction(fn ->
-        # The statement changes no rollup input, so the rollup triggers have nothing
-        # to count; skip their work.
-        Repo.query!("SELECT set_config('platform.skip_inventory_rollup', 'on', true)")
+        # The projection changes availability_state, which the inventory rollups count
+        # (migration 20261024120000), so their triggers run.
         %{rows: [row]} = Repo.query!(sql, [cursor, @page_size])
         row
       end)
@@ -132,6 +128,15 @@ defmodule ServiceRadar.Inventory.Availability.CaptureBackfillWorker do
       count -> run_pages(sql, last, pages + 1, total + count)
     end
   end
+
+  @doc """
+  Whether the backfill has work left: a device whose `availability_state` is not the
+  projection of its `is_available`, or an unreachable ledger row with no counter. The
+  automatic cutover waits until neither remains
+  (`ServiceRadar.Inventory.Availability.Readiness`).
+  """
+  @spec pending?() :: boolean()
+  def pending?, do: pending?(@projection_pending) or pending?(@counter_pending)
 
   defp pending?(sql) do
     %{rows: [[pending?]]} = Repo.query!(sql)

@@ -52,13 +52,13 @@
 
 ## 3. Core shared-targets format
 
-- [ ] 3.1 Add a `format` option to `SweepCompiler.compile/3` (`:legacy`
+- [x] 3.1 Add a `format` option to `SweepCompiler.compile/3` (`:legacy`
       default, `:shared_targets_v1`) that emits `device_table`,
       `target_sets`, and per-group `device_target_set`, as specified in
       design.md Decision 3.
-- [ ] 3.2 Compute the shared-targets `config_hash` over the sorted `groups`,
+- [x] 3.2 Compute the shared-targets `config_hash` over the sorted `groups`,
       `device_table` and `target_sets` (Decision 6).
-- [ ] 3.3 Tests: the three-profiles-over-one-query scenario (one table entry
+- [x] 3.3 Tests: the three-profiles-over-one-query scenario (one table entry
       per device, one set, three groups); partial overlap; determinism under
       shuffled rows (no shared IPs); two devices sharing an IP under
       different queries stay two table entries with their own `device_uid`.
@@ -70,29 +70,30 @@
 
 ## 4. Go agent
 
-- [ ] 4.1 In `go/pkg/agent/sweep_config_gateway.go`, add the shared-targets
+- [x] 4.1 In `go/pkg/agent/sweep_config_gateway.go`, add the shared-targets
       types and dispatch `parseGatewaySweepConfig/2` on `format`. Absent
       means legacy, `shared-targets/v1` means rehydrate (Decision 5), and
       anything else is an error that keeps the current sweep config.
-- [ ] 4.2 Make the unknown-format error path in `applySweepConfig` keep the
+- [x] 4.2 Make the unknown-format error path in `applySweepConfig` keep the
       running config instead of clearing targets. Test it by applying a valid
       config, then an unknown-format one, and asserting the service's groups
       are unchanged.
-- [ ] 4.3 Advertise `sweep-config-shared-targets:v1` from
+- [x] 4.3 Advertise `sweep-config-shared-targets:v1` from
       `agentCapabilities/1`, and add it to the capability test expectations.
-- [ ] 4.4 Parity tests: equivalent legacy and shared-targets payloads parse
+- [x] 4.4 Parity tests: equivalent legacy and shared-targets payloads parse
       to equal `SweepGroupsConfig` values, and the 1.3 results test reports
       the same envelope for both.
 
 ## 5. Core format selection
 
-- [ ] 5.1 In `AgentConfigGenerator.load_sweep_config/2`, resolve the agent's
+- [x] 5.1 In `AgentConfigGenerator.load_sweep_config!/2`, resolve the agent's
       persisted capabilities (the same lookup as
       `resolve_agent_addon_profile/2`) and pass `sweep_format` to
       `ConfigServer.get_config/4`.
-- [ ] 5.2 Add a `cache_scope(:sweep, opts)` clause returning
-      `{:sweep_format, format}`.
-- [ ] 5.3 Tests through `AgentConfigGenerator.get_config_if_changed/3`: a
+- [x] 5.2 Add a `cache_scope(:sweep, opts)` clause returning
+      `{:sweep_format, format}` for a non-legacy format. `:legacy` keeps the
+      historical unscoped entry.
+- [x] 5.3 Tests through `AgentConfigGenerator.get_config_if_changed/3`: a
       legacy-capability agent gets no `format` key and embedded
       `device_targets`; a capable agent gets `shared-targets/v1`; two agents
       in one partition get their own formats; after a capability change the

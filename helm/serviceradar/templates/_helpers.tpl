@@ -1232,9 +1232,11 @@ is about the disk, and nats.jetstream.allowOvercommit does not skip it.
 {{- $ewArancini := default (dict) (index $ewStreams "ARANCINI_CAUSAL") -}}
 {{- $ewNotifications := default (dict) (index $ewStreams "notifications") -}}
 {{- $ewExposureTransitions := default (dict) (index $ewStreams "exposure_transitions") -}}
+{{- $ewExposureDimensions := default (dict) (index $ewStreams "exposure_dimensions") -}}
 {{- $entries = concat $entries (list
   (dict "id" "notifications" "stream" "NOTIFICATIONS" "source" "core.eventWriter.streams.notifications.maxBytes" "value" $ewNotifications.maxBytes "replicaSource" "" "replicaValue" nil "counted" true)
   (dict "id" "exposureTransitions" "stream" "EXPOSURE_TRANSITIONS" "source" "core.eventWriter.streams.exposure_transitions.maxBytes" "value" $ewExposureTransitions.maxBytes "replicaSource" "" "replicaValue" nil "counted" true)
+  (dict "id" "exposureDimensions" "stream" "EXPOSURE_DIMENSIONS" "source" "core.eventWriter.streams.exposure_dimensions.maxBytes" "value" $ewExposureDimensions.maxBytes "replicaSource" "" "replicaValue" nil "counted" true)
   (dict "id" "fieldsurvey" "stream" (printf "OBJ_%s" (default "serviceradar_fieldsurvey" $fieldSurvey.jetstreamBucket)) "source" "webNg.fieldSurveyArtifactStore.jetstreamMaxBucketBytes" "value" $fieldSurvey.jetstreamMaxBucketBytes "replicaSource" "" "replicaValue" nil "counted" true)
   (dict "id" "threatIntel" "stream" "OBJ_serviceradar_threat_intel" "source" "core.threatIntelRawPayloadStore.jetstreamMaxBucketBytes" "value" $threatIntel.jetstreamMaxBucketBytes "replicaSource" "" "replicaValue" nil "counted" true)
   (dict "id" "flowsFallback" "stream" "flows" "source" "core.eventWriter.streams.flows.maxBytes" "value" $ewFlows.maxBytes "replicaSource" "core.eventWriter.streams.flows.replicas" "replicaValue" $ewFlows.replicas "counted" false)
@@ -1650,4 +1652,33 @@ tls://{{ . }}:{{ default 7422 $endpoints.natsLeafPort }}
   {{- $_ := set $pg "imageName" . -}}
 {{- end -}}
 {{- $pg | toYaml -}}
+{{- end -}}
+
+{{/*
+Durable alert evaluation mode (SERVICERADAR_ALERT_EVALUATION_MODE).
+
+An explicit core.alertEvaluation.mode always wins. When unset, a fresh
+install starts active: it never ran a pre-1.4.85 evaluator, so the
+prepared quarantine protects nothing. An upgrade stays prepared unless
+the install marker ConfigMap (rendered only on first install and kept
+across upgrades) proves the deployment began on a chart with the
+fresh-install default. Renderers that always report an upgrade and
+cannot perform lookup (Argo CD repo-server) resolve unset to prepared;
+GitOps installs set the mode explicitly in their values.
+*/}}
+{{- define "serviceradar.alertEvaluationMode" -}}
+{{- $coreVals := default (dict) .Values.core -}}
+{{- $configured := toString (default "" (default (dict) $coreVals.alertEvaluation).mode) -}}
+{{- if $configured -}}
+{{- if not (has $configured (list "prepared" "active" "draining")) -}}
+{{- fail (printf "core.alertEvaluation.mode must be prepared, active or draining, got %q" $configured) -}}
+{{- end -}}
+{{- $configured -}}
+{{- else if .Release.IsInstall -}}
+active
+{{- else if lookup "v1" "ConfigMap" .Release.Namespace "serviceradar-alert-evaluation-install" -}}
+active
+{{- else -}}
+prepared
+{{- end -}}
 {{- end -}}

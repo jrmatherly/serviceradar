@@ -31,11 +31,11 @@ Each evidence record carries the device uid, a source kind, a source instance, a
 - **WHEN** the integration is ingested
 - **THEN** the integration SHALL NOT submit an availability evidence record for that device
 
-#### Scenario: Direct writes do not change availability
+#### Scenario: Direct writes are recorded, never silently restored
 - **GIVEN** the availability cutover is complete
-- **WHEN** any code path other than the availability resolver attempts to change `is_available` or `availability_state` on a device row
-- **THEN** the stored availability SHALL remain the resolver's value
-- **AND** the attempt SHALL be appended to an availability write-violation record
+- **WHEN** any code path other than the availability resolver changes `is_available` on a device row
+- **THEN** the change SHALL be appended to an availability write-violation record
+- **AND** the record SHALL NOT restore or reject the write; the device's next resolution sets the value again
 
 ### Requirement: Availability Authority Classes Are Declared By Source Registration
 The system SHALL assign each evidence record an authority class taken from the submitting source's registration, and the resolver MUST NOT branch on a source's kind or integration name.
@@ -59,7 +59,7 @@ The ranked classes, highest first, are `operator_policy`, `self_report`, `managi
 
 ### Requirement: Canonical Device Availability Resolution
 The system SHALL derive each device's `availability_state` by selecting the governing class (the highest-ranked authority class with any fresh, eligible, non-excluded record), deciding from that class when it has a decisive record and keeping the previous state when it has only records awaiting confirmation; within the deciding class the state SHALL be `available` when any decisive record is `up` and `unavailable` otherwise.
-When the device has an `availability_source_agent_id` (set directly or by an availability source profile), per-agent results from other agents SHALL be excluded from the decision and retained for display. Records whose reporter is not eligible, and unreachable per-agent results from negative-control agents, SHALL be excluded from the decision. A cross-class `up` from a lower class SHALL NOT override a higher class's decision; it SHALL mark the device as having conflicting evidence. The previously deciding record SHALL remain the recorded decider while it stays fresh, eligible and in agreement.
+When the device has an `availability_source_agent_id` (set directly or by an availability source profile), per-agent results from other agents and `operator_policy` evidence SHALL be excluded from the decision and retained for display; the per-device pin outranks operator policy, and an excluded record that disagrees SHALL mark the device as having conflicting evidence. Records whose reporter is not eligible, and unreachable per-agent results from negative-control agents, SHALL be excluded from the decision. A cross-class `up` from a lower class SHALL NOT override a higher class's decision; it SHALL mark the device as having conflicting evidence. The previously deciding record SHALL remain the recorded decider while it stays fresh, eligible and in agreement.
 Every mutation that can change a resolution SHALL cause the affected devices to be re-resolved through the same resolver without waiting for expiry: per-agent ledger writes from any writer that change a result or renew one older than half its freshness window, changes to a device's `availability_source_agent_id` or to an availability source profile, and changes to negative-control vantage expectations. Recording such a mutation SHALL be an append that never waits on the resolver or on another writer, and an invalidation committed while a device is being resolved SHALL cause one more resolution of that device.
 
 #### Scenario: Controller up outranks failing probes
@@ -82,6 +82,14 @@ Every mutation that can change a resolution SHALL cause the affected devices to 
 - **WHEN** availability is resolved
 - **THEN** `availability_state` SHALL be `unavailable`
 - **AND** agent B's result SHALL remain visible on the device
+
+#### Scenario: Pin outranks operator policy
+- **GIVEN** a device whose `availability_source_agent_id` is agent A
+- **AND** a reachable result from agent A
+- **AND** fresh `operator_policy` evidence `down` from a composite check
+- **WHEN** availability is resolved
+- **THEN** `availability_state` SHALL be `available` decided by agent A
+- **AND** the device SHALL be marked as having conflicting evidence
 
 #### Scenario: Changing the pin re-resolves the device
 - **GIVEN** a device resolved `available` from agent B's reachable result while agent A reports it confirmed unreachable
@@ -120,7 +128,7 @@ The policy-violation signal SHALL be the composite check's existing verdict and 
 
 ### Requirement: Availability Hysteresis Is Preserved
 The system SHALL treat a `down` record as decisive only after the number of consecutive `down` observations from that source reaches its authority class's confirmation threshold, SHALL treat an `up` record as decisive immediately, and SHALL keep a device's previous state while its governing class holds only records awaiting confirmation.
-The `active_probe` threshold SHALL default to 2. The confirmation counter SHALL be stored on the per-agent ledger row or evidence record, capped at the threshold. The per-agent counter SHALL be maintained at the ledger write boundary for every ledger writer, SHALL advance only for an observation newer than the stored one, and SHALL NOT change the stored result or its timestamps.
+The `active_probe` threshold SHALL default to 2. The confirmation counter SHALL be stored on the per-agent ledger row or evidence record, capped at the threshold. The per-agent counter SHALL be maintained at the ledger write boundary for every ledger writer, SHALL be recomputed when the observation is newer than the stored one or the stored result changes, SHALL stay unchanged when the same result is stored again at the same check time, SHALL be 0 for a stored `up` result and at least 1 for a stored `down` result, and SHALL NOT change the stored result or its timestamps.
 
 #### Scenario: Single failed probe does not flip a device
 - **GIVEN** a device resolved `available` from per-agent results
@@ -148,6 +156,12 @@ The `active_probe` threshold SHALL default to 2. The confirmation counter SHALL 
 - **GIVEN** an agent result with one recorded failure
 - **WHEN** the row is moved to a merge survivor without a new observation
 - **THEN** its failure count and check time SHALL be unchanged
+
+#### Scenario: A changed result without a newer check time is recounted
+- **GIVEN** an agent result `up` with no recorded failure
+- **WHEN** the same agent's `down` result for the same check time is accepted into the ledger
+- **THEN** its failure count SHALL be 1
+- **AND** a replay of that `down` result at the same check time SHALL leave the count at 1
 
 #### Scenario: Recovery is immediate
 - **GIVEN** a device resolved `unavailable` from confirmed probe failures
@@ -242,8 +256,8 @@ The system SHALL move a merged-away device's evidence records to the surviving d
 - **AND** the survivor's availability SHALL be re-resolved before the merge commits
 
 ### Requirement: Staged Availability Cutover
-The system SHALL support availability modes `legacy`, `shadow`, `cutover` and `authoritative`, SHALL drain in-flight writers on every mode change, and SHALL publish a divergence report in `shadow` mode before any device's canonical availability is decided by the resolver.
-The report SHALL count devices by legacy value, legacy badge value, shadow state, deciding source kind and authority class, SHALL count devices that would become unknown, policy violations and invalid pins, SHALL include per-source Armis northbound push changes, and SHALL include sample device uids. In `legacy` and `shadow` modes `availability_state` SHALL equal the projection of `is_available`, and the legacy transition publishers SHALL emit. Until the legacy writers are removed they SHALL maintain the legacy availability value in a compatibility store in every mode, and that store SHALL be seeded from `is_available` under the drained cutover boundary. In `cutover` mode legacy writers SHALL NOT write device availability, and every availability transition side effect SHALL be suppressed while reconciliation re-resolves every device from its current evidence under the device lock; `authoritative` mode SHALL begin only after reconciliation completes. Returning to `legacy` SHALL restore `is_available` from the compatibility store and the legacy writers and publishers.
+The system SHALL support availability modes `legacy`, `shadow`, `cutover` and `authoritative`, SHALL drain writers admitted under the mode-switch lock on every mode change, and SHALL publish a divergence report in `shadow` mode before any device's canonical availability is decided by the resolver.
+The report SHALL count devices by legacy value, legacy badge value, shadow state, deciding source kind and authority class, SHALL count devices that would become unknown, policy violations and invalid pins, SHALL include per-source Armis northbound push changes, and SHALL include sample device uids. In `legacy` and `shadow` modes `availability_state` SHALL equal the projection of `is_available`, and the legacy transition publishers SHALL emit. Until the legacy writers are removed they SHALL maintain the legacy availability value in a compatibility store in every mode, and that store SHALL be seeded from `is_available` under the drained cutover boundary. In `cutover` mode a legacy writer admitted under the shared lock SHALL NOT write device availability. An agent check-in reads the mode without that lock (`LegacyWrites`). Every availability transition side effect SHALL be suppressed while reconciliation re-resolves every device from its current evidence under the device lock; `authoritative` mode SHALL begin only after reconciliation completes. Returning to `legacy` SHALL restore `is_available` from the compatibility store and the legacy writers and publishers.
 
 #### Scenario: Shadow mode changes nothing visible
 - **GIVEN** availability mode `shadow`
@@ -257,7 +271,7 @@ The report SHALL count devices by legacy value, legacy badge value, shadow state
 - **WHEN** the mode is switched to `cutover` and reconciliation runs while ingestion continues
 - **THEN** no per-device `device.available` or `device.unavailable` event and no state-feed transition SHALL be emitted until the mode becomes `authoritative`
 - **AND** one summary event with the counts per resulting state SHALL be emitted
-- **AND** no legacy writer SHALL change a reconciled device's availability
+- **AND** no legacy writer admitted under the shared lock SHALL change a reconciled device's availability
 
 #### Scenario: Reconciliation does not restore a superseded decision
 - **GIVEN** a shadow decision of `available` for a device
@@ -267,8 +281,81 @@ The report SHALL count devices by legacy value, legacy badge value, shadow state
 
 #### Scenario: Rollback to legacy
 - **GIVEN** availability mode `authoritative`
-- **WHEN** an operator switches the mode back to `legacy`
+- **WHEN** the mode is switched back to `legacy`, by the `hold_legacy` mode control or by a support switch
 - **THEN** `is_available` SHALL be restored from the compatibility store
 - **AND** `availability_state` SHALL equal the projection of the restored `is_available`
 - **AND** the legacy writers and legacy transition publishers SHALL resume
 - **AND** stored evidence and per-agent results SHALL be retained
+
+### Requirement: Automatic Availability Progression
+The system SHALL move the availability mode from `legacy` to `shadow`, and from `shadow` through `cutover` to `authoritative`, without an operator action, under a deployment mode control whose default is `auto`, and SHALL make each step through the same mode switches an operator uses.
+Under `auto`, the system SHALL enter `cutover` only when every readiness condition holds: the capture backfill has nothing left; a full shadow resolution that started after entering `shadow` has finished; at most one resolver pass of invalidation entries (500) is waiting; every active sweep group (enabled, and started by an agent in the last 24 hours) has completed a run, per agent, that started after entering `shadow`; and the divergence report counts no policy violation. The system SHALL record the last readiness evaluation, naming each unmet condition, and while any condition is unmet 24 hours after entering `shadow` SHALL stay in `shadow` and record an unhealthy core health check naming the unmet conditions. A later run SHALL record that check healthy when the deployment is no longer in that stall and the check is already unhealthy, and SHALL write no health row for it otherwise. The control `hold_legacy` SHALL keep or roll back to `legacy`, restoring `is_available` from the compatibility store when leaving `cutover` or `authoritative`. The control `hold_shadow` SHALL keep or return to `shadow` and SHALL NOT cut over; from `cutover` or `authoritative` it SHALL roll back to `legacy` first and enter `shadow` only after the restore has finished. When the compatibility snapshot still differs and no restore is waiting, it SHALL enqueue the restore again and SHALL NOT enter `shadow`. A control pinned by deployment configuration SHALL take precedence over the stored control, the stored control SHALL NOT be editable while a pin is recorded, and a pinned value that is not a control SHALL hold the mode where it is. Runs on several nodes SHALL NOT switch twice, and a run SHALL NOT switch from a control that changed after it was read. The automatic cutover SHALL NOT emit per-device transitions, and SHALL NOT change any Armis northbound source's semantics.
+
+#### Scenario: An install whose conditions hold reaches authoritative unattended
+- **GIVEN** an install in `legacy` with the control `auto`
+- **AND** devices, and an enabled sweep group whose agent completed a run after the install entered `shadow`
+- **WHEN** the progression runs and the full shadow resolution finishes
+- **THEN** the mode SHALL become `shadow`, then `cutover`, then `authoritative` with no operator action
+- **AND** the reconciliation SHALL publish one summary event and no per-device transition
+
+#### Scenario: A zero-device install reaches authoritative
+- **GIVEN** an install with no devices and no enabled sweep group, in `legacy` with the control `auto`
+- **WHEN** the progression runs and the full shadow resolution over zero devices finishes
+- **THEN** the mode SHALL reach `authoritative` through the same steps
+
+#### Scenario: Each unmet condition blocks the cutover and is named
+- **GIVEN** a deployment in `shadow` with the control `auto` and exactly one readiness condition unmet
+- **WHEN** the progression runs
+- **THEN** the mode SHALL stay `shadow`
+- **AND** the recorded readiness evaluation SHALL name that condition as unmet
+
+#### Scenario: A sweep run before the shadow entry does not count
+- **GIVEN** an enabled sweep group whose agent last completed a run before the deployment entered `shadow`
+- **WHEN** the progression evaluates readiness
+- **THEN** the sweep-group condition SHALL be unmet until that agent completes a run started after the entry
+
+#### Scenario: Unmet conditions after 24 hours raise a health warning
+- **GIVEN** a deployment that entered `shadow` more than 24 hours ago with a readiness condition still unmet
+- **WHEN** the progression runs
+- **THEN** the mode SHALL stay `shadow`
+- **AND** the core health check for availability readiness SHALL be unhealthy and name the unmet condition
+- **AND** a later run SHALL record the check healthy when the stall no longer holds and the check is already unhealthy
+- **AND** a deployment that never raised the check SHALL get no health row for it
+
+#### Scenario: hold_legacy rolls back an authoritative deployment
+- **GIVEN** an `authoritative` deployment where a device's merged value differs from its legacy value
+- **WHEN** the control is set to `hold_legacy`
+- **THEN** the mode SHALL become `legacy`
+- **AND** the device's `is_available` SHALL be restored from the compatibility store
+- **AND** later runs SHALL leave the mode `legacy`
+
+#### Scenario: hold_shadow returns an authoritative deployment to shadow
+- **GIVEN** an `authoritative` deployment
+- **WHEN** the control is set to `hold_shadow`
+- **THEN** the mode SHALL become `legacy`, SHALL NOT enter `shadow` while the restore is outstanding, and SHALL enter `shadow` after it finished
+- **AND** when that restore is gone and the snapshot still differs, a later run SHALL enqueue it again and SHALL NOT enter `shadow`
+- **AND** the mode SHALL stay `shadow` even when every readiness condition holds
+
+#### Scenario: A pin overrides the stored control
+- **GIVEN** a stored control of `hold_shadow` and a pinned control of `hold_legacy`
+- **WHEN** the progression runs in `shadow`
+- **THEN** the mode SHALL become `legacy`
+- **AND** the pin SHALL be recorded on the settings row
+- **AND** an attempt to edit the stored control SHALL be refused
+
+#### Scenario: An invalid pin holds the mode
+- **GIVEN** a pinned value that is not `auto`, `hold_legacy` or `hold_shadow`
+- **WHEN** the progression runs
+- **THEN** the mode SHALL NOT change
+
+#### Scenario: A refused support switch keeps the hold
+- **GIVEN** a deployment in `legacy` under `hold_legacy`
+- **WHEN** a support switch to `cutover` is refused because the mode is not `shadow`
+- **THEN** the stored control SHALL remain `hold_legacy`
+- **AND** the progression SHALL leave the mode `legacy`
+
+#### Scenario: Concurrent runs switch once
+- **GIVEN** two progression runs that both read `authoritative` under `hold_legacy`
+- **WHEN** both switch
+- **THEN** the mode SHALL be switched to `legacy` once
+- **AND** the restore the first switch enqueued SHALL remain enqueued

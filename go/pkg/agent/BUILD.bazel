@@ -323,6 +323,7 @@ go_test(
         "snmp_service_test.go",
         "sweep_cancel_test.go",
         "sweep_config_gateway_test.go",
+        "sweep_config_shared_targets_test.go",
         "sweep_performance_test.go",
         "sweep_service_group_id_test.go",
         "sweep_service_sequencing_test.go",
@@ -415,6 +416,21 @@ go_test(
         "@org_golang_google_protobuf//proto",
         "@org_golang_x_crypto//ssh",
         "@org_golang_x_crypto//ssh/knownhosts",
+    ],
+)
+
+go_test(
+    name = "dusk_checker_runtime_test",
+    srcs = ["dusk_checker_runtime_test.go"],
+    data = ["//build/wasm_plugins:dusk_checker_wasm"],
+    embed = [":agent"],
+    # TinyGo produces the guest, then the agent host drives it against a local
+    # RUES stand-in. Wildcard CI does not need that compile on every run.
+    tags = ["manual"],
+    timeout = "eternal",
+    deps = [
+        "//go/pkg/logger",
+        "@com_github_gorilla_websocket//:websocket",
     ],
 )
 

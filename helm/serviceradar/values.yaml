@@ -257,7 +257,7 @@ nats:
     # exceeds 85% of max_file_store (the rest is headroom for streams a later
     # release adds). The failure lists every stream with its size, replicas and
     # whether it lands on every server (replicas >= nats.replicas) or is spread.
-    # The small profile needs 22.75 GiB of its 28.50 GiB limit on three servers,
+    # The small profile needs 23.08 GiB of its 28.50 GiB limit on three servers,
     # with flow-collector, bmp-collector and the trivy sidecar all counted.
     # allowOvercommit: true skips that check (not the persistence.size ceiling).
     allowOvercommit: false
@@ -504,6 +504,26 @@ core:
     # timeseries_metrics_*_hourly), which back long-range charts and seasonal
     # anomaly baselines. Chunks older than 7 days are compressed. Minimum 7.
     hourlyRollupDays: 395
+    # Tables whose retention only migrations set before the worker reconciled
+    # them. Defaults equal the migration values. Retention only: chunk
+    # intervals and compression for these tables stay migration-owned.
+    # Capped by defaultDays except endpointInventoryHistoryDays and
+    # tracesStatsDays. endpointInventoryHistoryDays keeps its own horizon
+    # like capacityForecastsDays.
+    adhocScanResultsDays: 30
+    # service_status and events.
+    serviceStatusDays: 14
+    endpointInventoryHistoryDays: 395
+    # Trace and metric rollup aggregates. Their refresh windows are clamped
+    # strictly inside these retentions before a shorter value applies.
+    spansRedDays: 90
+    otelMetricsHourlyStatsDays: 90
+    # traces_stats_5m. Leave unset to keep the migration window (14 days) and
+    # to leave a window the cold-tier fence widened unchanged. A target
+    # shorter than the fence window is not written while the cold tier is
+    # on. A target at or above that window is written whether or not the
+    # tier is on.
+    # tracesStatsDays: 14
     otelTracesChunkIntervalHours: 6
     logsChunkIntervalHours: 24
     ocsfNetworkActivityChunkIntervalHours: 24
@@ -600,6 +620,8 @@ core:
     # exposure_transitions is the EXPOSURE_TRANSITIONS stream core's exposure
     # transition relay creates (one replica, 7 days), rendered as
     # SERVICERADAR_JS_EXPOSURE_TRANSITIONS_MAX_BYTES.
+    # exposure_dimensions is the corresponding CVE/package dictionary stream,
+    # rendered as SERVICERADAR_JS_EXPOSURE_DIMENSIONS_MAX_BYTES.
     streams:
       metrics: {}
       k8s_inventory: {}
@@ -609,6 +631,7 @@ core:
       trivy_reports: {}
       notifications: {}
       exposure_transitions: {}
+      exposure_dimensions: {}
       flows: {}
       ARANCINI_CAUSAL: {}
   # Core's threat-intel raw payload object store (OBJ_serviceradar_threat_intel,
@@ -742,12 +765,16 @@ core:
   #   stored, and core logs a warning about it every minute.
   # - active: alert rules evaluate events, logs and metrics.
   # - draining: admission stops while accepted work finishes.
-  # Set active once no core pod older than 1.4.85 is running anywhere in the
-  # deployment, including disconnected ones: an older pod evaluates on its
-  # own, and active admission refuses only the ones it can see. An install
-  # that never ran a release older than 1.4.85 can start active.
+  # Empty (the default) resolves automatically: a fresh install starts
+  # active, because it never ran a release older than 1.4.85, while an
+  # upgrade of a pre-existing install stays prepared until set active
+  # here. Set active once no core pod older than 1.4.85 is running
+  # anywhere in the deployment, including disconnected ones: an older pod
+  # evaluates on its own, and active admission refuses only the ones it
+  # can see. Renderers that always report an upgrade (Argo CD) resolve
+  # empty to prepared, so GitOps installs set the mode explicitly.
   alertEvaluation:
-    mode: prepared
+    mode: ""
   database:
     # Core refuses to start result ingestion below 8 (see
     # docs/result-ingestion-operations.md, "Capacity").
@@ -832,7 +859,7 @@ core:
     #
     # Set to "" to fall back to the old existence-only check (for operators
     # running the chart against a deliberately pinned schema).
-    expectedVersion: "20261025040000"
+    expectedVersion: "20261025150000"
   # Stale device reaper settings - controls cleanup of IP-only "ghost" devices
   reaper:
     # How often to run the reaper job

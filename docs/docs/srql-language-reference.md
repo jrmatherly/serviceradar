@@ -274,8 +274,8 @@ Devices missing the key are counted under `Unknown` rather than dropped. The
 grouped result names the column with its full path (`tags.gate`), which is also
 what `sort:` expects: `sort:tags.gate:asc`.
 
-Groupable device fields: `type`, `vendor_name`, `risk_level`, `is_available`,
-`is_active`, `gateway_id`, `tags.<key>`, `metadata.<key>`.
+Groupable device fields: `type`, `vendor_name`, `risk_level`, `availability`,
+`is_available`, `is_active`, `gateway_id`, `tags.<key>`, `metadata.<key>`.
 
 Grouped queries return at most **100** rows and default to **20**, so set
 `limit:` explicitly when a dimension has more distinct values than that —
@@ -313,6 +313,30 @@ more buckets than the limit allows:
 This matters on long ranges with narrow buckets: `time:last_30d bucket:5m` spans 8640
 buckets, so `limit:100` returns a fraction of the window either way. Widen the bucket
 rather than raising the limit — `bucket:1h` over 30 days is 720 buckets.
+
+### Flow volume across buckets
+
+A flow record carries the flow's start and end time and is stamped with its end time.
+For `in:flows` and `in:attributed_flows`, a bucketed `agg:sum`, `rate` or `rate_sum`
+over a byte or packet field (`bytes_total`, `bytes_in`, `bytes_out`, `packets_total`,
+`packets_in`, `packets_out`) spreads each flow over the buckets its interval
+overlaps, in proportion to the overlap. A five-minute flow on `bucket:1m` adds a fifth
+of its bytes to each of five buckets instead of all of them to the bucket it ended
+in. `stats:"sum(bytes_total) as bytes by time:1m"` is spread the same way.
+
+- The total is preserved exactly. A flow that started before the window adds only
+  the part that falls in the window's buckets.
+- A flow with no start time, with zero duration, or that fits inside one bucket is
+  counted in its own bucket, as before.
+- One flow covers at most 240 buckets. When the window holds more buckets than that
+  and a flow is longer, the part of its in-window share before those 240 buckets is
+  added to the earliest of them.
+- Other aggregates (`count`, `avg`, `min`, `max`) still count each flow once, in the
+  bucket it ended in.
+- Buckets of a whole number of hours, when the hourly rollup can answer the query,
+  count each flow in the hour it ended. The raw table answers the same query the
+  same way, so the two sources agree. The cost is that the part of a flow that ran
+  before an hour boundary appears in the hour it ended.
 
 ## Queryable entities
 
@@ -391,7 +415,13 @@ subsection heading matches the `in:` name used to select the entity.
 | `vendor_name` | `vendor` | Device vendor |
 | `model` | | Device model |
 | `risk_level` | `risk` | Risk classification |
-| `is_available` | `available` | Currently reachable (`true`/`false`) |
+| `is_available` | `available` | Last decided availability (`true`/`false`). Never null: a device whose state is `unknown` keeps its last decided value. |
+| `availability` | | Canonical merged availability: `available`, `unavailable` or `unknown`. The only field that reports `unknown`. |
+| `availability_source` | | Source kind that decided the state, e.g. `agent_probe`, `wifi_map` |
+| `availability_class` | | Authority class that decided the state: `operator_policy`, `self_report`, `managing_controller`, `active_probe`, `passive_observation`, `inventory_declared` |
+| `agent_reachability` | | Fresh probing agents (negative controls excluded): `all` reach the device, `partial` (some do, some do not), `none` (probed, none reach it) |
+| `availability_policy` | | Negative-control agents: `violation` (an agent expected to be blocked reaches the device), `verified` (a block is verified), `inconclusive` (an expected block has no fresh result) |
+| `available_from_agent` / `unavailable_from_agent` | | The named agent's latest per-agent result is reachable / unreachable |
 | `is_active` | `active` | Lifecycle state (`true`/`false`) |
 | `discovery_sources` | | Sources that discovered the device (array; list form) |
 | `first_seen` | `first_seen_time` | When the device was first added. Accepts the same window tokens as `time:` (`last_7d`, `last_30d`, `today`, `[start,end]`). This does **not** change `time:`, which still filters `last_seen_time`. |
@@ -401,8 +431,15 @@ subsection heading matches the `in:` name used to select the entity.
 | `kev` | | Device has an active, confirmed, affected KEV assessment (`true`/`false`) |
 | `source_retired` | | Record is marked `source_retired` (`true`/`false`); see the control tokens below. Replaces the default that hides marked records. |
 
-Sortable fields include `hostname`, `ip`, `first_seen` / `first_seen_time`,
-`last_seen` / `last_seen_time`, and `type_id`. There is no `cpe` filter on
+Sortable fields include `availability`, `hostname`, `ip`, `first_seen` /
+`first_seen_time`, `last_seen` / `last_seen_time`, and `type_id`. Without a
+`sort:` clause devices are ordered by availability (`available`, then
+`unavailable`, then `unknown`), then by IP, then by uid. Rows also return
+`availability_decided_by`, `availability_changed_at`, `availability_conflict`,
+`availability_agents`, `agents_up`, and `agents_total` (those two counters are
+0 when absent). `rollup_stats:inventory_summary` reports `available`,
+`unavailable`, and `unknown` from the `device_inventory_counts` keys of those
+names; a missing key is 0. There is no `cpe` filter on
 `in:devices`; query `in:endpoint_packages` or `in:cve_matches`.
 
 Control tokens: `include_inactive:true` returns devices regardless of lifecycle
