@@ -187,17 +187,14 @@ Limitation: a path filter cannot reach a `#[cfg(test)]` module inside a producti
 Rust file. A new alert there is still reported and is triaged by hand; the rule stays
 on for production code.
 
-Owner action, once: the switch is a repository setting, not a commit, and the two
-cannot coexist. While default setup is enabled, GitHub rejects every SARIF the workflow
-uploads ("CodeQL analyses from advanced configurations cannot be processed when the
-default setup is enabled", observed on PR 54), so the `Analyze` step fails and the
-workflow cannot go green first. The order is therefore: merge the workflow (CodeQL is
-not a required check in the `staging` ruleset), then open Settings > Code security >
-Code scanning > CodeQL analysis and disable default setup (the "..." menu next to
-"CodeQL analysis", "Disable CodeQL"), or run
-`gh api -X PATCH repos/<owner>/serviceradar/code-scanning/default-setup -f state=not-configured`,
-then dispatch `codeql.yml` on `staging`. Existing alerts and dismissals carry over
-because the analysis category is unchanged.
+Default setup and the workflow cannot coexist: while default setup is enabled, GitHub
+rejects every SARIF the workflow uploads ("CodeQL analyses from advanced configurations
+cannot be processed when the default setup is enabled", observed on PR 54). The owner
+disabled default setup on 2026-10-30 with
+`gh api -X PATCH repos/<owner>/serviceradar/code-scanning/default-setup -f state=not-configured`
+(the UI path is Settings > Code security > Code scanning > CodeQL analysis > "..." >
+Disable CodeQL). Do not re-enable it; it would turn every `Analyze` job red again.
+Existing alerts and dismissals carried over because the analysis category is unchanged.
 
 ## buildbuddy.yaml
 
