@@ -1,6 +1,6 @@
 # Cowlib waiver rationale and removal criteria:
 # ../serviceradar_core/.deps_audit_ignore (EEF-CVE-2026-43966 block).
-# core_elx does not call the affected structured-header or Link encoders;
+# core_elx does not call the affected structured-header encoder;
 # its Gun 2.6.0 transport also rejects CR/LF request headers.
 EEF-CVE-2026-43966
 
