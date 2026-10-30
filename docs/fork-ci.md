@@ -157,6 +157,7 @@ only through a pull request merged with a merge commit, and the `BazelCI`, `lint
 | `docs-pages.yml` | push (docs paths), dispatch | Docusaurus build; Pages deploy gated | kept, gated |
 | `inspect-oidc.yml` | dispatch | dump the Actions OIDC token | kept |
 | `bazel-remote-smoke.yml` | dispatch, PR (paths) | proves BuildBuddy RBE and the executor image | new, replaces `arc-smoke.yml` |
+| `codeql.yml` | push, PR, schedule, dispatch | CodeQL advanced setup with `.github/codeql/codeql-config.yml`; excludes test and vendored code | new, replaces default setup |
 | `rbe-executor-image.yml` | dispatch | builds `docker/Dockerfile.rbe` and pushes it to GHCR | new |
 | `base-image-mirror.yml` | dispatch, PR (pin paths) | copies every `MODULE.bazel` base image into `ghcr.io/<owner>/mirror/` by digest | new |
 
@@ -164,6 +165,36 @@ Deleted: `arc-smoke.yml` (self-hosted pool smoke test), `.github/actionlint.yaml
 (self-hosted label list), `.github/FUNDING.yml` (upstream maintainer's sponsor
 link), `.github/actions/macos-release-keychain` is kept (release and the
 installers use it).
+
+## CodeQL
+
+CodeQL ran as GitHub's "default setup" from 2026-10-29. Default setup cannot exclude
+paths, and on 2026-10-30 it opened 737 alerts, 676 of them `rust/cleartext-logging`
+on `assert!` messages in test code. A PR whose diff is too large for GitHub to
+attribute alerts (every upstream batch PR) is charged with every open alert in the
+files it touches, so a backlog in test code turns every batch PR red.
+
+`codeql.yml` is the replacement: `github/codeql-action` per language (actions, c-cpp,
+go, javascript-typescript, python, ruby, rust, swift, the set default setup scanned),
+`build-mode: none` everywhere except Go (the Go extractor rejects it) and Swift, which
+autobuilds on `macos-15` under Xcode 26.2 (`swift/RPerfClient` needs Swift tools 6.2), and
+`.github/codeql/codeql-config.yml` with `paths-ignore` for test directories, `*_test.go`,
+`*_test.rs`, `*.test.{js,mjs,ts,tsx}`, `third_party/` and `vendor/`. The analysis
+category is `/language:<name>`, the same as default setup, so existing alerts and
+dismissals carry over.
+
+Limitation: a path filter cannot reach a `#[cfg(test)]` module inside a production
+Rust file. A new alert there is still reported and is triaged by hand; the rule stays
+on for production code.
+
+Default setup and the workflow cannot coexist: while default setup is enabled, GitHub
+rejects every SARIF the workflow uploads ("CodeQL analyses from advanced configurations
+cannot be processed when the default setup is enabled", observed on PR 54). The owner
+disabled default setup on 2026-10-30 with
+`gh api -X PATCH repos/<owner>/serviceradar/code-scanning/default-setup -f state=not-configured`
+(the UI path is Settings > Code security > Code scanning > CodeQL analysis > "..." >
+Disable CodeQL). Do not re-enable it; it would turn every `Analyze` job red again.
+Existing alerts and dismissals carried over because the analysis category is unchanged.
 
 ## buildbuddy.yaml
 
