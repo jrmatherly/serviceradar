@@ -177,7 +177,7 @@ files it touches, so a backlog in test code turns every batch PR red.
 `codeql.yml` is the replacement: `github/codeql-action` per language (actions, c-cpp,
 go, javascript-typescript, python, ruby, rust, swift, the set default setup scanned),
 `build-mode: none` everywhere except Go (the Go extractor rejects it) and Swift, which
-autobuilds on `macos-15`, and
+autobuilds on `macos-15` under Xcode 26.2 (`swift/RPerfClient` needs Swift tools 6.2), and
 `.github/codeql/codeql-config.yml` with `paths-ignore` for test directories, `*_test.go`,
 `*_test.rs`, `*.test.{js,mjs,ts,tsx}`, `third_party/` and `vendor/`. The analysis
 category is `/language:<name>`, the same as default setup, so existing alerts and
