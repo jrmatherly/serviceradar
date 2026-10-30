@@ -155,6 +155,14 @@ doctor: ## Check this machine has the toolchains, hooks and local files the fork
 compose-up: ## Start Docker Compose stack
 	@docker compose up -d
 
+.PHONY: seed-faker seed-faker-status seed-faker-down
+seed-faker: ## Seed the compose stack with synthetic faker devices (SEED_DEVICE_COUNT, default 50000)
+	@scripts/seed-faker.sh up
+seed-faker-status: ## Print the seeded device count
+	@scripts/seed-faker.sh status
+seed-faker-down: ## Remove the seeded source and devices, stop faker, drop its data
+	@scripts/seed-faker.sh down
+
 TEST_DB_COMPOSE := docker compose -f docker/compose/test-db/compose.yml
 TEST_DB_DIR := $(CURDIR)/tmp/test-db
 TEST_DB_ENV := test -s "$(TEST_DB_DIR)/.env" || { echo "No tmp/test-db/.env; run make test-db-up first." >&2; exit 1; }; \

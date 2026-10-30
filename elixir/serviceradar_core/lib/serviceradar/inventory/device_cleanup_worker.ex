@@ -321,8 +321,9 @@ defmodule ServiceRadar.Inventory.DeviceCleanupWorker do
   # tombstones not yet backfilled. Internal service identities remain excluded.
   # Retained identities keep a minimal tombstone and their deletion/merge lineage;
   # identity_purged_at prevents repeatedly processing those rows on later runs.
-  # Public (@doc false) so the DIRE lifecycle trace can purge exactly the devices it
-  # created; running the worker would purge every expired tombstone in the database.
+  # Public (@doc false) for callers that must purge exactly the devices they created
+  # (the DIRE lifecycle trace, scripts/seed-faker.sh); running the worker would purge
+  # every expired tombstone in the database.
   @doc false
   def hard_delete_records(stats, records) do
     hard_delete_uids(Map.put_new(stats, :skipped, 0), Enum.map(records, & &1.uid), purge_plan())
