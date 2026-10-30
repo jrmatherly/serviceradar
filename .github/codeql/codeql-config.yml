@@ -1,0 +1,25 @@
+# CodeQL configuration for the fork's advanced setup (.github/workflows/codeql.yml).
+# It replaces GitHub's default setup, which cannot exclude paths. See docs/fork-ci.md.
+name: "Fork CodeQL config"
+
+# Test code and vendored code are not shipped product, and test code is where the
+# false-positive backlog lived: 676 rust/cleartext-logging alerts on assert! messages,
+# dismissed as "used in tests" on 2026-10-30. Path filters apply to the languages this
+# workflow analyzes without a build (build-mode none); the Swift autobuild ignores them.
+#
+# Known limitation: a path filter cannot reach a `#[cfg(test)]` module inside a
+# production Rust file, so a new alert there is still reported and is triaged by
+# hand. The rule stays on because it is right for production code.
+paths-ignore:
+  - '**/tests/**'
+  - '**/test/**'
+  - '**/testdata/**'
+  - '**/__tests__/**'
+  - '**/*_test.go'
+  - '**/*_test.rs'
+  - '**/*.test.js'
+  - '**/*.test.mjs'
+  - '**/*.test.ts'
+  - '**/*.test.tsx'
+  - 'third_party/**'
+  - '**/vendor/**'

@@ -1,0 +1,68 @@
+name: CodeQL
+
+# Advanced setup replacing GitHub's CodeQL default setup, which cannot exclude test
+# code. The language list is what default setup scanned on 2026-10-30; the path
+# filters live in .github/codeql/codeql-config.yml. See docs/fork-ci.md.
+on:
+  push:
+    branches:
+      - staging
+  pull_request:
+    branches:
+      - staging
+  schedule:
+    - cron: '41 6 * * 2'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    # Swift analysis needs Xcode; every other language is extracted without a build.
+    runs-on: ${{ matrix.language == 'swift' && 'macos-15' || 'ubuntu-24.04' }}
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions
+            build-mode: none
+          - language: c-cpp
+            build-mode: none
+          - language: go
+            build-mode: none
+          - language: javascript-typescript
+            build-mode: none
+          - language: python
+            build-mode: none
+          - language: ruby
+            build-mode: none
+          - language: rust
+            build-mode: none
+          - language: swift
+            build-mode: autobuild
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # actions/checkout@v7.0.1
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # github/codeql-action@v4.39.1
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          config-file: ./.github/codeql/codeql-config.yml
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # github/codeql-action@v4.39.1
+        with:
+          category: "/language:${{ matrix.language }}"
