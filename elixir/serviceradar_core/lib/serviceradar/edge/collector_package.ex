@@ -121,6 +121,13 @@ defmodule ServiceRadar.Edge.CollectorPackage do
         description "Token expiration time"
       end
 
+      # A leaf authorizes a package by its certificate, and Falcosidekick presents the
+      # cluster's runtime certificate, so the leaf would refuse it.
+      validate absent(:edge_site_id) do
+        where attribute_equals(:collector_type, :falcosidekick)
+        message "Falcosidekick runs in the cluster and cannot connect through an edge site"
+      end
+
       change fn changeset, _context ->
         collector_type = Ash.Changeset.get_attribute(changeset, :collector_type)
         site = Ash.Changeset.get_attribute(changeset, :site) || "default"

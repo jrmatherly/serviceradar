@@ -32,6 +32,17 @@ defmodule ServiceRadarWebNGWeb.Api.CollectorControllerTest do
     def create_tarball(_package, _creds, _tls_key, _opts \\ []), do: {:error, %{secret: "collector-bundle-secret"}}
   end
 
+  setup do
+    prior = Application.get_env(:serviceradar_web_ng, :collector_nats_url)
+    Application.put_env(:serviceradar_web_ng, :collector_nats_url, "tls://nats.example.com:4222")
+
+    on_exit(fn ->
+      if prior,
+        do: Application.put_env(:serviceradar_web_ng, :collector_nats_url, prior),
+        else: Application.delete_env(:serviceradar_web_ng, :collector_nats_url)
+    end)
+  end
+
   describe "POST /api/admin/collectors" do
     setup %{conn: conn} do
       seed = :crypto.strong_rand_bytes(32)
@@ -74,6 +85,35 @@ defmodule ServiceRadarWebNGWeb.Api.CollectorControllerTest do
 
       package = Ash.get!(CollectorPackage, body["id"], actor: system_actor())
       assert EnrollmentToken.verify_secret(decoded.secret, package.download_token_hash)
+    end
+  end
+
+  describe "POST /api/admin/collectors with an edge site" do
+    setup :authenticate_admin
+
+    test "refuses falcosidekick, which has no user on a leaf", %{conn: conn} do
+      if not ServiceRadarWebNG.Capabilities.collectors_enabled?() do
+        previous = Application.get_env(:serviceradar_web_ng, :runtime_capabilities)
+
+        Application.put_env(:serviceradar_web_ng, :runtime_capabilities, %{
+          enabled: [:collectors_enabled],
+          configured?: true
+        })
+
+        on_exit(fn ->
+          if previous,
+            do: Application.put_env(:serviceradar_web_ng, :runtime_capabilities, previous),
+            else: Application.delete_env(:serviceradar_web_ng, :runtime_capabilities)
+        end)
+      end
+
+      conn =
+        post(conn, ~p"/api/admin/collectors", %{
+          "collector_type" => "falcosidekick",
+          "edge_site_id" => Ecto.UUID.generate()
+        })
+
+      assert json_response(conn, 422)["error"] == "validation_error"
     end
   end
 
@@ -140,6 +180,20 @@ defmodule ServiceRadarWebNGWeb.Api.CollectorControllerTest do
       assert Enum.any?(file_names, &String.ends_with?(&1, "/config/flowgger.toml"))
       assert Enum.any?(file_names, &String.ends_with?(&1, "/update.sh"))
       assert Enum.any?(file_names, &String.ends_with?(&1, "/certs/collector.pem"))
+    end
+
+    test "refuses a hub-direct bundle with no external hub URL and leaves the token usable", %{conn: _conn} do
+      Application.delete_env(:serviceradar_web_ng, :collector_nats_url)
+
+      {package, token} = create_ready_collector_package(:flowgger)
+
+      conn =
+        build_conn()
+        |> put_req_header("x-serviceradar-download-token", token)
+        |> post(~p"/api/collectors/#{package.id}/bundle", %{})
+
+      assert json_response(conn, 503)["error"] =~ "SERVICERADAR_NATS_COLLECTOR_URL"
+      assert Ash.get!(CollectorPackage, package.id, actor: system_actor()).status == :ready
     end
 
     test "refuses a bundle when TLS certificates were not provisioned", %{conn: _conn} do

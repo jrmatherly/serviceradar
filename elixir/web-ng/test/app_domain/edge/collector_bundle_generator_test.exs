@@ -1,5 +1,5 @@
 defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias ServiceRadar.Edge.CollectorPackage
   alias ServiceRadar.Edge.EdgeSite
@@ -508,13 +508,70 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
     end
 
     @tag :db_free
-    test "a collector with no edge site keeps the platform NATS URL" do
-      previous = Application.get_env(:serviceradar_web_ng, :nats_url)
-      Application.put_env(:serviceradar_web_ng, :nats_url, "tls://nats.example:4222")
-      on_exit(fn -> restore_nats_url(previous) end)
+    test "a collector with no edge site gets the externally reachable hub URL, not the cluster's" do
+      put_web_ng_env(:nats_url, "nats://nats:4222")
+      put_web_ng_env(:collector_nats_url, "tls://nats.example.com:4222")
 
       assert CollectorBundleGenerator.get_nats_url(%CollectorPackage{collector_type: :sflow}) ==
-               "tls://nats.example:4222"
+               "tls://nats.example.com:4222"
+    end
+  end
+
+  describe "create_tarball/4 with no external hub URL" do
+    setup do
+      put_web_ng_env(:nats_url, "nats://nats:4222")
+      Application.delete_env(:serviceradar_web_ng, :collector_nats_url)
+    end
+
+    test "a hub-direct host bundle refuses rather than ship an internal hostname" do
+      package = %{sample_flow_package(:netflow) | edge_site: nil}
+
+      assert {:error, :collector_nats_url_missing} =
+               CollectorBundleGenerator.create_tarball(package, sample_nats_creds(), sample_tls_key())
+
+      refute CollectorBundleGenerator.nats_url_configured?(package)
+    end
+
+    test "a bundle for an edge site still builds, since it dials the leaf" do
+      package = %{sample_flow_package(:netflow) | edge_site: %EdgeSite{name: "Edge", nats_leaf_url: nil}}
+
+      assert {:ok, _tarball} =
+               CollectorBundleGenerator.create_tarball(package, sample_nats_creds(), sample_tls_key())
+
+      assert CollectorBundleGenerator.nats_url_configured?(%{package | edge_site_id: Ecto.UUID.generate()})
+    end
+
+    test "falcosidekick deploys into the cluster and keeps the cluster URL" do
+      package = sample_falcosidekick_package()
+
+      assert {:ok, tarball} = CollectorBundleGenerator.create_tarball(package, sample_nats_creds(), nil)
+
+      values = tarball |> extract_files() |> find_file("falcosidekick.yaml") |> YamlElixir.read_from_string!()
+      assert values["config"]["nats"]["hostport"] == "nats://nats:4222"
+      assert CollectorBundleGenerator.nats_url_configured?(package)
+    end
+  end
+
+  describe "CollectorPackage :create" do
+    test "refuses an edge site for falcosidekick, which has no user on a leaf" do
+      changeset =
+        Ash.Changeset.for_create(CollectorPackage, :create, %{
+          collector_type: :falcosidekick,
+          edge_site_id: Ecto.UUID.generate()
+        })
+
+      refute changeset.valid?
+      assert [%{fields: [:edge_site_id]}] = changeset.errors
+    end
+
+    test "allows an edge site for a host collector" do
+      changeset =
+        Ash.Changeset.for_create(CollectorPackage, :create, %{
+          collector_type: :flowgger,
+          edge_site_id: Ecto.UUID.generate()
+        })
+
+      assert changeset.valid?
     end
   end
 
@@ -789,8 +846,16 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
     }
   end
 
-  defp restore_nats_url(nil), do: Application.delete_env(:serviceradar_web_ng, :nats_url)
-  defp restore_nats_url(value), do: Application.put_env(:serviceradar_web_ng, :nats_url, value)
+  defp put_web_ng_env(key, value) do
+    previous = Application.get_env(:serviceradar_web_ng, key)
+    Application.put_env(:serviceradar_web_ng, key, value)
+
+    on_exit(fn ->
+      if previous,
+        do: Application.put_env(:serviceradar_web_ng, key, previous),
+        else: Application.delete_env(:serviceradar_web_ng, key)
+    end)
+  end
 
   defp sample_nats_creds do
     """

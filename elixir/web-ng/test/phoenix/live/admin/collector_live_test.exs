@@ -97,6 +97,7 @@ defmodule ServiceRadarWebNGWeb.Admin.CollectorLiveTest do
       assert html =~ "sudo apt install serviceradar-flow-collector"
       refute html =~ "serviceradar-netflow"
       assert html =~ "collectorpkg-v2:"
+      assert html =~ "SERVICERADAR_NATS_COLLECTOR_URL"
     end
   end
 

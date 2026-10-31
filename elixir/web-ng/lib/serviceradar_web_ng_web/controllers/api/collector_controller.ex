@@ -522,6 +522,14 @@ defmodule ServiceRadarWebNGWeb.Api.CollectorController do
     return_error(conn, :internal_server_error, "TLS certificates not provisioned")
   end
 
+  defp handle_bundle_error(conn, :collector_nats_url_missing) do
+    return_error(
+      conn,
+      :service_unavailable,
+      "no NATS URL is reachable from a collector host: set SERVICERADAR_NATS_COLLECTOR_URL on web-ng"
+    )
+  end
+
   defp handle_bundle_error(conn, reason) do
     Logger.error("Collector bundle request failed: #{inspect(reason)}")
     return_error(conn, :internal_server_error, "bundle creation failed")

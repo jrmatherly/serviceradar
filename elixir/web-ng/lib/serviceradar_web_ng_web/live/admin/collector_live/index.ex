@@ -569,6 +569,18 @@ defmodule ServiceRadarWebNGWeb.Admin.CollectorLive.Index do
           </div>
 
           <%= if @download_token do %>
+            <div
+              :if={not CollectorBundleGenerator.nats_url_configured?(@created_package)}
+              class={ui_alert_class(variant: "warning", class: "text-xs")}
+            >
+              <.icon name="hero-exclamation-triangle" class="size-4" />
+              <span>
+                The bundle download will fail until web-ng has
+                <code>SERVICERADAR_NATS_COLLECTOR_URL</code>
+                set to a NATS URL this collector's host can reach.
+              </span>
+            </div>
+
             <div class="space-y-3">
               <div class="text-sm font-medium">Enrollment Instructions</div>
 
@@ -982,6 +994,8 @@ defmodule ServiceRadarWebNGWeb.Admin.CollectorLive.Index do
   defp create_error_message(reason) when reason in [:missing_signing_key, :invalid_private_key] do
     "Collector enrollment tokens cannot be signed: this deployment's signing key is missing or invalid."
   end
+
+  defp create_error_message(%Ash.Error.Invalid{errors: [%{fields: [:edge_site_id], message: message} | _]}), do: message
 
   defp create_error_message(_reason), do: "Failed to create package"
 

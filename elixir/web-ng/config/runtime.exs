@@ -1844,6 +1844,14 @@ if config_env() == :prod do
            String.trim(onboarding_token_public_key)
   end
 
+  # The hub URL a hub-direct collector bundle dials. NATS_URL names a host inside
+  # the deployment, so a bundle cannot use it.
+  collector_nats_url = System.get_env("SERVICERADAR_NATS_COLLECTOR_URL")
+
+  if is_binary(collector_nats_url) and String.trim(collector_nats_url) != "" do
+    config :serviceradar_web_ng, :collector_nats_url, String.trim(collector_nats_url)
+  end
+
   nats_url = System.get_env("NATS_URL") || System.get_env("SERVICERADAR_NATS_URL")
 
   if is_binary(nats_url) and String.trim(nats_url) != "" do

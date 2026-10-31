@@ -11,7 +11,9 @@ defmodule ServiceRadarWebNGWeb.Admin.CollectorLiveCreateTest do
     Application.delete_env(:serviceradar_web_ng, :onboarding_token_private_key)
 
     on_exit(fn ->
-      if previous, do: Application.put_env(:serviceradar_web_ng, :onboarding_token_private_key, previous)
+      if previous,
+        do: Application.put_env(:serviceradar_web_ng, :onboarding_token_private_key, previous),
+        else: Application.delete_env(:serviceradar_web_ng, :onboarding_token_private_key)
     end)
   end
 
@@ -20,6 +22,18 @@ defmodule ServiceRadarWebNGWeb.Admin.CollectorLiveCreateTest do
              Index.handle_event("create_package", %{"collector_type" => "flowgger"}, socket())
 
     assert socket.assigns.flash["error"] =~ "signing key"
+    refute Map.has_key?(socket.assigns, :created_package)
+  end
+
+  test "an edge site for falcosidekick shows why it was refused" do
+    seed = Base.encode64(:crypto.strong_rand_bytes(32))
+    Application.put_env(:serviceradar_web_ng, :onboarding_token_private_key, seed)
+
+    params = %{"collector_type" => "falcosidekick", "edge_site_id" => Ecto.UUID.generate()}
+
+    assert {:noreply, socket} = Index.handle_event("create_package", params, socket())
+
+    assert socket.assigns.flash["error"] =~ "edge site"
     refute Map.has_key?(socket.assigns, :created_package)
   end
 
