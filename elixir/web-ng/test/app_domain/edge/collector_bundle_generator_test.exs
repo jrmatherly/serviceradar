@@ -122,7 +122,7 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
         )
 
       assert {:ok, installed} = install_bundle(tarball)
-      assert File.read!(Path.join(installed, "creds/nats.creds")) =~ "BEGIN NATS USER JWT"
+      assert File.read!(Path.join(installed, "creds/flowgger.creds")) =~ "BEGIN NATS USER JWT"
       assert File.exists?(Path.join(installed, "flowgger.toml"))
     end
 
@@ -143,17 +143,13 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
 
       assert {:ok, installed} = install_bundle(tarball)
 
-      assert File.read!(Path.join(installed, "certs/collector.pem")) == "cert-pem\n"
-      assert File.read!(Path.join(installed, "certs/collector-key.pem")) == sample_tls_key()
+      assert File.read!(Path.join(installed, "certs/flowgger.pem")) == "cert-pem\n"
+      assert File.read!(Path.join(installed, "certs/flowgger-key.pem")) == sample_tls_key()
       assert File.read!(Path.join(installed, "certs/ca-chain.pem")) == "ca-pem\n"
-      assert mode(Path.join(installed, "certs/collector.pem")) == 0o644
+      assert mode(Path.join(installed, "certs/flowgger.pem")) == 0o644
       assert mode(Path.join(installed, "certs/ca-chain.pem")) == 0o644
-      assert mode(Path.join(installed, "certs/collector-key.pem")) == 0o600
-      assert mode(Path.join(installed, "creds/nats.creds")) == 0o600
-
-      log = File.read!(Path.join(installed, "systemctl.log"))
-      assert log =~ "stop serviceradar-flowgger"
-      assert log =~ "start serviceradar-flowgger"
+      assert mode(Path.join(installed, "certs/flowgger-key.pem")) == 0o600
+      assert mode(Path.join(installed, "creds/flowgger.creds")) == 0o600
     end
 
     test "defaults syslog input to auto detection and UTC" do
@@ -189,6 +185,111 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
 
         assert flowgger_toml =~ ~s(rfc3164_timezone = "#{timezone}")
       end
+    end
+  end
+
+  describe "create_tarball/4 for the log collector" do
+    # Literal values from build/packaging/log-collector: the one package holds both
+    # pipelines, and its unit reads log-collector.toml, which names these two files.
+    @log_collector_unit "ExecStart=/usr/local/bin/serviceradar-log-collector --config /etc/serviceradar/log-collector.toml"
+
+    for {type, config_file, section} <- [
+          {:flowgger, "flowgger.toml", "flowgger"},
+          {:otel, "otel.toml", "otel"}
+        ] do
+      test "#{type} installs into the package's service and the file it reads" do
+        unit =
+          File.read!(Path.join(@repo_root, "build/packaging/log-collector/systemd/serviceradar-log-collector.service"))
+
+        package_config =
+          File.read!(Path.join(@repo_root, "build/packaging/log-collector/config/log-collector.toml"))
+
+        assert unit =~ @log_collector_unit
+
+        assert package_config =~
+                 ~s([#{unquote(section)}]\nenabled = true\nconfig_file = "/etc/serviceradar/#{unquote(config_file)}")
+
+        {:ok, tarball} =
+          CollectorBundleGenerator.create_tarball(
+            sample_flow_package(unquote(type)),
+            sample_nats_creds(),
+            sample_tls_key(),
+            nats_url: "tls://host01.example.com:4222"
+          )
+
+        assert {:ok, installed} = install_bundle(tarball)
+        assert File.exists?(Path.join(installed, unquote(config_file)))
+
+        log = File.read!(Path.join(installed, "systemctl.log"))
+        assert log =~ "stop serviceradar-log-collector"
+        assert log =~ "start serviceradar-log-collector"
+
+        readme = tarball |> extract_files() |> find_file("README.md")
+        assert readme =~ "apt install serviceradar-log-collector"
+        assert readme =~ "dnf install serviceradar-log-collector"
+        refute readme =~ "serviceradar-#{unquote(type)}"
+      end
+    end
+
+    test "flowgger and otel on one host keep separate identities" do
+      flowgger = sample_flow_package(:flowgger)
+      otel = sample_flow_package(:otel)
+
+      config = Path.join(System.tmp_dir!(), "collector-shared-#{System.unique_integer([:positive])}")
+      on_exit(fn -> File.rm_rf!(config) end)
+
+      for {package, cert} <- [{flowgger, "flowgger-cert\n"}, {otel, "otel-cert\n"}] do
+        {:ok, tarball} =
+          CollectorBundleGenerator.create_tarball(
+            %{package | tls_cert_pem: cert},
+            "#{package.collector_type}-creds\n",
+            sample_tls_key(),
+            nats_url: "tls://host01.example.com:4222"
+          )
+
+        assert {:ok, ^config} = install_bundle(tarball, config)
+      end
+
+      assert File.read!(Path.join(config, "certs/flowgger.pem")) == "flowgger-cert\n"
+      assert File.read!(Path.join(config, "certs/otel.pem")) == "otel-cert\n"
+      assert File.read!(Path.join(config, "creds/flowgger.creds")) == "flowgger-creds\n"
+      assert File.read!(Path.join(config, "creds/otel.creds")) == "otel-creds\n"
+      assert File.exists?(Path.join(config, "flowgger.toml"))
+      assert File.exists?(Path.join(config, "otel.toml"))
+    end
+
+    # The Rust tests parse these fixtures with the real config types.
+    for {type, fixture, file} <- [
+          {:flowgger, "rust/flowgger/testdata/edge-flowgger.toml", "flowgger.toml"},
+          {:otel, "rust/otel/testdata/edge-otel.toml", "otel.toml"}
+        ] do
+      test "#{type} output matches the fixture its binary parses" do
+        expected = @repo_root |> Path.join(unquote(fixture)) |> File.read!() |> toml_settings()
+        assert unquote(type) |> sample_flow_package() |> bundle_text(unquote(file)) |> toml_settings() == expected
+      end
+    end
+  end
+
+  describe "create_tarball/4 for trapd" do
+    test "installs into the unit the package ships" do
+      unit = File.read!(Path.join(@repo_root, "build/packaging/trapd/systemd/serviceradar-trapd.service"))
+      assert unit =~ "ExecStart=/usr/local/bin/serviceradar-trapd --config /etc/serviceradar/trapd.json"
+
+      {:ok, tarball} =
+        CollectorBundleGenerator.create_tarball(sample_flow_package(:trapd), sample_nats_creds(), sample_tls_key(),
+          nats_url: "tls://host01.example.com:4222"
+        )
+
+      assert {:ok, installed} = install_bundle(tarball)
+      assert File.exists?(Path.join(installed, "trapd.json"))
+      assert File.read!(Path.join(installed, "systemctl.log")) =~ "start serviceradar-trapd"
+    end
+
+    test "output matches the fixture trapd parses" do
+      expected =
+        @repo_root |> Path.join("rust/trapd/testdata/edge-trapd.json") |> File.read!() |> Jason.decode!()
+
+      assert bundle_json(sample_flow_package(:trapd), "trapd.json") == expected
     end
   end
 
@@ -306,14 +407,16 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
       config = files |> find_file("flow-collector.json") |> Jason.decode!()
       update_script = find_file(files, "update.sh")
 
-      assert config["nats_creds_file"] == "/etc/serviceradar/creds/nats.creds"
+      assert config["nats_creds_file"] == "/etc/serviceradar/creds/flow-collector.creds"
       assert %{"mode" => "mtls", "cert_dir" => "/etc/serviceradar/certs", "tls" => tls} = config["security"]
 
       assert update_script =~ ~s(CERTS_DIR="$CONFIG_DIR/certs")
       assert update_script =~ ~s(CREDS_DIR="$CONFIG_DIR/creds")
 
+      assert update_script =~ ~s("$CREDS_DIR/flow-collector.creds")
+
       for file <- Map.values(tls) do
-        assert update_script =~ ~s(cp "$SCRIPT_DIR/certs/#{file}" "$CERTS_DIR/")
+        assert update_script =~ ~s("$CERTS_DIR/#{file}")
       end
     end
 
@@ -448,10 +551,10 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
     end
   end
 
-  defp install_bundle(tarball) do
+  defp install_bundle(tarball, config \\ nil) do
     root = Path.join(System.tmp_dir!(), "collector-update-#{System.unique_integer([:positive])}")
     bundle = Path.join(root, "bundle")
-    config = Path.join(root, "etc")
+    config = config || Path.join(root, "etc")
     bin = Path.join(root, "bin")
     log = Path.join(config, "systemctl.log")
 
@@ -503,7 +606,8 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
     #!/bin/bash
     printf '%s\\n' "$*" >> "#{log}"
     if [ "$1" = "list-unit-files" ]; then
-      echo "serviceradar-flowgger.service enabled"
+      echo "serviceradar-log-collector.service enabled"
+      echo "serviceradar-trapd.service enabled"
       echo "serviceradar-flow-collector.service enabled"
     fi
     exit 0
@@ -572,6 +676,12 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
   defp nats_covers?([token | filter], [token | subject]), do: nats_covers?(filter, subject)
   defp nats_covers?([], []), do: true
   defp nats_covers?(_filter, _subject), do: false
+
+  defp toml_settings(toml) do
+    toml
+    |> String.split("\n", trim: true)
+    |> Enum.reject(&String.starts_with?(&1, "#"))
+  end
 
   defp toml_string(toml, key) do
     [_, value] = Regex.run(~r/^#{key} = "([^"]+)"$/m, toml)

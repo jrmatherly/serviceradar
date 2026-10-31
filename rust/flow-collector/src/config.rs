@@ -851,7 +851,7 @@ mod tests {
             assert!(!config.stream_owner);
             assert_eq!(
                 config.nats_creds_file.as_deref(),
-                Some("/etc/serviceradar/creds/nats.creds")
+                Some("/etc/serviceradar/creds/flow-collector.creds")
             );
             assert_eq!(config.listeners.len(), 1);
             assert_eq!(config.listeners[0].protocol_name(), protocol);
@@ -862,11 +862,13 @@ mod tests {
             assert_eq!(security.mode, SecurityMode::Mtls);
             assert_eq!(
                 security.cert_file_path(),
-                Some(PathBuf::from("/etc/serviceradar/certs/collector.pem"))
+                Some(PathBuf::from("/etc/serviceradar/certs/flow-collector.pem"))
             );
             assert_eq!(
                 security.key_file_path(),
-                Some(PathBuf::from("/etc/serviceradar/certs/collector-key.pem"))
+                Some(PathBuf::from(
+                    "/etc/serviceradar/certs/flow-collector-key.pem"
+                ))
             );
             assert_eq!(
                 security.ca_file_path(),

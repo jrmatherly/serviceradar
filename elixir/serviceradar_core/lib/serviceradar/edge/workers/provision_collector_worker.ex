@@ -240,33 +240,28 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorker do
 
   @doc false
   # Edge credentials leave the cluster, so a collector may publish only its own
-  # subjects and read its stream's info. The stream's trusted owner (the otel
-  # log-collector or core's EventWriter) creates it and captures these subjects,
-  # so no edge host can rewrite, purge or delete a shared stream.
+  # subjects, and makes no stream API call: behind a leaf the leaf's own JetStream
+  # answers one. The stream's trusted owner (the otel log-collector or core's
+  # EventWriter) creates it and captures these subjects, so no edge host can
+  # rewrite, purge or delete a shared stream.
   @spec collector_permissions(atom()) :: %{
           publish_allow: [String.t()],
           subscribe_allow: [String.t()]
         }
-  def collector_permissions(:flowgger), do: publisher(["logs.syslog"], ["events"])
-  def collector_permissions(:trapd), do: publisher(["logs.snmp"], ["events"])
+  def collector_permissions(:flowgger), do: publisher(["logs.syslog"])
+  def collector_permissions(:trapd), do: publisher(["logs.snmp"])
 
   def collector_permissions(:otel),
-    do: publisher(["otel.traces.>", "otel.metrics.>", "logs.otel"], ["events"])
+    do: publisher(["otel.traces.>", "otel.metrics.>", "logs.otel"])
 
-  # Non-owner flow-collector makes no stream call and goes by the publish result.
-  def collector_permissions(:netflow), do: publisher(["flows.raw.netflow"], [])
-  def collector_permissions(:sflow), do: publisher(["flows.raw.sflow"], [])
+  def collector_permissions(:netflow), do: publisher(["flows.raw.netflow"])
+  def collector_permissions(:sflow), do: publisher(["flows.raw.sflow"])
 
-  # Falcosidekick publishes plain NATS messages, so it needs no stream call. The
-  # events stream captures only falco.logs (EventWriter FALCO entry).
-  def collector_permissions(:falcosidekick), do: publisher(["falco.logs"], [])
+  # Falcosidekick publishes plain NATS messages. The events stream captures only
+  # falco.logs (EventWriter FALCO entry).
+  def collector_permissions(:falcosidekick), do: publisher(["falco.logs"])
 
-  defp publisher(subjects, streams) do
-    %{
-      publish_allow: subjects ++ Enum.map(streams, &"$JS.API.STREAM.INFO.#{&1}"),
-      subscribe_allow: ["_INBOX.>"]
-    }
-  end
+  defp publisher(subjects), do: %{publish_allow: subjects, subscribe_allow: ["_INBOX.>"]}
 
   # Issued last so a retry after a datasvc failure leaves no orphan certificate.
   defp issue_certificate(_issuer, %{collector_type: :falcosidekick}), do: {:ok, %{}}

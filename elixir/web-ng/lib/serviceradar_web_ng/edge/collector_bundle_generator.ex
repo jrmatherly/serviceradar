@@ -22,6 +22,11 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
       ├── update.sh                # Script to copy files and restart service
       └── README.md                # Installation instructions
 
+  `update.sh` installs the files under `/etc/serviceradar` named for the binary's
+  config file (`certs/flowgger.pem`, `creds/flowgger.creds`), so two collectors on one
+  host keep separate identities. Flowgger and OTel share the `serviceradar-log-collector`
+  package and its one service, which runs each input whose config file is present.
+
   Every host collector config says `mode: mtls` and nothing else puts certificates
   on the host, so a package without all three PEMs returns
   `{:error, :tls_material_missing}` rather than a bundle that fails at connect.
@@ -152,6 +157,7 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
   # NetFlow and sFlow share one binary: the serviceradar-flow-collector package,
   # whose unit reads /etc/serviceradar/flow-collector.json.
   defp service_name(%{collector_type: type}) when type in [:netflow, :sflow], do: "serviceradar-flow-collector"
+  defp service_name(%{collector_type: type}) when type in [:flowgger, :otel], do: "serviceradar-log-collector"
   defp service_name(%{collector_type: type}), do: "serviceradar-#{type}"
 
   defp config_filename(package) do
@@ -164,6 +170,14 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
       _ -> "config.toml"
     end
   end
+
+  # NetFlow and sFlow share a config file, so they share an installed identity too:
+  # installing one replaces the other.
+  defp identity_name(package), do: package |> config_filename() |> Path.rootname()
+
+  defp cert_path(package), do: "/etc/serviceradar/certs/#{identity_name(package)}.pem"
+  defp key_path(package), do: "/etc/serviceradar/certs/#{identity_name(package)}-key.pem"
+  defp creds_path(package), do: "/etc/serviceradar/creds/#{identity_name(package)}.creds"
 
   defp generate_config(package, opts) do
     case package.collector_type do
@@ -210,18 +224,11 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
     nats_url = #{encode_toml_value(nats_url)}
     nats_subject = "logs.syslog"
     nats_stream = "events"
+    nats_stream_owner = false
     nats_tls_ca_file = "/etc/serviceradar/certs/ca-chain.pem"
-    nats_tls_cert = "/etc/serviceradar/certs/collector.pem"
-    nats_tls_key = "/etc/serviceradar/certs/collector-key.pem"
-    nats_creds_file = "/etc/serviceradar/creds/nats.creds"
-
-    [grpc]
-    listen_addr = "127.0.0.1:50044"
-    mode = "mtls"
-    cert_dir = "/etc/serviceradar/certs"
-    cert_file = "/etc/serviceradar/certs/collector.pem"
-    key_file = "/etc/serviceradar/certs/collector-key.pem"
-    ca_file = "/etc/serviceradar/certs/ca-chain.pem"
+    nats_tls_cert = #{encode_toml_value(cert_path(package))}
+    nats_tls_key = #{encode_toml_value(key_path(package))}
+    nats_creds_file = #{encode_toml_value(creds_path(package))}
     """
   end
 
@@ -247,17 +254,18 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
     subject = "otel"
     logs_subject = "logs.otel"
     stream = "events"
+    stream_owner = false
     timeout_secs = 30
-    creds_file = "/etc/serviceradar/creds/nats.creds"
+    creds_file = #{encode_toml_value(creds_path(package))}
 
     [nats.tls]
-    cert_file = "/etc/serviceradar/certs/collector.pem"
-    key_file = "/etc/serviceradar/certs/collector-key.pem"
+    cert_file = #{encode_toml_value(cert_path(package))}
+    key_file = #{encode_toml_value(key_path(package))}
     ca_file = "/etc/serviceradar/certs/ca-chain.pem"
 
     [grpc_tls]
-    cert_file = "/etc/serviceradar/certs/collector.pem"
-    key_file = "/etc/serviceradar/certs/collector-key.pem"
+    cert_file = #{encode_toml_value(cert_path(package))}
+    key_file = #{encode_toml_value(key_path(package))}
     ca_file = "/etc/serviceradar/certs/ca-chain.pem"
     """
   end
@@ -277,19 +285,19 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
       "stream_name" => "events",
       "subject" => "logs.snmp",
       "partition" => site,
-      "nats_creds_file" => "/etc/serviceradar/creds/nats.creds",
+      "nats_creds_file" => creds_path(package),
       "nats_security" => %{
         "mode" => "mtls",
-        "cert_file" => "/etc/serviceradar/certs/collector.pem",
-        "key_file" => "/etc/serviceradar/certs/collector-key.pem",
+        "cert_file" => cert_path(package),
+        "key_file" => key_path(package),
         "ca_file" => "/etc/serviceradar/certs/ca-chain.pem"
       },
       "grpc_listen_addr" => "0.0.0.0:#{grpc_port}",
       "grpc_security" => %{
         "mode" => "mtls",
         "cert_dir" => "/etc/serviceradar/certs",
-        "cert_file" => "/etc/serviceradar/certs/collector.pem",
-        "key_file" => "/etc/serviceradar/certs/collector-key.pem",
+        "cert_file" => cert_path(package),
+        "key_file" => key_path(package),
         "ca_file" => "/etc/serviceradar/certs/ca-chain.pem"
       }
     }
@@ -312,7 +320,7 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
 
     config = %{
       "nats_url" => get_nats_url(package, opts),
-      "nats_creds_file" => "/etc/serviceradar/creds/nats.creds",
+      "nats_creds_file" => creds_path(package),
       "stream_name" => "flows",
       # Edge credentials hold no stream API; core's EventWriter creates `flows`.
       "stream_owner" => false,
@@ -328,8 +336,8 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
         "mode" => "mtls",
         "cert_dir" => "/etc/serviceradar/certs",
         "tls" => %{
-          "cert_file" => "collector.pem",
-          "key_file" => "collector-key.pem",
+          "cert_file" => Path.basename(cert_path(package)),
+          "key_file" => Path.basename(key_path(package)),
           "ca_file" => "ca-chain.pem"
         }
       }
@@ -488,6 +496,7 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
   defp generate_update_script(package) do
     collector_type = to_string(package.collector_type)
     config_file = config_filename(package)
+    identity = identity_name(package)
 
     """
     #!/bin/bash
@@ -539,15 +548,15 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
     mkdir -p "$CERTS_DIR" "$CREDS_DIR" "$CONFIG_DIR"
 
     echo "Installing credentials..."
-    cp "$SCRIPT_DIR/creds/nats.creds" "$CREDS_DIR/"
-    chmod 600 "$CREDS_DIR/nats.creds"
+    cp "$SCRIPT_DIR/creds/nats.creds" "$CREDS_DIR/#{identity}.creds"
+    chmod 600 "$CREDS_DIR/#{identity}.creds"
 
     echo "Installing certificates..."
-    cp "$SCRIPT_DIR/certs/collector.pem" "$CERTS_DIR/"
-    cp "$SCRIPT_DIR/certs/collector-key.pem" "$CERTS_DIR/"
+    cp "$SCRIPT_DIR/certs/collector.pem" "$CERTS_DIR/#{identity}.pem"
+    cp "$SCRIPT_DIR/certs/collector-key.pem" "$CERTS_DIR/#{identity}-key.pem"
     cp "$SCRIPT_DIR/certs/ca-chain.pem" "$CERTS_DIR/"
-    chmod 644 "$CERTS_DIR/collector.pem" "$CERTS_DIR/ca-chain.pem"
-    chmod 600 "$CERTS_DIR/collector-key.pem"
+    chmod 644 "$CERTS_DIR/#{identity}.pem" "$CERTS_DIR/ca-chain.pem"
+    chmod 600 "$CERTS_DIR/#{identity}-key.pem"
 
     echo "Installing configuration..."
     cp "$SCRIPT_DIR/config/#{config_file}" "$CONFIG_DIR/"
@@ -709,6 +718,17 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
 
     edge_site_section = generate_edge_site_section(package)
 
+    shared_service_note =
+      if service == "serviceradar-log-collector" do
+        """
+
+        Flowgger and OTel share this package and its one service, which runs each
+        input whose config file is present in `/etc/serviceradar`.
+        """
+      else
+        ""
+      end
+
     """
     # ServiceRadar Collector Package
 
@@ -728,7 +748,7 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
     # RHEL/CentOS
     sudo dnf install #{service}
     ```
-
+    #{shared_service_note}
     ## Quick Start
 
     Prefer the enrollment command from the UI (token required):

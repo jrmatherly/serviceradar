@@ -6,7 +6,7 @@
       "subject": "flows.raw.netflow"
     }
   ],
-  "nats_creds_file": "/etc/serviceradar/creds/nats.creds",
+  "nats_creds_file": "/etc/serviceradar/creds/flow-collector.creds",
   "nats_url": "tls://host01.example.com:4222",
   "partition": "site01",
   "security": {
@@ -14,8 +14,8 @@
     "mode": "mtls",
     "tls": {
       "ca_file": "ca-chain.pem",
-      "cert_file": "collector.pem",
-      "key_file": "collector-key.pem"
+      "cert_file": "flow-collector.pem",
+      "key_file": "flow-collector-key.pem"
     }
   },
   "stream_name": "flows",

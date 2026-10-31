@@ -229,3 +229,33 @@ fn created_stream_is_claimed_at_the_configured_shape_and_then_stable() {
         plan.changes
     );
 }
+
+#[tokio::test]
+async fn non_owner_sends_no_stream_request() {
+    // A client that never connects: any JetStream request fails or hangs.
+    let client = async_nats::ConnectOptions::new()
+        .retry_on_initial_connect()
+        .connect("nats://127.0.0.1:1")
+        .await
+        .unwrap();
+    let js = async_nats::jetstream::new(client);
+
+    let non_owner = NATSConfig {
+        stream_owner: false,
+        ..NATSConfig::default()
+    };
+    let outcome = tokio::time::timeout(
+        std::time::Duration::from_millis(500),
+        ensure_stream(&js, &non_owner),
+    )
+    .await;
+    assert!(matches!(outcome, Ok(Ok(()))), "{outcome:?}");
+
+    let owner = NATSConfig::default();
+    let owner_outcome = tokio::time::timeout(
+        std::time::Duration::from_millis(500),
+        ensure_stream(&js, &owner),
+    )
+    .await;
+    assert!(!matches!(owner_outcome, Ok(Ok(()))), "{owner_outcome:?}");
+}

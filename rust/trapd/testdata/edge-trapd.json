@@ -1,0 +1,23 @@
+{
+  "grpc_listen_addr": "0.0.0.0:50043",
+  "grpc_security": {
+    "ca_file": "/etc/serviceradar/certs/ca-chain.pem",
+    "cert_dir": "/etc/serviceradar/certs",
+    "cert_file": "/etc/serviceradar/certs/trapd.pem",
+    "key_file": "/etc/serviceradar/certs/trapd-key.pem",
+    "mode": "mtls"
+  },
+  "listen_addr": "0.0.0.0:162",
+  "nats_creds_file": "/etc/serviceradar/creds/trapd.creds",
+  "nats_domain": "edge",
+  "nats_security": {
+    "ca_file": "/etc/serviceradar/certs/ca-chain.pem",
+    "cert_file": "/etc/serviceradar/certs/trapd.pem",
+    "key_file": "/etc/serviceradar/certs/trapd-key.pem",
+    "mode": "mtls"
+  },
+  "nats_url": "tls://host01.example.com:4222",
+  "partition": "site01",
+  "stream_name": "events",
+  "subject": "logs.snmp"
+}

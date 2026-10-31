@@ -469,9 +469,15 @@ ex_unit_tests(
         # flow-collector test parses, so the two cannot drift.
         "//rust/flow-collector:testdata/edge-netflow.json",
         "//rust/flow-collector:testdata/edge-sflow.json",
-        # CollectorBundleGeneratorTest installs netflow and sflow bundles against the
-        # service name and config path this unit really uses.
+        "//rust/flowgger:testdata/edge-flowgger.toml",
+        "//rust/otel:testdata/edge-otel.toml",
+        "//rust/trapd:testdata/edge-trapd.json",
+        # CollectorBundleGeneratorTest installs bundles against the service name and
+        # config path each unit really uses.
         "//build/packaging/flow-collector:systemd/serviceradar-flow-collector.service",
+        "//build/packaging/log-collector:config/log-collector.toml",
+        "//build/packaging/log-collector:systemd/serviceradar-log-collector.service",
+        "//build/packaging/trapd:systemd/serviceradar-trapd.service",
     ],
     # web-ng already defines a database-free tier: with ALLOW_DB_FREE_TESTS set and neither
     # CI nor REQUIRE_DB_TESTS, test_helper.exs skips Application.ensure_all_started and runs

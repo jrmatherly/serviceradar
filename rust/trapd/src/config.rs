@@ -190,6 +190,27 @@ mod tests {
     use super::*;
     use std::path::Path;
 
+    #[test]
+    fn edge_bundle_config_validates() {
+        let cfg: Config =
+            serde_json::from_str(include_str!("../testdata/edge-trapd.json")).unwrap();
+        cfg.validate().unwrap();
+
+        assert_eq!(cfg.subject, "logs.snmp");
+        assert_eq!(cfg.stream_name, "events");
+        assert_eq!(cfg.nats_domain.as_deref(), Some("edge"));
+        assert_eq!(
+            cfg.nats_creds_file.as_deref(),
+            Some("/etc/serviceradar/creds/trapd.creds")
+        );
+        let nats = cfg.nats_security.unwrap();
+        assert_eq!(nats.mode, SecurityMode::Mtls);
+        assert_eq!(
+            nats.cert_file.as_deref(),
+            Some("/etc/serviceradar/certs/trapd.pem")
+        );
+    }
+
     fn base_config() -> Config {
         Config {
             listen_addr: "0.0.0.0:162".into(),

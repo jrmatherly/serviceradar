@@ -3,6 +3,8 @@ load("//build/packaging:packages.bzl", "PACKAGES")
 
 package(default_visibility = ["//visibility:public"])
 
+exports_files(["systemd/serviceradar-trapd.service"])
+
 serviceradar_package_from_config(
     name = "trapd",
     config = PACKAGES["trapd"],

@@ -254,7 +254,7 @@ func TestEnrollCollectorInstallsRoleScopedNATSCredsAndRewritesConfig(t *testing.
 	})
 	require.NoError(t, err)
 
-	scopedCredsPath := filepath.Join(credsDir, defaultCollectorNATSCredsName)
+	scopedCredsPath := filepath.Join(credsDir, "collector.creds")
 	creds, err := os.ReadFile(scopedCredsPath)
 	require.NoError(t, err)
 	assert.Equal(t, "collector-creds", string(creds))
@@ -263,7 +263,10 @@ func TestEnrollCollectorInstallsRoleScopedNATSCredsAndRewritesConfig(t *testing.
 	config, err := os.ReadFile(filepath.Join(configDir, "collector.toml"))
 	require.NoError(t, err)
 	assert.Contains(t, string(config), scopedCredsPath)
-	assert.NotContains(t, string(config), legacySharedNATSCredsPath)
+	assert.NotContains(t, string(config), defaultCollectorCredsDir)
+
+	assert.True(t, fileExists(filepath.Join(certsDir, "collector.pem")))
+	assert.True(t, fileExists(filepath.Join(certsDir, "collector-key.pem")))
 }
 
 func TestExtractEnvOverridesRejectsProtectedKeys(t *testing.T) {
@@ -436,7 +439,7 @@ func testCollectorBundle(t *testing.T) *bytes.Reader {
 		require.NoError(t, err)
 	}
 
-	writeBundleFile("collector-package/config/collector.toml", []byte(`nats_creds_file = "/etc/serviceradar/creds/nats.creds"`))
+	writeBundleFile("collector-package/config/collector.toml", []byte(`nats_creds_file = "/etc/serviceradar/creds/collector.creds"`))
 	writeBundleFile("collector-package/certs/collector.pem", []byte("cert"))
 	writeBundleFile("collector-package/certs/collector-key.pem", []byte("key"))
 	writeBundleFile("collector-package/certs/ca-chain.pem", []byte("ca"))
