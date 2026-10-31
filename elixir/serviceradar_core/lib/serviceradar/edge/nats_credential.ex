@@ -163,7 +163,7 @@ defmodule ServiceRadar.Edge.NatsCredential do
     attribute :collector_type, :atom do
       allow_nil? true
       public? true
-      constraints one_of: [:flowgger, :trapd, :netflow, :otel]
+      constraints one_of: [:flowgger, :trapd, :netflow, :sflow, :otel, :falcosidekick]
       description "Type of collector (if credential_type is :collector)"
     end
 
