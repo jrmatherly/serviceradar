@@ -258,7 +258,9 @@ defmodule ServiceRadar.NATS.AccountClient do
 
   The API runs on web-ng, but only core has the NATS account name and a certificate
   datasvc accepts, so the call goes to the first connected node with an account name.
-  Returns `{:error, :nats_not_configured}` when no node has one.
+  Returns `{:error, :nats_not_configured}` when every node answered and none has one,
+  and `{:error, {:nodes_unreachable, nodes}}` when a node that might have one did not
+  answer, which a retry can fix.
 
   ## Options
 
@@ -271,25 +273,35 @@ defmodule ServiceRadar.NATS.AccountClient do
     rpc_call = Keyword.get(opts, :rpc_call, &:rpc.call/5)
     nodes = Keyword.get_lazy(opts, :nodes, fn -> [Node.self() | Node.list()] end)
 
-    Enum.find_value(nodes, {:error, :nats_not_configured}, fn node ->
+    Enum.reduce_while(nodes, {:error, :nats_not_configured}, fn node, result ->
       case rpc_call.(node, __MODULE__, :account_name, [], @rpc_lookup_timeout) do
         {:ok, account_name} ->
-          case rpc_call.(
-                 node,
-                 __MODULE__,
-                 :revoke_users,
-                 [account_name, user_public_keys],
-                 @rpc_timeout
-               ) do
-            {:badrpc, reason} -> {:error, {:badrpc, reason}}
-            result -> result
-          end
+          {:halt, revoke_users_on_node(rpc_call, node, account_name, user_public_keys)}
+
+        {:badrpc, reason} ->
+          Logger.warning("Node #{node} did not answer for a NATS revocation: #{inspect(reason)}")
+          {:cont, add_unreachable_node(result, node)}
 
         _not_this_node ->
-          nil
+          {:cont, result}
       end
     end)
   end
+
+  defp revoke_users_on_node(rpc_call, node, account_name, user_public_keys) do
+    args = [account_name, user_public_keys]
+
+    case rpc_call.(node, __MODULE__, :revoke_users, args, @rpc_timeout) do
+      {:badrpc, reason} -> {:error, {:badrpc, reason}}
+      result -> result
+    end
+  end
+
+  defp add_unreachable_node({:error, {:nodes_unreachable, nodes}}, node) do
+    {:error, {:nodes_unreachable, nodes ++ [node]}}
+  end
+
+  defp add_unreachable_node(_nothing_found, node), do: {:error, {:nodes_unreachable, [node]}}
 
   @type push_jwt_result :: %{
           success: boolean(),

@@ -250,10 +250,16 @@ defmodule ServiceRadar.Edge.NatsCredential do
 
       {:error, reason} ->
         Ash.Changeset.add_error(changeset,
-          message: "the NATS hub did not revoke this credential: #{inspect(reason)}"
+          message: "the NATS hub did not revoke this credential: #{hub_failure_reason(reason)}"
         )
     end
   end
+
+  defp hub_failure_reason({:nodes_unreachable, nodes}) do
+    "no answer from #{Enum.join(nodes, ", ")}, try again once the core node is back"
+  end
+
+  defp hub_failure_reason(reason), do: inspect(reason)
 
   # PubSub broadcast helpers - delegates to ServiceRadar.Edge.PubSub
 

@@ -23,6 +23,7 @@ defmodule ServiceRadarWebNGWeb.Admin.CollectorLive.Index do
   alias ServiceRadarWebNGWeb.Settings.Shell
 
   require Ash.Query
+  require Logger
 
   @collector_types [
     {"Syslog Collector (Flowgger)", :flowgger},
@@ -166,8 +167,10 @@ defmodule ServiceRadarWebNGWeb.Admin.CollectorLive.Index do
          |> load_credentials(actor)
          |> put_flash(:info, "Package revoked")}
 
-      {:error, _reason} ->
-        {:noreply, put_flash(socket, :error, "Failed to revoke package")}
+      {:error, reason} ->
+        message = revoke_error_message(reason)
+        Logger.error("Failed to revoke collector package #{id}: #{message}")
+        {:noreply, put_flash(socket, :error, message)}
     end
   end
 
@@ -1025,6 +1028,13 @@ defmodule ServiceRadarWebNGWeb.Admin.CollectorLive.Index do
         error
     end
   end
+
+  @doc false
+  def revoke_error_message(%{errors: [_ | _] = errors}), do: Enum.map_join(errors, "; ", &ash_error_text/1)
+  def revoke_error_message(_reason), do: "Failed to revoke package"
+
+  defp ash_error_text(%{message: message}) when is_binary(message), do: message
+  defp ash_error_text(error), do: Exception.message(error)
 
   defp get_actor(socket) do
     case socket.assigns[:current_scope] do

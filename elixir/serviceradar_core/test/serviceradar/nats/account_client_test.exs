@@ -12,6 +12,8 @@ defmodule ServiceRadar.NATS.AccountClientTest do
 
   use ExUnit.Case, async: false
 
+  import ExUnit.CaptureLog
+
   alias Proto.NATSAccountService.Stub
   alias ServiceRadar.DataService.Client
   alias ServiceRadar.NATS.AccountClient
@@ -95,6 +97,38 @@ defmodule ServiceRadar.NATS.AccountClientTest do
 
       assert AccountClient.revoke_users_on_core(["UINVENTED"], nodes: [:web], rpc_call: rpc_call) ==
                {:error, :nats_not_configured}
+    end
+
+    test "an unreachable node is not reported as an unconfigured one" do
+      rpc_call = fn
+        :web, AccountClient, :account_name, [], _timeout -> {:error, :nats_not_configured}
+        :core, AccountClient, :account_name, [], _timeout -> {:badrpc, :nodedown}
+      end
+
+      {result, log} =
+        with_log(fn ->
+          AccountClient.revoke_users_on_core(["UINVENTED"],
+            nodes: [:web, :core],
+            rpc_call: rpc_call
+          )
+        end)
+
+      assert result == {:error, {:nodes_unreachable, [:core]}}
+      assert log =~ "core"
+      assert log =~ "nodedown"
+    end
+
+    test "a later node with an account name still answers after an unreachable one" do
+      rpc_call = fn
+        :down, AccountClient, :account_name, [], _timeout -> {:badrpc, :nodedown}
+        :core, AccountClient, :account_name, [], _timeout -> {:ok, "invented-account"}
+        :core, AccountClient, :revoke_users, _args, _timeout -> {:ok, %{account_public_key: "A"}}
+      end
+
+      assert AccountClient.revoke_users_on_core(["UINVENTED"],
+               nodes: [:down, :core],
+               rpc_call: rpc_call
+             ) == {:ok, %{account_public_key: "A"}}
     end
 
     test "a core node lost mid-call is an error" do
