@@ -162,6 +162,11 @@ async fn main() -> Result<()> {
             Ok(pdu) => {
                 let msg = build_message(&pdu, addr);
                 let payload = serde_json::to_vec(&msg)?;
+                // shortcut: an edge trap published before the owner creates its stream
+                // is logged and dropped, because this loop receives and publishes in one
+                // task and a retry here stops the socket being read. Upgrade with a
+                // bounded queue and a publisher task when an edge site must not lose traps
+                // during first start or a hub outage.
                 if let Err(e) = js.publish(cfg.subject.clone(), payload.into()).await?.await {
                     warn!("Failed to publish trap: {e}");
                 }
