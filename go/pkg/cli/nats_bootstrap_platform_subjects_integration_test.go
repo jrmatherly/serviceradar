@@ -18,6 +18,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -89,21 +90,46 @@ func TestCollectorCredsAreScopedToTheirStream(t *testing.T) {
 	for _, tc := range []struct {
 		creds    string
 		stream   string
+		owner    bool
 		subjects []string
 	}{
-		{"log-collector.creds", "events", []string{"logs.syslog", "logs.otel", "otel.traces", "otel.metrics"}},
-		{"trapd.creds", "events", []string{"logs.snmp"}},
-		{"bmp-collector.creds", "ARANCINI_CAUSAL", []string{"arancini.updates", "arancini.updates.peer"}},
+		{"log-collector.creds", "events", true, []string{"logs.syslog", "logs.otel", "otel.traces", "otel.metrics"}},
+		{"trapd.creds", "events", false, []string{"logs.snmp"}},
+		{"bmp-collector.creds", "ARANCINI_CAUSAL", true, []string{"arancini.updates", "arancini.updates.peer"}},
 	} {
 		t.Run(tc.creds, func(t *testing.T) {
-			withJetStreamAs(t, credsDir, t.TempDir(), tc.creds, func(js nats.JetStreamContext) {
-				if _, err := js.AddStream(&nats.StreamConfig{
-					Name: tc.stream,
-					// The config subject is captured too, so a permitted publish would be acked.
-					Subjects: append([]string{agentConfigSubject}, tc.subjects...),
-					MaxBytes: 1 << 20,
-				}); err != nil {
-					t.Fatalf("create own stream %s: %v", tc.stream, err)
+			storeDir := t.TempDir()
+			// The config subject is captured too, so a permitted publish would be acked.
+			stream := &nats.StreamConfig{
+				Name:     tc.stream,
+				Subjects: append([]string{agentConfigSubject}, tc.subjects...),
+				MaxBytes: 1 << 20,
+			}
+			if !tc.owner {
+				// An appender's stream is created by its owner; storeDir keeps it.
+				withJetStreamAs(t, credsDir, storeDir, "platform.creds", func(js nats.JetStreamContext) {
+					owned := &nats.StreamConfig{Name: tc.stream, Subjects: []string{agentConfigSubject}, MaxBytes: 1 << 20}
+					if _, err := js.AddStream(owned); err != nil {
+						t.Fatalf("owner create %s: %v", tc.stream, err)
+					}
+				})
+			}
+
+			withJetStreamAs(t, credsDir, storeDir, tc.creds, func(js nats.JetStreamContext) {
+				if tc.owner {
+					if _, err := js.AddStream(stream); err != nil {
+						t.Fatalf("create own stream %s: %v", tc.stream, err)
+					}
+				} else {
+					ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+					defer cancel()
+					rogue := &nats.StreamConfig{Name: tc.stream, Subjects: []string{"rogue.>"}, MaxBytes: 1 << 20}
+					if _, err := js.AddStream(rogue, nats.Context(ctx)); err == nil || !errors.Is(err, context.DeadlineExceeded) {
+						t.Errorf("%s create %s: got %v, want a denied (timed out) request", tc.creds, tc.stream, err)
+					}
+					if _, err := js.UpdateStream(stream); err != nil {
+						t.Fatalf("add subjects to %s: %v", tc.stream, err)
+					}
 				}
 
 				for _, subject := range tc.subjects {

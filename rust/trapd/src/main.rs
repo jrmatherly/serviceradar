@@ -23,7 +23,7 @@ use log::{info, warn};
 use serde::Serialize;
 use std::pin::Pin;
 use std::sync::Once;
-use std::{fs, net::SocketAddr, path::PathBuf};
+use std::{fs, net::SocketAddr, path::PathBuf, time::Duration};
 use tokio::net::UdpSocket;
 
 use tonic::{
@@ -152,8 +152,14 @@ async fn main() -> Result<()> {
         async_nats::jetstream::new(nats_client)
     };
 
-    if let Err(e) = ensure_stream(&js, &cfg).await {
-        warn!("failed to ensure stream {}: {e}", cfg.stream_name);
+    let mut delay = Duration::from_millis(500);
+    while let Err(e) = ensure_stream(&js, &cfg).await {
+        warn!(
+            "waiting for stream {}: {e:#}; retrying in {delay:?}",
+            cfg.stream_name
+        );
+        tokio::time::sleep(delay).await;
+        delay = (delay * 2).min(Duration::from_secs(30));
     }
 
     let mut buf = vec![0u8; 65535];
@@ -239,46 +245,93 @@ mod subject_covers_tests {
     }
 }
 
+// The stream's owner (the otel log-collector, or core's EventWriter when it is
+// absent) creates and sizes it. trapd only adds its subject, so it waits rather
+// than creating an unsized stream the account rejects.
 async fn ensure_stream(js: &async_nats::jetstream::Context, cfg: &Config) -> Result<()> {
-    match js.get_stream(&cfg.stream_name).await {
-        Ok(mut stream) => {
-            let info = stream.info().await?;
-            let mut updated_config = info.config.clone();
-            let mut changed = false;
-
-            // Skip the append when an existing subject (e.g. the `logs.>` wildcard on
-            // the shared `events` stream) already covers ours — a literal `logs.snmp`
-            // append would self-overlap and JetStream rejects the UPDATE (10052, #4303).
-            if !updated_config
-                .subjects
-                .iter()
-                .any(|existing| subject_covers(existing, &cfg.subject))
-            {
-                updated_config.subjects.push(cfg.subject.clone());
-                changed = true;
-            }
-            if updated_config.num_replicas != cfg.stream_replicas {
-                updated_config.num_replicas = cfg.stream_replicas;
-                changed = true;
-            }
-
-            if changed {
-                js.update_stream(updated_config).await?;
-            }
-        }
-        Err(_) => {
-            let stream_config = async_nats::jetstream::stream::Config {
-                name: cfg.stream_name.clone(),
-                subjects: vec![cfg.subject.clone()],
-                storage: async_nats::jetstream::stream::StorageType::File,
-                num_replicas: cfg.stream_replicas,
-                ..Default::default()
-            };
-            js.get_or_create_stream(stream_config).await?;
-        }
+    let mut stream = js
+        .get_stream(&cfg.stream_name)
+        .await
+        .context("not created by its owner yet")?;
+    let info = stream.info().await?;
+    if let Some(updated) = merged_stream_config(&info.config, cfg) {
+        js.update_stream(updated).await?;
     }
 
     Ok(())
+}
+
+fn merged_stream_config(
+    existing: &async_nats::jetstream::stream::Config,
+    cfg: &Config,
+) -> Option<async_nats::jetstream::stream::Config> {
+    let mut updated = existing.clone();
+    let mut changed = false;
+
+    // Skip the append when an existing subject (e.g. the `logs.>` wildcard on
+    // the shared `events` stream) already covers ours — a literal `logs.snmp`
+    // append would self-overlap and JetStream rejects the UPDATE (10052, #4303).
+    if !updated
+        .subjects
+        .iter()
+        .any(|existing| subject_covers(existing, &cfg.subject))
+    {
+        updated.subjects.push(cfg.subject.clone());
+        changed = true;
+    }
+    if updated.num_replicas != cfg.stream_replicas {
+        updated.num_replicas = cfg.stream_replicas;
+        changed = true;
+    }
+
+    changed.then_some(updated)
+}
+
+#[cfg(test)]
+mod merged_stream_config_tests {
+    use super::{Config, merged_stream_config};
+    use async_nats::jetstream::stream::Config as StreamConfig;
+
+    fn trapd_config() -> Config {
+        Config {
+            listen_addr: "0.0.0.0:162".into(),
+            nats_url: "tls://nats:4222".into(),
+            nats_domain: None,
+            stream_name: "events".into(),
+            stream_replicas: 1,
+            subject: "logs.snmp".into(),
+            nats_creds_file: None,
+            nats_security: None,
+            grpc_listen_addr: None,
+            grpc_security: None,
+        }
+    }
+
+    fn owner_stream(subjects: &[&str]) -> StreamConfig {
+        StreamConfig {
+            name: "events".into(),
+            subjects: subjects.iter().map(|s| s.to_string()).collect(),
+            max_bytes: 2 << 30,
+            num_replicas: 1,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn appends_subject_and_keeps_owner_sizing() {
+        let cfg = trapd_config();
+        let updated = merged_stream_config(&owner_stream(&["logs.otel"]), &cfg)
+            .expect("missing subject is appended");
+        assert_eq!(updated.subjects, vec!["logs.otel", "logs.snmp"]);
+        assert_eq!(updated.max_bytes, 2 << 30);
+    }
+
+    #[test]
+    fn leaves_a_covering_stream_alone() {
+        let cfg = trapd_config();
+        assert!(merged_stream_config(&owner_stream(&["logs.>"]), &cfg).is_none());
+        assert!(merged_stream_config(&owner_stream(&["logs.snmp"]), &cfg).is_none());
+    }
 }
 
 const SYS_UP_TIME_OID: &str = "1.3.6.1.2.1.1.3.0";

@@ -811,20 +811,32 @@ func serviceIdentities() []serviceIdentity {
 		}},
 		// Runs flowgger and the OTel collector in one container.
 		{user: "log-collector", permissions: streamPublisherPermissions("events", "logs.syslog", "logs.otel", "otel.>")},
-		{user: "trapd", permissions: streamPublisherPermissions("events", "logs.snmp")},
+		{user: "trapd", permissions: streamAppenderPermissions("events", "logs.snmp")},
 		{user: "bmp-collector", permissions: streamPublisherPermissions("ARANCINI_CAUSAL", "arancini.updates", "arancini.updates.>")},
 	}
 }
 
-// streamPublisherPermissions lets a collector publish its subjects and look up,
-// create or reconcile its one stream, which is every JetStream call it makes.
+// streamPublisherPermissions is for a collector that owns its stream: it
+// publishes its subjects and looks up, creates or reconciles that one stream,
+// which is every JetStream call it makes.
 func streamPublisherPermissions(stream string, subjects ...string) accounts.UserPermissions {
+	return streamPermissions(stream, subjects, "INFO", "CREATE", "UPDATE")
+}
+
+// streamAppenderPermissions is for a collector that only adds its subjects to a
+// stream another component creates and sizes.
+func streamAppenderPermissions(stream string, subjects ...string) accounts.UserPermissions {
+	return streamPermissions(stream, subjects, "INFO", "UPDATE")
+}
+
+func streamPermissions(stream string, subjects []string, ops ...string) accounts.UserPermissions {
+	apis := make([]string, len(ops))
+	for i, op := range ops {
+		apis[i] = "$JS.API.STREAM." + op + "." + stream
+	}
+
 	return accounts.UserPermissions{
-		PublishAllow: slices.Concat(subjects, []string{
-			"$JS.API.STREAM.INFO." + stream,
-			"$JS.API.STREAM.CREATE." + stream,
-			"$JS.API.STREAM.UPDATE." + stream,
-		}),
+		PublishAllow:   slices.Concat(subjects, apis),
 		PublishDeny:    []string{"$SYS.>"},
 		SubscribeAllow: []string{"_INBOX.>"},
 		SubscribeDeny:  []string{"$SYS.>"},

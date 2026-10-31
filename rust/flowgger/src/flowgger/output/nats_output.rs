@@ -10,7 +10,6 @@ use {
     async_nats::jetstream::{
         context::{ContextBuilder, PublishAckFuture, PublishError, PublishErrorKind},
         message::PublishMessage,
-        stream::StorageType,
     },
     async_nats::{Client, ConnectOptions, jetstream},
     std::{
@@ -357,15 +356,14 @@ impl NATSWorker {
                     let _ = js.update_stream(updated_config).await?;
                 }
             }
-            Err(_) => {
-                let stream_config = jetstream::stream::Config {
-                    name: self.cfg.stream.clone(),
-                    subjects: vec![self.cfg.subject.clone()],
-                    storage: StorageType::File,
-                    num_replicas: self.cfg.stream_replicas,
-                    ..Default::default()
-                };
-                let _ = js.get_or_create_stream(stream_config).await?;
+            // The stream's owner (the otel log-collector, or core's EventWriter when
+            // it is absent) creates and sizes it; the worker's retry waits for it.
+            Err(e) => {
+                return Err(format!(
+                    "stream {} not created by its owner yet: {e}",
+                    self.cfg.stream
+                )
+                .into());
             }
         }
 
