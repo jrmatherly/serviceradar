@@ -258,6 +258,7 @@ srctl nats-account-limits --creds-dir /etc/serviceradar/creds
 |------|-------------|
 | `-creds-dir` | Directory holding `operator.seed` and the `jwt/` account JWTs written by `nats-bootstrap` (default `/etc/serviceradar/creds`). |
 | `-account` | Account whose JetStream quota follows the profile (default `platform`). |
+| `-resolver-data-dir` | NATS data directory whose `jwt/` holds the resolver's copy of the account, which also gets the quota and keeps its revocations. |
 
 ## `admin nats`
 

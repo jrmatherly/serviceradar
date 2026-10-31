@@ -715,6 +715,7 @@ services:
     user: "0:0"
     volumes:
       - ${NATS_CREDS_DIR:-nats-creds}:/etc/serviceradar/creds
+      - nats-data:/data
     env_file:
       - ./docker/compose/profiles/${SERVICERADAR_NATS_PROFILE:-small}.env
     environment:
@@ -726,7 +727,7 @@ services:
       - /bin/sh
       - -c
       - |
-          serviceradar-cli nats-account-limits --creds-dir /etc/serviceradar/creds || echo "nats-account-limits: skipped, existing platform account quota kept" >&2
+          serviceradar-cli nats-account-limits --creds-dir /etc/serviceradar/creds --resolver-data-dir /data || echo "nats-account-limits: failed, any account JWT copy not re-issued above keeps its existing quota" >&2
     restart: "no"
     networks:
       - serviceradar-net
@@ -750,8 +751,14 @@ services:
           set -e
           mkdir -p /data/jwt
           if [ -d /etc/serviceradar/creds/jwt ]; then
-            find /etc/serviceradar/creds/jwt -maxdepth 1 -type f -name '*.jwt' -exec cp {} /data/jwt/ \;
-            echo 'Seeded account JWTs from creds/jwt'
+            # Never over an existing copy: the resolver's JWT holds the revocations.
+            # Tested with [ -e ] because cp -n exits differently across platforms when it skips.
+            for source in /etc/serviceradar/creds/jwt/*.jwt; do
+              [ -f "$${source}" ] || continue
+              target="/data/jwt/$${source##*/}"
+              [ -e "$${target}" ] || cp "$${source}" "$${target}"
+            done
+            echo 'Seeded missing account JWTs from creds/jwt'
           fi
           if [ -f /etc/serviceradar/creds/system.jwt ] && [ -f /etc/serviceradar/creds/system_account.pub ]; then
             system_key="$$(cat /etc/serviceradar/creds/system_account.pub)"

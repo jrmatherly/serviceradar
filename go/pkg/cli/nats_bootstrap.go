@@ -584,19 +584,12 @@ func generateSystemCreds(systemAccountSeed string, userName string) (string, err
 		userName = defaultSystemUser
 	}
 
-	permissions := &accounts.UserPermissions{
-		PublishAllow:   []string{"$SYS.REQ.ACCOUNT.*.CLAIMS.UPDATE"},
-		SubscribeAllow: []string{"_INBOX.>"},
-		AllowResponses: true,
-		MaxResponses:   10,
-	}
-
 	creds, err := accounts.GenerateUserCredentials(
 		"SYS",
 		systemAccountSeed,
 		userName,
 		accounts.CredentialTypeService,
-		permissions,
+		accounts.SystemResolverPermissions(),
 		0,
 	)
 	if err != nil {

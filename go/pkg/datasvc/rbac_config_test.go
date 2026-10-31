@@ -60,8 +60,10 @@ func TestComposeAgentIdentityIsReadOnly(t *testing.T) {
 }
 
 // composeCredsMounts sorts services by how they mount the nats-creds volume.
-func composeCredsMounts(t *testing.T, compose []byte) (seedReaders, wholeVolume []string) {
+func composeCredsMounts(t *testing.T, compose []byte) (seedReaders map[string][]string, wholeVolume []string) {
 	t.Helper()
+
+	seedReaders = map[string][]string{}
 
 	var file struct {
 		Services map[string]struct {
@@ -91,20 +93,22 @@ func composeCredsMounts(t *testing.T, compose []byte) (seedReaders, wholeVolume 
 			case long.Source != "nats-creds":
 			case long.Volume.Subpath == "":
 				wholeVolume = append(wholeVolume, name)
-			case long.Volume.Subpath == "platform_account.seed":
-				seedReaders = append(seedReaders, name)
+			case long.Volume.Subpath == "platform_account.seed", long.Volume.Subpath == "operator.seed":
+				seedReaders[long.Volume.Subpath] = append(seedReaders[long.Volume.Subpath], name)
 			}
 		}
 	}
-	slices.Sort(seedReaders)
+	for _, readers := range seedReaders {
+		slices.Sort(readers)
+	}
 	slices.Sort(wholeVolume)
 
 	return seedReaders, wholeVolume
 }
 
-// platform_account.seed signs any user in the platform account. Only datasvc is
-// given it by name, and every service that mounts the whole volume can also read
-// it, so adding a whole-volume mount must be a deliberate change here.
+// platform_account.seed signs any user in the platform account and operator.seed
+// any account. Only datasvc is given them by name, and every service that mounts the whole volume can also read
+// them, so adding a whole-volume mount must be a deliberate change here.
 func TestComposePlatformSeedReaders(t *testing.T) {
 	path, err := runfiles.Rlocation("_main/docker-compose.yml")
 	require.NoError(t, err)
@@ -113,7 +117,10 @@ func TestComposePlatformSeedReaders(t *testing.T) {
 
 	seedReaders, wholeVolume := composeCredsMounts(t, compose)
 
-	assert.Equal(t, []string{"datasvc"}, seedReaders)
+	assert.Equal(t, map[string][]string{
+		"operator.seed":         {"datasvc"},
+		"platform_account.seed": {"datasvc"},
+	}, seedReaders)
 	assert.Equal(t, []string{"nats", "nats-account-limits", "nats-config-init", "nats-creds-init"}, wholeVolume)
 }
 
@@ -212,6 +219,6 @@ services:
       - cert-data:/etc/serviceradar/certs:ro
 `))
 
-	assert.Equal(t, []string{"seed-subpath"}, seedReaders)
+	assert.Equal(t, map[string][]string{"platform_account.seed": {"seed-subpath"}}, seedReaders)
 	assert.Equal(t, []string{"long-whole", "short-default", "short-named"}, wholeVolume)
 }

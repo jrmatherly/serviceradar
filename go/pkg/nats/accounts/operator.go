@@ -207,6 +207,16 @@ func LoadAccountSeedFile(path string) (string, error) {
 	return seed, nil
 }
 
+// AccountPublicKey returns the public key of an account seed.
+func AccountPublicKey(accountSeed string) (string, error) {
+	kp, err := nkeys.FromSeed([]byte(accountSeed))
+	if err != nil {
+		return "", err
+	}
+
+	return kp.PublicKey()
+}
+
 // loadSystemAccountPublicKey loads the system account public key from various sources in order of preference.
 func loadSystemAccountPublicKey(cfg *OperatorConfig) (string, error) {
 	// 1. Direct public key value

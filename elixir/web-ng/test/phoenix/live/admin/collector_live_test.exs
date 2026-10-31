@@ -2,9 +2,17 @@ defmodule ServiceRadarWebNGWeb.Admin.CollectorLiveTest do
   use ServiceRadarWebNGWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
-  import ServiceRadarWebNG.AshTestHelpers, only: [admin_user_fixture: 0]
+  import ServiceRadarWebNG.AshTestHelpers, only: [admin_user_fixture: 0, system_actor: 0]
+
+  alias ServiceRadar.Edge.CollectorPackage
+  alias ServiceRadar.Edge.NatsCredential
 
   @moduletag :web_ng_shared_fixture_db
+
+  defmodule RefusingHub do
+    @moduledoc false
+    def revoke_users_on_core(_keys), do: {:error, {:grpc_error, "invented outage"}}
+  end
 
   @private_key "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
   @public_key "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg="
@@ -122,6 +130,53 @@ defmodule ServiceRadarWebNGWeb.Admin.CollectorLiveTest do
       assert has_element?(lv, "#settings-view-tree")
       refute has_element?(lv, "#settings-view-tree a[href='/admin/collectors']")
     end
+  end
+
+  describe "revoking a package" do
+    test "a hub refusal shows the reason and leaves the package ready", %{conn: conn} do
+      prior = Application.get_env(:serviceradar, :nats_account_client)
+      Application.put_env(:serviceradar, :nats_account_client, RefusingHub)
+      on_exit(fn -> restore_env(:serviceradar, :nats_account_client, prior) end)
+
+      package = ready_package!()
+      {:ok, lv, _html} = live(conn, ~p"/admin/collectors")
+
+      html = render_click(lv, "revoke_package", %{"id" => package.id})
+
+      assert html =~ "the NATS hub did not revoke this credential"
+      assert html =~ "invented outage"
+      assert Ash.get!(CollectorPackage, package.id, actor: system_actor()).status == :ready
+    end
+  end
+
+  defp ready_package! do
+    actor = system_actor()
+    unique = System.unique_integer([:positive])
+
+    credential =
+      NatsCredential
+      |> Ash.Changeset.for_create(
+        :create,
+        %{user_name: "collector-#{unique}", user_public_key: "U" <> String.pad_leading("#{unique}", 55, "A")},
+        actor: actor
+      )
+      |> Ash.create!()
+
+    CollectorPackage
+    |> Ash.Changeset.for_create(
+      :create,
+      %{collector_type: :flowgger, site: "site-#{unique}", hostname: "collector-#{unique}.example.com"},
+      actor: actor
+    )
+    |> Ash.create!()
+    |> Ash.Changeset.for_update(:provision, %{}, actor: actor)
+    |> Ash.update!()
+    |> Ash.Changeset.for_update(
+      :ready,
+      %{nats_credential_id: credential.id, nats_creds_content: "invented-creds"},
+      actor: actor
+    )
+    |> Ash.update!()
   end
 
   defp restore_env(app, key, nil), do: Application.delete_env(app, key)

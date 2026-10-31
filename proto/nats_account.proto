@@ -26,7 +26,7 @@ option go_package = "github.com/carverauto/serviceradar/proto";
 // - Bootstrap the NATS operator (first-time platform setup)
 // - Generate new account keys and sign account JWTs
 // - Generate user credentials signed with the platform account seed
-// - Re-sign account JWTs when claims change (revocations, limits)
+// - Revoke users by re-issuing the platform account JWT the resolver holds
 //
 // datasvc holds the operator key and the platform account seed. Callers never
 // see the platform account seed; they request credentials by account name.
@@ -50,9 +50,11 @@ service NATSAccountService {
   // permissions are missing or exceed what an edge credential may hold.
   rpc GenerateUserCredentials(GenerateUserCredentialsRequest) returns (GenerateUserCredentialsResponse) {}
 
-  // SignAccountJWT regenerates an account JWT with updated claims.
-  // Use this when revocations or limits change.
-  rpc SignAccountJWT(SignAccountJWTRequest) returns (SignAccountJWTResponse) {}
+  // RevokeUsers adds user public keys to the platform account's revocations,
+  // keeping its other claims, and pushes the re-issued JWT to the NATS resolver.
+  // FAILED_PRECONDITION when datasvc lacks the operator key or platform account
+  // seed, UNAVAILABLE when the resolver cannot be read or updated.
+  rpc RevokeUsers(RevokeUsersRequest) returns (RevokeUsersResponse) {}
 
   // PushAccountJWT pushes an account JWT to the NATS resolver.
   // This makes the account immediately available without NATS restart.
@@ -81,14 +83,6 @@ message SubjectMapping {
 message StreamExport {
   string subject = 1; // Subject to export (e.g., "acme.logs.>")
   string name = 2;    // Optional export name
-}
-
-// StreamImport defines a stream import from another account.
-message StreamImport {
-  string subject = 1;             // Subject to import (e.g., "acme.logs.>")
-  string account_public_key = 2;  // Exporting account public key
-  string local_subject = 3;       // Optional local subject (defaults to subject)
-  string name = 4;                // Optional import name
 }
 
 // CreateAccountRequest is the request to create a new NATS account.
@@ -144,21 +138,15 @@ message GenerateUserCredentialsResponse {
   int64 expires_at_unix = 4;           // Unix timestamp when credentials expire (0 = never)
 }
 
-// SignAccountJWTRequest is used to regenerate an account JWT with updated claims.
-message SignAccountJWTRequest {
-  string account_name = 1;             // Account identifier (used as account name)
-  string account_seed = 2;             // Account's private seed (from Elixir storage)
-  AccountLimits limits = 3;            // Current resource limits
-  repeated SubjectMapping subject_mappings = 4; // Current subject mappings
-  repeated string revoked_user_keys = 5; // Public keys of revoked users
-  repeated StreamExport exports = 6;   // Optional stream exports (defaults applied server-side)
-  repeated StreamImport imports = 7;   // Stream imports from other accounts
+// RevokeUsersRequest names the users to refuse from now on.
+message RevokeUsersRequest {
+  string account_name = 1;              // Must be the platform account
+  repeated string user_public_keys = 2; // NATS user public keys (start with 'U')
 }
 
-// SignAccountJWTResponse returns the newly signed account JWT.
-message SignAccountJWTResponse {
-  string account_public_key = 1;       // The account's public NKey
-  string account_jwt = 2;              // The newly signed account JWT
+// RevokeUsersResponse confirms the hub holds the re-issued account JWT.
+message RevokeUsersResponse {
+  string account_public_key = 1;        // The account's public NKey
 }
 
 // BootstrapOperatorRequest is used to initialize the NATS operator.

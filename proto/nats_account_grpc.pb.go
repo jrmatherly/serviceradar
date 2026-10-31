@@ -38,7 +38,7 @@ const (
 	NATSAccountService_GetOperatorInfo_FullMethodName         = "/proto.NATSAccountService/GetOperatorInfo"
 	NATSAccountService_CreateAccount_FullMethodName           = "/proto.NATSAccountService/CreateAccount"
 	NATSAccountService_GenerateUserCredentials_FullMethodName = "/proto.NATSAccountService/GenerateUserCredentials"
-	NATSAccountService_SignAccountJWT_FullMethodName          = "/proto.NATSAccountService/SignAccountJWT"
+	NATSAccountService_RevokeUsers_FullMethodName             = "/proto.NATSAccountService/RevokeUsers"
 	NATSAccountService_PushAccountJWT_FullMethodName          = "/proto.NATSAccountService/PushAccountJWT"
 )
 
@@ -52,7 +52,7 @@ const (
 // - Bootstrap the NATS operator (first-time platform setup)
 // - Generate new account keys and sign account JWTs
 // - Generate user credentials signed with the platform account seed
-// - Re-sign account JWTs when claims change (revocations, limits)
+// - Revoke users by re-issuing the platform account JWT the resolver holds
 //
 // datasvc holds the operator key and the platform account seed. Callers never
 // see the platform account seed; they request credentials by account name.
@@ -72,9 +72,11 @@ type NATSAccountServiceClient interface {
 	// no seed, INVALID_ARGUMENT when account_name is not the platform account or when
 	// permissions are missing or exceed what an edge credential may hold.
 	GenerateUserCredentials(ctx context.Context, in *GenerateUserCredentialsRequest, opts ...grpc.CallOption) (*GenerateUserCredentialsResponse, error)
-	// SignAccountJWT regenerates an account JWT with updated claims.
-	// Use this when revocations or limits change.
-	SignAccountJWT(ctx context.Context, in *SignAccountJWTRequest, opts ...grpc.CallOption) (*SignAccountJWTResponse, error)
+	// RevokeUsers adds user public keys to the platform account's revocations,
+	// keeping its other claims, and pushes the re-issued JWT to the NATS resolver.
+	// FAILED_PRECONDITION when datasvc lacks the operator key or platform account
+	// seed, UNAVAILABLE when the resolver cannot be read or updated.
+	RevokeUsers(ctx context.Context, in *RevokeUsersRequest, opts ...grpc.CallOption) (*RevokeUsersResponse, error)
 	// PushAccountJWT pushes an account JWT to the NATS resolver.
 	// This makes the account immediately available without NATS restart.
 	// Uses the system account to publish to $SYS.REQ.CLAIMS.UPDATE.
@@ -129,10 +131,10 @@ func (c *nATSAccountServiceClient) GenerateUserCredentials(ctx context.Context, 
 	return out, nil
 }
 
-func (c *nATSAccountServiceClient) SignAccountJWT(ctx context.Context, in *SignAccountJWTRequest, opts ...grpc.CallOption) (*SignAccountJWTResponse, error) {
+func (c *nATSAccountServiceClient) RevokeUsers(ctx context.Context, in *RevokeUsersRequest, opts ...grpc.CallOption) (*RevokeUsersResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(SignAccountJWTResponse)
-	err := c.cc.Invoke(ctx, NATSAccountService_SignAccountJWT_FullMethodName, in, out, cOpts...)
+	out := new(RevokeUsersResponse)
+	err := c.cc.Invoke(ctx, NATSAccountService_RevokeUsers_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +161,7 @@ func (c *nATSAccountServiceClient) PushAccountJWT(ctx context.Context, in *PushA
 // - Bootstrap the NATS operator (first-time platform setup)
 // - Generate new account keys and sign account JWTs
 // - Generate user credentials signed with the platform account seed
-// - Re-sign account JWTs when claims change (revocations, limits)
+// - Revoke users by re-issuing the platform account JWT the resolver holds
 //
 // datasvc holds the operator key and the platform account seed. Callers never
 // see the platform account seed; they request credentials by account name.
@@ -179,9 +181,11 @@ type NATSAccountServiceServer interface {
 	// no seed, INVALID_ARGUMENT when account_name is not the platform account or when
 	// permissions are missing or exceed what an edge credential may hold.
 	GenerateUserCredentials(context.Context, *GenerateUserCredentialsRequest) (*GenerateUserCredentialsResponse, error)
-	// SignAccountJWT regenerates an account JWT with updated claims.
-	// Use this when revocations or limits change.
-	SignAccountJWT(context.Context, *SignAccountJWTRequest) (*SignAccountJWTResponse, error)
+	// RevokeUsers adds user public keys to the platform account's revocations,
+	// keeping its other claims, and pushes the re-issued JWT to the NATS resolver.
+	// FAILED_PRECONDITION when datasvc lacks the operator key or platform account
+	// seed, UNAVAILABLE when the resolver cannot be read or updated.
+	RevokeUsers(context.Context, *RevokeUsersRequest) (*RevokeUsersResponse, error)
 	// PushAccountJWT pushes an account JWT to the NATS resolver.
 	// This makes the account immediately available without NATS restart.
 	// Uses the system account to publish to $SYS.REQ.CLAIMS.UPDATE.
@@ -208,8 +212,8 @@ func (UnimplementedNATSAccountServiceServer) CreateAccount(context.Context, *Cre
 func (UnimplementedNATSAccountServiceServer) GenerateUserCredentials(context.Context, *GenerateUserCredentialsRequest) (*GenerateUserCredentialsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GenerateUserCredentials not implemented")
 }
-func (UnimplementedNATSAccountServiceServer) SignAccountJWT(context.Context, *SignAccountJWTRequest) (*SignAccountJWTResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SignAccountJWT not implemented")
+func (UnimplementedNATSAccountServiceServer) RevokeUsers(context.Context, *RevokeUsersRequest) (*RevokeUsersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RevokeUsers not implemented")
 }
 func (UnimplementedNATSAccountServiceServer) PushAccountJWT(context.Context, *PushAccountJWTRequest) (*PushAccountJWTResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PushAccountJWT not implemented")
@@ -307,20 +311,20 @@ func _NATSAccountService_GenerateUserCredentials_Handler(srv interface{}, ctx co
 	return interceptor(ctx, in, info, handler)
 }
 
-func _NATSAccountService_SignAccountJWT_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SignAccountJWTRequest)
+func _NATSAccountService_RevokeUsers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RevokeUsersRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(NATSAccountServiceServer).SignAccountJWT(ctx, in)
+		return srv.(NATSAccountServiceServer).RevokeUsers(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: NATSAccountService_SignAccountJWT_FullMethodName,
+		FullMethod: NATSAccountService_RevokeUsers_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NATSAccountServiceServer).SignAccountJWT(ctx, req.(*SignAccountJWTRequest))
+		return srv.(NATSAccountServiceServer).RevokeUsers(ctx, req.(*RevokeUsersRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -367,8 +371,8 @@ var NATSAccountService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _NATSAccountService_GenerateUserCredentials_Handler,
 		},
 		{
-			MethodName: "SignAccountJWT",
-			Handler:    _NATSAccountService_SignAccountJWT_Handler,
+			MethodName: "RevokeUsers",
+			Handler:    _NATSAccountService_RevokeUsers_Handler,
 		},
 		{
 			MethodName: "PushAccountJWT",

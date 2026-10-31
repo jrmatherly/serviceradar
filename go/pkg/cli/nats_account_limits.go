@@ -50,6 +50,7 @@ func (NatsAccountLimitsHandler) Parse(args []string, cfg *CmdConfig) error {
 	fs := flag.NewFlagSet("nats-account-limits", flag.ExitOnError)
 	credsDir := fs.String("creds-dir", defaultNATSCredsDir, "Directory holding operator.seed and the jwt/ account JWTs written by nats-bootstrap")
 	account := fs.String("account", defaultPlatformAccount, "Name of the account whose JetStream quota follows the sizing profile")
+	resolverData := fs.String("resolver-data-dir", "", "NATS data directory whose jwt/ holds the resolver's copy of the account, which also gets the quota")
 
 	if err := fs.Parse(args); err != nil {
 		return fmt.Errorf("parsing nats-account-limits flags: %w", err)
@@ -57,6 +58,7 @@ func (NatsAccountLimitsHandler) Parse(args []string, cfg *CmdConfig) error {
 
 	cfg.NATSOutputDir = strings.TrimSpace(*credsDir)
 	cfg.NATSPlatformAccount = strings.TrimSpace(*account)
+	cfg.NATSResolverDataDir = strings.TrimSpace(*resolverData)
 
 	return nil
 }
@@ -86,9 +88,21 @@ func RunNatsAccountLimits(cfg *CmdConfig) error {
 		}
 	}
 
-	_, err = resizeAccountJetStream(credsDir, cfg.NATSPlatformAccount, seed, sizing, os.Stdout)
+	var credsErr, resolverErr error
 
-	return err
+	if _, err = resizeAccountJetStream(credsDir, cfg.NATSPlatformAccount, seed, sizing, os.Stdout); err != nil {
+		credsErr = fmt.Errorf("creds copy of the account keeps its quota: %w", err)
+	}
+
+	// The resolver's copy carries revocations the creds copy lacks, so it is resized
+	// in place and never replaced from creds.
+	if cfg.NATSResolverDataDir != "" {
+		if _, err = resizeAccountJetStream(cfg.NATSResolverDataDir, cfg.NATSPlatformAccount, seed, sizing, os.Stdout); err != nil {
+			resolverErr = fmt.Errorf("resolver copy of the account keeps its quota: %w", err)
+		}
+	}
+
+	return errors.Join(credsErr, resolverErr)
 }
 
 // resizeAccountJetStream applies sizing to the named account's JWT under

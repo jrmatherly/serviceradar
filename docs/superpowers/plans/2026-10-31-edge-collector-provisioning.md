@@ -34,7 +34,7 @@
 2. A collector whose bundle subject is not captured by the owner's stream: publishes are acked by nobody; the bundle test must assert every bundle subject is covered by a stream the owner creates.
 3. Account seed exposure: whoever reads the seed can mint any user in the platform account. Core cannot read it and datasvc is the only service given it by name. Who can read it (file mode, mounts) must be asserted.
 4. A leaf server with zero direct identities: must still deny everything except the collectors' scoped subjects (no missing `authorization` block).
-5. Re-provisioning a package after the seed rotates: the old credential must stop working (revocation path in `NatsCredential`).
+5. Revoking a package: the hub must refuse its credential. `NatsCredential` `:revoke` calls datasvc `RevokeUsers` first and fails if the hub was not updated; `scripts/compose-check-nats-revocation.sh` proves it on a running stack, including across the NATS init containers. A rotated platform seed changes the account key, which already invalidates every credential it signed. Behind an edge leaf the static user keeps working until the site's bundle is re-installed, because a leaf maps the certificate and ignores the credential.
 
 ---
 

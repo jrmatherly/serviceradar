@@ -41,6 +41,7 @@ go_test(
     srcs = [
         "config_test.go",
         "jetstream_sizing_test.go",
+        "nats_account_revoke_test.go",
         "nats_account_service_test.go",
         "nats_reconnect_test.go",
         "rbac_config_test.go",

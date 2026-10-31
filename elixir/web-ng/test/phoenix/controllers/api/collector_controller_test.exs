@@ -27,6 +27,16 @@ defmodule ServiceRadarWebNGWeb.Api.CollectorControllerTest do
     :ok
   end
 
+  defmodule AcceptingHub do
+    @moduledoc false
+    def revoke_users_on_core(_keys), do: {:ok, %{account_public_key: "AINVENTED"}}
+  end
+
+  defmodule RefusingHub do
+    @moduledoc false
+    def revoke_users_on_core(_keys), do: {:error, {:grpc_error, "invented outage"}}
+  end
+
   defmodule BrokenCollectorBundleGenerator do
     @moduledoc false
     def create_tarball(_package, _creds, _tls_key, _opts \\ []), do: {:error, %{secret: "collector-bundle-secret"}}
@@ -149,6 +159,17 @@ defmodule ServiceRadarWebNGWeb.Api.CollectorControllerTest do
   describe "POST /api/admin/collectors/:id/revoke" do
     setup :authenticate_admin
 
+    setup do
+      prior = Application.get_env(:serviceradar, :nats_account_client)
+      Application.put_env(:serviceradar, :nats_account_client, AcceptingHub)
+
+      on_exit(fn ->
+        if prior,
+          do: Application.put_env(:serviceradar, :nats_account_client, prior),
+          else: Application.delete_env(:serviceradar, :nats_account_client)
+      end)
+    end
+
     test "stores and returns the reason", %{conn: conn} do
       {package, _token} = create_ready_collector_package(:flowgger)
 
@@ -159,6 +180,16 @@ defmodule ServiceRadarWebNGWeb.Api.CollectorControllerTest do
 
       assert body["status"] == "revoked"
       assert body["revoke_reason"] == "host decommissioned"
+    end
+
+    test "a hub refusal is an error and the package stays ready", %{conn: conn} do
+      Application.put_env(:serviceradar, :nats_account_client, RefusingHub)
+      {package, _token} = create_ready_collector_package(:flowgger)
+
+      conn = post(conn, ~p"/api/admin/collectors/#{package.id}/revoke", %{"reason" => "host decommissioned"})
+
+      refute conn.status in 200..299
+      assert Ash.get!(CollectorPackage, package.id, actor: system_actor()).status == :ready
     end
   end
 
