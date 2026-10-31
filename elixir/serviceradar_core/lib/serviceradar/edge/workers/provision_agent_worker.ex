@@ -12,7 +12,7 @@ defmodule ServiceRadar.Edge.Workers.ProvisionAgentWorker do
   ## Why mint server-side?
 
   The platform account seed is held only by datasvc; core asks datasvc to
-  mint by account name (`Application.get_env(:serviceradar, :nats_account_name)`).
+  mint by account name (`ServiceRadar.NATS.AccountClient.account_name/0`).
   Self-minting on the agent would require shipping the seed in the bundle,
   which inverts the current trust boundary and would let any compromised
   agent forge subjects for any other agent. Shipping a pre-signed `*.creds`
@@ -94,7 +94,7 @@ defmodule ServiceRadar.Edge.Workers.ProvisionAgentWorker do
          :ok <- validate_agent_package(package),
          {:ok, agent_id} <- resolve_agent_id(package),
          {:ok, permissions} <- build_permissions(agent_id),
-         {:ok, account_name} <- get_account_name(),
+         {:ok, account_name} <- AccountClient.account_name(),
          {:ok, user_creds} <-
            mint_credentials(account_name, agent_id, permissions, account_client),
          {:ok, credential} <- create_credential_record(package, agent_id, user_creds),
@@ -179,13 +179,6 @@ defmodule ServiceRadar.Edge.Workers.ProvisionAgentWorker do
   end
 
   defp resolve_agent_id(_), do: {:error, :invalid_agent_id}
-
-  defp get_account_name do
-    case Application.get_env(:serviceradar, :nats_account_name) do
-      name when is_binary(name) and name != "" -> {:ok, name}
-      _ -> {:error, :nats_not_configured}
-    end
-  end
 
   defp mint_credentials(account_name, agent_id, permissions, account_client) do
     account_client.generate_user_credentials(

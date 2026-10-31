@@ -21,7 +21,7 @@ defmodule ServiceRadar.NATS.AgentFlowCollectorPermissions do
   ## Trust model
 
   - The account seed lives only in datasvc. Core names the account
-    (`Application.get_env(:serviceradar, :nats_account_name)`) and datasvc
+    (`ServiceRadar.NATS.AccountClient.account_name/0`) and datasvc
     signs.
   - The agent only ever receives the resulting `*.creds` file, never the
     seed itself. This mirrors the collector pattern (see

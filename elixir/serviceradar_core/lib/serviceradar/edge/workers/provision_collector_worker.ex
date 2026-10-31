@@ -82,7 +82,7 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorker do
          :ok <- validate_package_status(package),
          {:ok, package} <- mark_provisioning(package),
          :ok <- require_flow_storage(package.collector_type),
-         {:ok, account_name} <- get_account_name(),
+         {:ok, account_name} <- AccountClient.account_name(),
          {:ok, user_creds} <- generate_user_credentials(account_name, package),
          {:ok, tls} <- issue_certificate(certificate_issuer, package),
          {:ok, _package} <- persist_credentials(package, user_creds, tls) do
@@ -202,13 +202,6 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorker do
         true ->
           {:error, :package_not_pending}
       end
-    end
-  end
-
-  defp get_account_name do
-    case Application.get_env(:serviceradar, :nats_account_name) do
-      name when is_binary(name) and name != "" -> {:ok, name}
-      _ -> {:error, :nats_not_configured}
     end
   end
 

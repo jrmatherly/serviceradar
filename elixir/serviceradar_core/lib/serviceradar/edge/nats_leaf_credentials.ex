@@ -13,6 +13,7 @@ defmodule ServiceRadar.Edge.NatsLeafCredentials do
 
   alias ServiceRadar.Actors.SystemActor
   alias ServiceRadar.Edge.NatsCredential
+  alias ServiceRadar.NATS.AccountClient
 
   # No $JS.API.>: a leaf answers $JS.API from its own JetStream (domain edge), and
   # JetStream publishes cross on their data subject and an inbox reply. Pinned by
@@ -37,10 +38,10 @@ defmodule ServiceRadar.Edge.NatsLeafCredentials do
   """
   @spec mint(map(), keyword()) :: {:ok, String.t() | nil} | {:error, term()}
   def mint(edge_site, opts \\ []) do
-    account_client = Keyword.get(opts, :account_client, ServiceRadar.NATS.AccountClient)
+    account_client = Keyword.get(opts, :account_client, AccountClient)
 
-    case Application.get_env(:serviceradar, :nats_account_name) do
-      account_name when is_binary(account_name) and account_name != "" ->
+    case AccountClient.account_name() do
+      {:ok, account_name} ->
         user_name = "leaf-#{edge_site.slug}"
 
         with {:ok, creds} <-
@@ -54,7 +55,7 @@ defmodule ServiceRadar.Edge.NatsLeafCredentials do
           {:ok, creds.creds_file_content}
         end
 
-      _ ->
+      {:error, :nats_not_configured} ->
         {:ok, nil}
     end
   end

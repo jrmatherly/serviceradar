@@ -64,6 +64,17 @@ defmodule ServiceRadar.NATS.AccountClient do
         }
 
   @doc """
+  The NATS account this deployment mints credentials for, from `:nats_account_name`.
+  """
+  @spec account_name() :: {:ok, String.t()} | {:error, :nats_not_configured}
+  def account_name do
+    case Application.get_env(:serviceradar, :nats_account_name) do
+      name when is_binary(name) and name != "" -> {:ok, name}
+      _ -> {:error, :nats_not_configured}
+    end
+  end
+
+  @doc """
   Create a new NATS account.
 
   Returns the account credentials. The `account_seed` should be encrypted

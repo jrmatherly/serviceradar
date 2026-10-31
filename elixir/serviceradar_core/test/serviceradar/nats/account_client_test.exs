@@ -10,9 +10,37 @@ defmodule ServiceRadar.NATS.AccountClientTest do
   - Credential type conversion
   """
 
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias Proto.NATSAccountService.Stub
+  alias ServiceRadar.NATS.AccountClient
+
+  describe "account_name/0" do
+    setup do
+      prior = Application.get_env(:serviceradar, :nats_account_name)
+
+      on_exit(fn ->
+        if prior do
+          Application.put_env(:serviceradar, :nats_account_name, prior)
+        else
+          Application.delete_env(:serviceradar, :nats_account_name)
+        end
+      end)
+    end
+
+    test "returns the configured account" do
+      Application.put_env(:serviceradar, :nats_account_name, "invented-account")
+      assert AccountClient.account_name() == {:ok, "invented-account"}
+    end
+
+    test "missing or empty is not configured" do
+      Application.delete_env(:serviceradar, :nats_account_name)
+      assert AccountClient.account_name() == {:error, :nats_not_configured}
+
+      Application.put_env(:serviceradar, :nats_account_name, "")
+      assert AccountClient.account_name() == {:error, :nats_not_configured}
+    end
+  end
 
   describe "Proto.AccountLimits construction" do
     test "builds limits struct from map" do
