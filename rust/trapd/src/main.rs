@@ -152,25 +152,7 @@ async fn main() -> Result<()> {
         async_nats::jetstream::new(nats_client)
     };
 
-    let mut delay = Duration::from_millis(500);
-    loop {
-        match ensure_stream(&js, &cfg).await {
-            Ok(StreamState::Ready) => break,
-            Ok(StreamState::Missing) => {
-                warn!(
-                    "waiting for stream {} to be created by its owner; retrying in {delay:?}",
-                    cfg.stream_name
-                );
-                tokio::time::sleep(delay).await;
-                delay = (delay * 2).min(Duration::from_secs(30));
-            }
-            // Waiting cannot fix a denied or failed request; publish as before.
-            Err(e) => {
-                warn!("failed to ensure stream {}: {e:#}", cfg.stream_name);
-                break;
-            }
-        }
-    }
+    wait_for_stream(&js, &cfg).await;
 
     let mut buf = vec![0u8; 65535];
     loop {
@@ -180,6 +162,11 @@ async fn main() -> Result<()> {
             Ok(pdu) => {
                 let msg = build_message(&pdu, addr);
                 let payload = serde_json::to_vec(&msg)?;
+                // shortcut: an edge trap published before the owner creates its stream
+                // is logged and dropped, because this loop receives and publishes in one
+                // task and a retry here stops the socket being read. Upgrade with a
+                // bounded queue and a publisher task when an edge site must not lose traps
+                // during first start or a hub outage.
                 if let Err(e) = js.publish(cfg.subject.clone(), payload.into()).await?.await {
                     warn!("Failed to publish trap: {e}");
                 }
@@ -258,6 +245,35 @@ mod subject_covers_tests {
 enum StreamState {
     Ready,
     Missing,
+}
+
+async fn wait_for_stream(js: &async_nats::jetstream::Context, cfg: &Config) {
+    // An edge trapd sets a domain. Behind a leaf that domain is the leaf's own
+    // JetStream, which reports not-found for the hub stream a publish still reaches,
+    // so a wait here would never end. The publish result is the signal instead.
+    if cfg.nats_domain.is_some() {
+        return;
+    }
+
+    let mut delay = Duration::from_millis(500);
+    loop {
+        match ensure_stream(js, cfg).await {
+            Ok(StreamState::Ready) => break,
+            Ok(StreamState::Missing) => {
+                warn!(
+                    "waiting for stream {} to be created by its owner; retrying in {delay:?}",
+                    cfg.stream_name
+                );
+                tokio::time::sleep(delay).await;
+                delay = (delay * 2).min(Duration::from_secs(30));
+            }
+            // Waiting cannot fix a denied or failed request; publish as before.
+            Err(e) => {
+                warn!("failed to ensure stream {}: {e:#}", cfg.stream_name);
+                break;
+            }
+        }
+    }
 }
 
 // The stream's owner (the otel log-collector, or core's EventWriter when it is
@@ -746,6 +762,85 @@ mod tests {
                 ..Default::default()
             }),
         }
+    }
+
+    /// Answers every JetStream request with not-found, as a leaf's local JetStream
+    /// does for a stream on the hub, and records the subjects it was asked for.
+    async fn leaf_answering_not_found() -> (String, std::sync::Arc<std::sync::Mutex<Vec<String>>>) {
+        use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let requests = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let recorded = requests.clone();
+        tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            let (read, mut write) = socket.into_split();
+            let mut read = BufReader::new(read);
+            let info = format!(
+                r#"INFO {{"server_id":"fake","server_name":"fake","version":"2.14.0","go":"go","host":"127.0.0.1","port":{port},"headers":true,"max_payload":1048576,"proto":1}}"#
+            );
+            write
+                .write_all(format!("{info}\r\n").as_bytes())
+                .await
+                .unwrap();
+            let not_found =
+                r#"{"error":{"code":404,"err_code":10059,"description":"stream not found"}}"#;
+            let mut sid = String::new();
+            let mut line = String::new();
+            loop {
+                line.clear();
+                if read.read_line(&mut line).await.unwrap_or(0) == 0 {
+                    return;
+                }
+                let parts: Vec<String> = line.split_whitespace().map(str::to_string).collect();
+                match parts.first().map(String::as_str) {
+                    Some("PING") => write.write_all(b"PONG\r\n").await.unwrap(),
+                    Some("SUB") => sid = parts[parts.len() - 1].clone(),
+                    Some("PUB" | "HPUB") => {
+                        let size: usize = parts[parts.len() - 1].parse().unwrap();
+                        let mut body = vec![0u8; size + 2];
+                        read.read_exact(&mut body).await.unwrap();
+                        recorded.lock().unwrap().push(parts[1].clone());
+                        let message = format!(
+                            "MSG {} {sid} {}\r\n{not_found}\r\n",
+                            parts[2],
+                            not_found.len()
+                        );
+                        write.write_all(message.as_bytes()).await.unwrap();
+                    }
+                    _ => {}
+                }
+            }
+        });
+        (format!("nats://127.0.0.1:{port}"), requests)
+    }
+
+    #[tokio::test]
+    async fn edge_trapd_does_not_wait_on_a_stream_lookup() {
+        let (url, requests) = leaf_answering_not_found().await;
+        let client = async_nats::connect(url).await.unwrap();
+        let js = async_nats::jetstream::with_domain(client, "edge");
+        let mut cfg = base_config();
+        cfg.nats_domain = Some("edge".into());
+
+        tokio::time::timeout(Duration::from_secs(3), wait_for_stream(&js, &cfg))
+            .await
+            .expect("a leaf's not-found must not block trapd");
+        assert!(requests.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn central_trapd_still_waits_for_its_stream() {
+        let (url, requests) = leaf_answering_not_found().await;
+        let client = async_nats::connect(url).await.unwrap();
+        let js = async_nats::jetstream::new(client);
+        let cfg = base_config();
+
+        tokio::time::timeout(Duration::from_secs(1), wait_for_stream(&js, &cfg))
+            .await
+            .expect_err("not-found keeps a central trapd waiting");
+        assert_eq!(requests.lock().unwrap()[0], "$JS.API.STREAM.INFO.events");
     }
 
     #[test]

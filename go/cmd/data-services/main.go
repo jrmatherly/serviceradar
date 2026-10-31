@@ -139,9 +139,9 @@ func run(configPath string) error {
 // newNATSAccountServer builds the NATS account service when the config names
 // an operator, and returns nil otherwise.
 //
-// This service is stateless - it only holds the operator key for signing operations.
-// Account state (seeds, JWTs) is stored by Elixir in CNPG with AshCloak encryption.
-// The service can start without an operator and bootstrap later via gRPC.
+// It holds the operator key and the platform account seed. It can start without
+// either: an operator can bootstrap later via gRPC, and minting without a seed
+// returns FailedPrecondition.
 func newNATSAccountServer(cfg *datasvc.Config) *datasvc.NATSAccountServer {
 	if cfg.NATSOperator == nil {
 		return nil
@@ -157,6 +157,8 @@ func newNATSAccountServer(cfg *datasvc.Config) *datasvc.NATSAccountServer {
 		natsAccountServer = datasvc.NewNATSAccountServer(operator)
 		log.Printf("NATS account service initialized with operator %s", operator.Name())
 	}
+
+	configurePlatformAccount(natsAccountServer, cfg.NATSOperator)
 
 	natsAccountServer.SetAllowedClientIdentities(cfg.NATSOperator.AllowedClientIdentities)
 	if len(cfg.NATSOperator.AllowedClientIdentities) == 0 {
@@ -204,4 +206,22 @@ func newNATSAccountServer(cfg *datasvc.Config) *datasvc.NATSAccountServer {
 	}
 
 	return natsAccountServer
+}
+
+// configurePlatformAccount loads the seed that signs minted credentials. Helm
+// deployments have no such file, so a missing seed is logged, not fatal.
+func configurePlatformAccount(server *datasvc.NATSAccountServer, cfg *accounts.OperatorConfig) {
+	if cfg.PlatformAccountName == "" || cfg.PlatformAccountSeedFile == "" {
+		log.Printf("NATS account service has no platform account configured; GenerateUserCredentials will be refused")
+		return
+	}
+
+	seed, err := accounts.LoadAccountSeedFile(cfg.PlatformAccountSeedFile)
+	if err != nil {
+		log.Printf("NATS account service could not load the platform account seed; GenerateUserCredentials will be refused: %v", err)
+		return
+	}
+
+	server.SetPlatformAccount(cfg.PlatformAccountName, seed)
+	log.Printf("NATS account service minting for platform account %s", cfg.PlatformAccountName)
 }

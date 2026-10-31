@@ -33,6 +33,11 @@ const MAX_OPERATIONAL_RETRY_AGE_SECS: u64 = 90;
 /// TTL for messages that never reached send_publish (disconnect / channel hold).
 /// Separate from the duplicate-window horizon — no duplicate risk until first send.
 const NEVER_ATTEMPTED_QUEUE_TTL_SECS: u64 = 900;
+/// A non-owner cannot INFO the stream: its credential has no stream API, and behind
+/// a leaf the leaf's own JetStream answers not-found anyway. So it assumes the window
+/// owners leave in place: owner-mode collectors set 120s, and EventWriter takes the
+/// JetStream default of 2m.
+const NON_OWNER_DUPLICATE_WINDOW: Duration = Duration::from_secs(PREFERRED_DUPLICATE_WINDOW_SECS);
 /// Max concurrent JetStream publish+ACK futures (bounds worst-case pass time).
 const PUBLISH_CONCURRENCY: usize = 32;
 /// Subject retained on a detached stream when NATS refuses an empty subject list.
@@ -396,6 +401,13 @@ impl Publisher {
         };
 
         match result {
+            // Only the owner can create the stream; keep the batch and retry.
+            PublishPassResult::StreamMissing if !self.config.stream_owner => {
+                if drive_retry_schedule {
+                    *retry_backoff = min(retry_backoff.saturating_mul(2), max_backoff);
+                    *next_retry_at = Instant::now() + *retry_backoff;
+                }
+            }
             PublishPassResult::StreamMissing => {
                 self.recover_owned_stream(client, admin_js, max_retry_age, "stream missing")
                     .await?;
@@ -573,6 +585,10 @@ impl Publisher {
                 .publish_pending(client, publish_js, retry_q, *max_retry_age)
                 .await?
             {
+                PublishPassResult::StreamMissing if !self.config.stream_owner => {
+                    sleep(backoff).await;
+                    backoff = min(backoff.saturating_mul(2), max_backoff);
+                }
                 PublishPassResult::StreamMissing => {
                     self.recover_owned_stream(client, admin_js, max_retry_age, "shutdown drain")
                         .await?;
@@ -674,6 +690,9 @@ impl Publisher {
     }
 
     async fn ensure_owned_stream(&self, admin_js: &jetstream::Context) -> Result<Duration> {
+        if !self.config.stream_owner {
+            return Ok(NON_OWNER_DUPLICATE_WINDOW);
+        }
         let desired_max_age = Duration::from_secs(self.config.stream_max_age_secs);
         let mut subjects = self.config.stream_subjects_resolved();
         // Recover post-cutover ownership (includes migrated extension subjects
@@ -1017,6 +1036,14 @@ impl Publisher {
         let mut publish_js = jetstream::new(client.clone());
         let ack_timeout = Duration::from_millis(self.config.publish_timeout_ms.max(1_000));
         publish_js.set_timeout(ack_timeout);
+
+        if !self.config.stream_owner {
+            info!(
+                "Connected to NATS at {} as non-owner of stream '{}' (assumed dup_window={:?})",
+                self.config.nats_url, self.config.stream_name, NON_OWNER_DUPLICATE_WINDOW
+            );
+            return Ok((client, admin_js, publish_js, NON_OWNER_DUPLICATE_WINDOW));
+        }
 
         let required_subjects = self.config.stream_subjects_resolved();
         let desired_max_age = Duration::from_secs(self.config.stream_max_age_secs);
@@ -2784,6 +2811,200 @@ pub(crate) fn is_protocol_valid_nats_subject(subject: &str) -> bool {
 /// Listener publish subjects must be concrete and protocol-valid.
 pub(crate) fn is_valid_listener_publish_subject(subject: &str) -> bool {
     exact_nats_subject(subject)
+}
+
+#[cfg(test)]
+mod non_owner_tests {
+    use super::*;
+    use std::sync::Mutex;
+    use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+    use tokio::net::TcpListener;
+
+    const NO_RESPONDERS: &str = "NATS/1.0 503\r\n\r\n";
+    const ACK: &str = r#"{"stream":"flows","seq":1}"#;
+
+    /// Speaks enough of the NATS protocol to answer JetStream API requests in
+    /// order and record every API subject the client asked for.
+    async fn fake_jetstream(replies: Vec<String>) -> (String, Arc<Mutex<Vec<String>>>) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let requests = Arc::new(Mutex::new(Vec::new()));
+        let recorded = Arc::clone(&requests);
+        tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            let (read, mut write) = socket.into_split();
+            let mut read = BufReader::new(read);
+            let info = format!(
+                r#"INFO {{"server_id":"fake","server_name":"fake","version":"2.14.0","go":"go","host":"127.0.0.1","port":{port},"headers":true,"max_payload":1048576,"proto":1}}"#
+            );
+            write
+                .write_all(format!("{info}\r\n").as_bytes())
+                .await
+                .unwrap();
+            let mut replies = replies.into_iter();
+            let mut last = String::new();
+            let mut inbox_sid = String::new();
+            let mut line = String::new();
+            loop {
+                line.clear();
+                if read.read_line(&mut line).await.unwrap_or(0) == 0 {
+                    return;
+                }
+                let parts: Vec<String> = line.split_whitespace().map(str::to_string).collect();
+                match parts.first().map(String::as_str) {
+                    Some("PING") => write.write_all(b"PONG\r\n").await.unwrap(),
+                    Some("SUB") => inbox_sid = parts[parts.len() - 1].clone(),
+                    Some("PUB" | "HPUB") => {
+                        let size: usize = parts[parts.len() - 1].parse().unwrap();
+                        let mut body = vec![0u8; size + 2];
+                        read.read_exact(&mut body).await.unwrap();
+                        recorded.lock().unwrap().push(parts[1].clone());
+                        // The last reply repeats, so a retrying client stays answered.
+                        last = replies.next().unwrap_or(last);
+                        let (verb, sizes) = if last.starts_with("NATS/1.0") {
+                            ("HMSG", format!("{0} {0}", last.len()))
+                        } else {
+                            ("MSG", last.len().to_string())
+                        };
+                        let message =
+                            format!("{verb} {} {inbox_sid} {sizes}\r\n{last}\r\n", parts[2]);
+                        write.write_all(message.as_bytes()).await.unwrap();
+                    }
+                    _ => {}
+                }
+            }
+        });
+        (format!("nats://127.0.0.1:{port}"), requests)
+    }
+
+    fn non_owner_publisher(url: &str, dir: &Path) -> Publisher {
+        let config: Config = serde_json::from_value(serde_json::json!({
+            "nats_url": url,
+            "stream_name": "flows",
+            "stream_owner": false,
+            "rehome_state_path": dir.join("rehome.json"),
+            "ready_state_path": dir.join("ready"),
+            "listeners": [{
+                "protocol": "netflow",
+                "listen_addr": "0.0.0.0:2055",
+                "subject": "flows.raw.netflow"
+            }]
+        }))
+        .unwrap();
+        let (_tx, rx) = mpsc::channel(1);
+        Publisher::new(
+            Arc::new(config),
+            rx,
+            Arc::new(HostSliceMetricsRegistry::new(vec![])),
+        )
+    }
+
+    fn pending_flow() -> VecDeque<PendingPublish> {
+        VecDeque::from([PendingPublish::new(
+            "flows.raw.netflow".to_string(),
+            b"{}".to_vec(),
+        )])
+    }
+
+    /// Behind a leaf, $JS.API is answered by the leaf's own JetStream, so a lookup
+    /// reports not-found for a hub stream that a publish reaches. The edge
+    /// credential holds no stream API either, so the publish result is the only
+    /// signal; here any stream call would show as a recorded subject.
+    #[tokio::test]
+    async fn non_owner_never_creates_or_updates_streams() {
+        let dir = std::env::temp_dir().join(format!("non-owner-api-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let (url, requests) = fake_jetstream(vec![ACK.to_string()]).await;
+        let mut publisher = non_owner_publisher(&url, &dir);
+
+        let (client, admin_js, publish_js, window) =
+            tokio::time::timeout(Duration::from_secs(5), publisher.connect_once())
+                .await
+                .expect("connecting does not wait on the stream")
+                .unwrap();
+        assert_eq!(window, Duration::from_secs(PREFERRED_DUPLICATE_WINDOW_SECS));
+        assert_eq!(
+            publisher.ensure_owned_stream(&admin_js).await.unwrap(),
+            window
+        );
+
+        let mut pending = pending_flow();
+        let result = publisher
+            .publish_pending(&client, &publish_js, &mut pending, window)
+            .await
+            .unwrap();
+        assert!(matches!(
+            result,
+            PublishPassResult::Completed { succeeded: 1, .. }
+        ));
+
+        let requests = requests.lock().unwrap().clone();
+        assert_eq!(requests, ["flows.raw.netflow"]);
+        assert!(!rehome_state_path(&publisher.config).exists());
+        assert!(!ownership_state_path(&publisher.config).exists());
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// Before the owner has created the stream, or when it does not capture the
+    /// subject, the publish gets no responders. Only the owner can fix that, so
+    /// the batch stays queued, the retry backs off, and the next pass delivers it.
+    #[tokio::test]
+    async fn non_owner_keeps_the_batch_while_the_stream_is_missing() {
+        let dir = std::env::temp_dir().join(format!("non-owner-missing-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let (url, requests) =
+            fake_jetstream(vec![NO_RESPONDERS.to_string(), ACK.to_string()]).await;
+        let mut publisher = non_owner_publisher(&url, &dir);
+        let (client, admin_js, publish_js, window) = publisher.connect_once().await.unwrap();
+
+        let mut retry_q = pending_flow();
+        let mut age = max_retry_age_from_window(window);
+        let mut ready = true;
+        let mut quarantine = None;
+        let mut next_retry_at = Instant::now();
+        let mut backoff = Duration::from_millis(100);
+
+        for _ in 0..2 {
+            let before = Instant::now();
+            tokio::time::timeout(
+                Duration::from_secs(5),
+                publisher.handle_publish_pass(
+                    &client,
+                    &admin_js,
+                    &publish_js,
+                    &mut Vec::new(),
+                    &mut retry_q,
+                    16,
+                    &mut age,
+                    &mut ready,
+                    &mut quarantine,
+                    &mut next_retry_at,
+                    &mut backoff,
+                    Duration::from_secs(5),
+                    true,
+                ),
+            )
+            .await
+            .expect("a missing stream never blocks the publisher")
+            .unwrap();
+            if !retry_q.is_empty() {
+                assert_eq!(retry_q.len(), 1, "the batch must survive");
+                assert_eq!(
+                    retry_q[0].first_attempt_at, None,
+                    "not stored, so no horizon"
+                );
+                assert_eq!(backoff, Duration::from_millis(200));
+                assert!(next_retry_at > before);
+            }
+        }
+
+        assert!(retry_q.is_empty(), "the retry after no-responders delivers");
+        assert_eq!(
+            requests.lock().unwrap().clone(),
+            ["flows.raw.netflow", "flows.raw.netflow"]
+        );
+        fs::remove_dir_all(&dir).unwrap();
+    }
 }
 
 #[cfg(test)]

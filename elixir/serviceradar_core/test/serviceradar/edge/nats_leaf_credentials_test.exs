@@ -11,8 +11,8 @@ defmodule ServiceRadar.Edge.NatsLeafCredentialsTest do
 
   defmodule AccountClientStub do
     @moduledoc false
-    def generate_user_credentials(account_name, account_seed, user_name, type, opts) do
-      send(self(), {:minted, account_name, account_seed, user_name, type, opts[:permissions]})
+    def generate_user_credentials(account_name, user_name, type, opts) do
+      send(self(), {:minted, account_name, user_name, type, opts[:permissions]})
 
       {:ok,
        %{
@@ -31,15 +31,9 @@ defmodule ServiceRadar.Edge.NatsLeafCredentialsTest do
   end
 
   setup do
-    prior =
-      {Application.get_env(:serviceradar, :nats_account_name),
-       Application.get_env(:serviceradar, :nats_account_seed)}
+    prior_name = Application.get_env(:serviceradar, :nats_account_name)
 
-    on_exit(fn ->
-      {name, seed} = prior
-      restore(:nats_account_name, name)
-      restore(:nats_account_seed, seed)
-    end)
+    on_exit(fn -> restore(:nats_account_name, prior_name) end)
 
     site = %{id: Ash.UUID.generate(), slug: "nyc-#{System.unique_integer([:positive])}"}
     %{site: site}
@@ -47,15 +41,13 @@ defmodule ServiceRadar.Edge.NatsLeafCredentialsTest do
 
   test "returns no creds when no NATS account is configured", %{site: site} do
     Application.delete_env(:serviceradar, :nats_account_name)
-    Application.delete_env(:serviceradar, :nats_account_seed)
 
     assert {:ok, nil} = NatsLeafCredentials.mint(site, account_client: AccountClientStub)
-    refute_received {:minted, _, _, _, _, _}
+    refute_received {:minted, _, _, _, _}
   end
 
   test "mints leaf-scoped creds through the account client and records them", %{site: site} do
     Application.put_env(:serviceradar, :nats_account_name, "tenant-account")
-    Application.put_env(:serviceradar, :nats_account_seed, "SAEXAMPLESEED")
 
     assert {:ok, creds} = NatsLeafCredentials.mint(site, account_client: AccountClientStub)
     assert creds =~ "BEGIN NATS USER JWT"
@@ -63,10 +55,11 @@ defmodule ServiceRadar.Edge.NatsLeafCredentialsTest do
 
     user_name = "leaf-#{site.slug}"
 
-    assert_received {:minted, "tenant-account", "SAEXAMPLESEED", ^user_name, :service,
-                     permissions}
+    assert_received {:minted, "tenant-account", ^user_name, :service, permissions}
 
     refute "config.>" in permissions.subscribe_allow
+    refute "$JS.API.>" in permissions.publish_allow
+    refute "$JS.API.>" in permissions.subscribe_allow
 
     assert {:ok, [credential]} =
              NatsCredential

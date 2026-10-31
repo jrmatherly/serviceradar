@@ -7,7 +7,7 @@ seed_dir="/seed/creds"
 required_artifacts=(
   operator.jwt system.jwt system_account.pub nats.conf
   system.creds platform.creds core.creds flow-collector.creds datasvc.creds
-  log-collector.creds trapd.creds bmp-collector.creds
+  log-collector.creds trapd.creds bmp-collector.creds platform_account.seed
 )
 
 bootstrap_complete() {
@@ -29,6 +29,12 @@ fix_runtime_perms() {
 
   if [[ -f "${creds_dir}/operator.seed" ]]; then
     chmod 0600 "${creds_dir}/operator.seed"
+  fi
+
+  if [[ -f "${creds_dir}/platform_account.seed" ]]; then
+    # datasvc reads this as the service uid; root-owned 0600 would lock it out.
+    chown "${SERVICERADAR_UID:-10001}:${SERVICERADAR_GID:-10001}" "${creds_dir}/platform_account.seed"
+    chmod 0600 "${creds_dir}/platform_account.seed"
   fi
 }
 

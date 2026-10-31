@@ -276,6 +276,11 @@ pub struct NATSConfigTOML {
     /// Defaults to 32.
     #[serde(default = "default_max_inflight_publishes")]
     pub max_inflight_publishes: usize,
+    /// Whether this collector creates and reconciles its stream (default
+    /// true). Edge bundles set false: their credential holds no stream API, and
+    /// behind a leaf the leaf's own JetStream answers any stream lookup.
+    #[serde(default = "default_stream_owner")]
+    pub stream_owner: bool,
     pub tls: Option<NATSTLSConfig>,
 }
 
@@ -403,6 +408,7 @@ impl Config {
                     tls_ca,
                     tls_material_dir,
                     max_inflight_publishes: nats.max_inflight_publishes,
+                    stream_owner: nats.stream_owner,
                 };
                 config.apply_env_overrides(&env)?;
                 Ok(config)
@@ -481,6 +487,7 @@ impl Config {
                 max_age_secs: default_max_age_secs(),
                 stream_replicas: default_stream_replicas(),
                 max_inflight_publishes: default_max_inflight_publishes(),
+                stream_owner: true,
                 tls: Some(NATSTLSConfig {
                     cert_file: "/path/to/nats-client.crt".to_string(),
                     key_file: "/path/to/nats-client.key".to_string(),
@@ -514,6 +521,10 @@ impl Config {
 }
 
 // Default value functions
+fn default_stream_owner() -> bool {
+    true
+}
+
 fn default_bind_address() -> String {
     "0.0.0.0".to_string()
 }
@@ -595,6 +606,40 @@ mod tests {
     use super::*;
     use std::io::Write;
     use tempfile::NamedTempFile;
+
+    #[test]
+    fn edge_bundle_config_parses() {
+        let config: Config =
+            toml::from_str(include_str!("../testdata/edge-otel.toml")).expect("bundle otel.toml");
+
+        assert_eq!(config.server.bind_address, "0.0.0.0");
+        assert_eq!(config.server.port, 4317);
+        assert_eq!(
+            config.grpc_tls.as_ref().unwrap().cert_file,
+            "/etc/serviceradar/certs/otel.pem"
+        );
+
+        let nats = config.nats_config().unwrap().unwrap();
+        assert_eq!(nats.url, "tls://host01.example.com:4222");
+        assert_eq!(nats.subject, "otel");
+        assert_eq!(nats.logs_subject.as_deref(), Some("logs.otel"));
+        assert_eq!(nats.stream, "events");
+        assert!(!nats.stream_owner);
+        assert_eq!(
+            nats.creds_file.as_deref(),
+            Some(Path::new("/etc/serviceradar/creds/otel.creds"))
+        );
+        assert_eq!(
+            nats.tls_key.as_deref(),
+            Some(Path::new("/etc/serviceradar/certs/otel-key.pem"))
+        );
+    }
+
+    #[test]
+    fn stream_ownership_defaults_on_for_central_configs() {
+        let config: Config = toml::from_str("[nats]\nurl = \"nats://test:4222\"\n").unwrap();
+        assert!(config.nats_config().unwrap().unwrap().stream_owner);
+    }
 
     #[test]
     fn test_default_config() {
@@ -892,6 +937,7 @@ key_file = "/grpc.key"
                 max_age_secs: default_max_age_secs(),
                 stream_replicas: default_stream_replicas(),
                 max_inflight_publishes: 8,
+                stream_owner: true,
                 tls: Some(NATSTLSConfig {
                     cert_file: "/cert.pem".to_string(),
                     key_file: "/key.pem".to_string(),
@@ -936,6 +982,7 @@ key_file = "/grpc.key"
                 max_age_secs: default_max_age_secs(),
                 stream_replicas: default_stream_replicas(),
                 max_inflight_publishes: default_max_inflight_publishes(),
+                stream_owner: true,
                 tls: Some(NATSTLSConfig {
                     cert_file: "/ignored/cert.pem".to_string(),
                     key_file: "/ignored/key.pem".to_string(),

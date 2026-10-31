@@ -125,7 +125,6 @@ defmodule Proto.GenerateUserCredentialsRequest do
     syntax: :proto3
 
   field :account_name, 1, type: :string, json_name: "accountName"
-  field :account_seed, 2, type: :string, json_name: "accountSeed"
   field :user_name, 3, type: :string, json_name: "userName"
 
   field :credential_type, 4,

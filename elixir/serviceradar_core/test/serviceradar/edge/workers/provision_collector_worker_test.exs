@@ -1,6 +1,6 @@
 defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorkerTest do
   @moduledoc """
-  ExUnit coverage for `ProvisionCollectorWorker.perform/1` persistence.
+  ExUnit coverage for `ProvisionCollectorWorker.perform/2` persistence.
 
   The datasvc transport is faked at the existing public
   `GRPC.Client.Adapter` contract: the supervised `DataService.Client`
@@ -15,6 +15,7 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorkerTest do
 
   alias GRPC.Client.Stream
   alias ServiceRadar.Actors.SystemActor
+  alias ServiceRadar.Analytics.StarRocks
   alias ServiceRadar.DataService.Client
   alias ServiceRadar.Edge.CollectorPackage
   alias ServiceRadar.Edge.NatsCredential
@@ -77,6 +78,39 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorkerTest do
     def cancel(_stream), do: :ok
   end
 
+  defmodule IssuingStub do
+    @moduledoc false
+    def issue(_package) do
+      {:ok,
+       %{tls_cert_pem: "invented-cert", tls_key_pem: "invented-key", ca_chain_pem: "invented-ca"}}
+    end
+  end
+
+  defmodule UnavailableStub do
+    @moduledoc false
+    def issue(_package), do: {:error, :gateway_unavailable}
+  end
+
+  defmodule RefusingStub do
+    @moduledoc false
+    def issue(_package), do: {:error, {:collector_certificate_issue_failed, :ca_not_available}}
+  end
+
+  defmodule NotConnectedStub do
+    @moduledoc false
+    def issue(_package), do: {:error, :not_connected}
+  end
+
+  defmodule RaisingStub do
+    @moduledoc false
+    def issue(_package), do: raise("invented issuer crash")
+  end
+
+  defmodule UnexpectedCallStub do
+    @moduledoc false
+    def issue(package), do: raise("no certificate expected for #{package.collector_type}")
+  end
+
   setup_all do
     ServiceRadar.TestSupport.start_core!()
     :ok
@@ -84,18 +118,15 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorkerTest do
 
   setup do
     prior_account_name = Application.get_env(:serviceradar, :nats_account_name)
-    prior_account_seed = Application.get_env(:serviceradar, :nats_account_seed)
 
     prior_coordinator =
       Application.get_env(:serviceradar_core, :provision_collector_worker_test_coordinator)
 
     Application.put_env(:serviceradar, :nats_account_name, "TEST_ACCOUNT")
-    Application.put_env(:serviceradar, :nats_account_seed, "SEED_PLACEHOLDER")
     Application.put_env(:serviceradar_core, :provision_collector_worker_test_coordinator, self())
 
     on_exit(fn ->
       restore_env(:serviceradar, :nats_account_name, prior_account_name)
-      restore_env(:serviceradar, :nats_account_seed, prior_account_seed)
 
       restore_env(
         :serviceradar_core,
@@ -155,11 +186,11 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorkerTest do
       assert_receive {:datasvc_generate_user_credentials, adapter_pid, request}, 10_000
 
       assert request.account_name == "TEST_ACCOUNT"
-      assert request.account_seed == "SEED_PLACEHOLDER"
+      refute Map.has_key?(request, :account_seed)
       assert request.user_name == package.user_name
       assert request.credential_type == :USER_CREDENTIAL_TYPE_COLLECTOR
 
-      assert request.permissions.publish_allow == ["logs.syslog", "$JS.API.STREAM.INFO.events"]
+      assert request.permissions.publish_allow == ["logs.syslog"]
 
       send(adapter_pid, {:datasvc_release, {:respond, credential_response(public_key, u)}})
       assert :ok = Task.await(task, 30_000)
@@ -180,6 +211,223 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorkerTest do
 
       assert count_credentials(actor) == 1
       assert stored_creds_ciphertext(package.id)
+
+      assert ready.tls_cert_pem == "invented-cert"
+      assert ready.ca_chain_pem == "invented-ca"
+
+      assert {:ok, %{tls_key_pem_ciphertext: "invented-key"}} =
+               Ash.load(ready, [:tls_key_pem_ciphertext], actor: actor)
+    end
+  end
+
+  describe "perform/1 certificate issuance" do
+    test "no live gateway is retried, leaves the package provisioning, and stores nothing", %{
+      actor: actor,
+      unique_id: u
+    } do
+      package = create_package!(actor, u)
+      task = start_perform_task(package.id, certificate_issuer: UnavailableStub)
+
+      assert_receive {:datasvc_generate_user_credentials, adapter_pid, _request}, 10_000
+
+      send(
+        adapter_pid,
+        {:datasvc_release, {:respond, credential_response("U9TESTCOLLECTOR#{u}", u)}}
+      )
+
+      assert {:error, :gateway_unavailable} = Task.await(task, 30_000)
+
+      stalled = Ash.get!(CollectorPackage, package.id, actor: actor)
+      assert stalled.status == :provisioning
+      assert is_nil(stalled.error_message)
+      assert count_credentials(actor) == 0
+      assert stored_creds_ciphertext(package.id) == nil
+    end
+
+    test "no live gateway on the last attempt fails the package with a clear message", %{
+      actor: actor,
+      unique_id: u
+    } do
+      package = create_package!(actor, u)
+      task = start_perform_task(package.id, [certificate_issuer: UnavailableStub], 5)
+
+      assert_receive {:datasvc_generate_user_credentials, adapter_pid, _request}, 10_000
+
+      send(
+        adapter_pid,
+        {:datasvc_release, {:respond, credential_response("U9TESTCOLLECTOR#{u}", u)}}
+      )
+
+      assert {:error, :gateway_unavailable} = Task.await(task, 30_000)
+
+      failed = Ash.get!(CollectorPackage, package.id, actor: actor)
+      assert failed.status == :failed
+      assert failed.error_message =~ "No agent-gateway is reachable"
+    end
+
+    test "a gateway refusal on the last attempt names the reason", %{actor: actor, unique_id: u} do
+      package = create_package!(actor, u)
+      task = start_perform_task(package.id, [certificate_issuer: RefusingStub], 5)
+
+      assert_receive {:datasvc_generate_user_credentials, adapter_pid, _request}, 10_000
+
+      send(
+        adapter_pid,
+        {:datasvc_release, {:respond, credential_response("U9TESTCOLLECTOR#{u}", u)}}
+      )
+
+      assert {:error, _reason} = Task.await(task, 30_000)
+
+      failed = Ash.get!(CollectorPackage, package.id, actor: actor)
+      assert failed.status == :failed
+      assert failed.error_message =~ "ca_not_available"
+    end
+
+    test "datasvc not connected is retried, then fails the package on the last attempt", %{
+      actor: actor,
+      unique_id: u
+    } do
+      package = create_package!(actor, u)
+      first = start_perform_task(package.id, certificate_issuer: NotConnectedStub)
+      assert_receive {:datasvc_generate_user_credentials, adapter_pid, _request}, 10_000
+
+      send(
+        adapter_pid,
+        {:datasvc_release, {:respond, credential_response("U9TESTCOLLECTOR#{u}", u)}}
+      )
+
+      assert {:error, :not_connected} = Task.await(first, 30_000)
+      assert Ash.get!(CollectorPackage, package.id, actor: actor).status == :provisioning
+
+      last = start_perform_task(package.id, [certificate_issuer: NotConnectedStub], 5)
+      assert_receive {:datasvc_generate_user_credentials, adapter_pid, _request}, 10_000
+
+      send(
+        adapter_pid,
+        {:datasvc_release, {:respond, credential_response("U9TESTCOLLECTOR#{u}", u)}}
+      )
+
+      assert {:error, :not_connected} = Task.await(last, 30_000)
+
+      failed = Ash.get!(CollectorPackage, package.id, actor: actor)
+      assert failed.status == :failed
+      assert failed.error_message =~ "datasvc"
+    end
+
+    test "a crash on the last attempt fails the package and still reaches Oban", %{
+      actor: actor,
+      unique_id: u
+    } do
+      package = create_package!(actor, u)
+
+      task =
+        Task.async(fn ->
+          assert_raise RuntimeError, "invented issuer crash", fn ->
+            ProvisionCollectorWorker.perform(build_job(package.id, 5),
+              certificate_issuer: RaisingStub
+            )
+          end
+        end)
+
+      assert_receive {:datasvc_generate_user_credentials, adapter_pid, _request}, 10_000
+
+      send(
+        adapter_pid,
+        {:datasvc_release, {:respond, credential_response("U9TESTCOLLECTOR#{u}", u)}}
+      )
+
+      Task.await(task, 30_000)
+
+      failed = Ash.get!(CollectorPackage, package.id, actor: actor)
+      assert failed.status == :failed
+      assert failed.error_message =~ "invented issuer crash"
+    end
+
+    test "a crash before the last attempt leaves the package for the retry", %{
+      actor: actor,
+      unique_id: u
+    } do
+      package = create_package!(actor, u)
+
+      task =
+        Task.async(fn ->
+          assert_raise RuntimeError, fn ->
+            ProvisionCollectorWorker.perform(build_job(package.id),
+              certificate_issuer: RaisingStub
+            )
+          end
+        end)
+
+      assert_receive {:datasvc_generate_user_credentials, adapter_pid, _request}, 10_000
+
+      send(
+        adapter_pid,
+        {:datasvc_release, {:respond, credential_response("U9TESTCOLLECTOR#{u}", u)}}
+      )
+
+      Task.await(task, 30_000)
+      assert Ash.get!(CollectorPackage, package.id, actor: actor).status == :provisioning
+    end
+
+    test "falcosidekick asks for no certificate", %{actor: actor, unique_id: u} do
+      package = create_package!(actor, u, :falcosidekick)
+      task = start_perform_task(package.id, certificate_issuer: UnexpectedCallStub)
+
+      assert_receive {:datasvc_generate_user_credentials, adapter_pid, _request}, 10_000
+
+      send(
+        adapter_pid,
+        {:datasvc_release, {:respond, credential_response("U9TESTCOLLECTOR#{u}", u)}}
+      )
+
+      assert :ok = Task.await(task, 30_000)
+
+      ready = Ash.get!(CollectorPackage, package.id, actor: actor)
+      assert ready.status == :ready
+      assert is_nil(ready.tls_cert_pem)
+    end
+  end
+
+  describe "perform/1 for a flow package" do
+    test "without StarRocks fails the package and mints nothing", %{actor: actor, unique_id: u} do
+      prior = Application.get_env(:serviceradar_core, StarRocks)
+      on_exit(fn -> Application.put_env(:serviceradar_core, StarRocks, prior) end)
+      Application.put_env(:serviceradar_core, StarRocks, enabled: false, cutover_datasets: [])
+
+      package = create_package!(actor, u, :netflow)
+
+      assert {:discard, :starrocks_required} =
+               ProvisionCollectorWorker.perform(build_job(package.id))
+
+      failed = Ash.get!(CollectorPackage, package.id, actor: actor)
+      assert failed.status == :failed
+      assert failed.error_message =~ "StarRocks"
+      refute_received {:datasvc_generate_user_credentials, _, _}
+      assert count_credentials(actor) == 0
+    end
+
+    test "with StarRocks provisions like any collector", %{actor: actor, unique_id: u} do
+      prior = Application.get_env(:serviceradar_core, StarRocks)
+      on_exit(fn -> Application.put_env(:serviceradar_core, StarRocks, prior) end)
+
+      Application.put_env(:serviceradar_core, StarRocks,
+        enabled: true,
+        cutover_datasets: [:flows]
+      )
+
+      package = create_package!(actor, u, :sflow)
+      task = start_perform_task(package.id)
+
+      assert_receive {:datasvc_generate_user_credentials, adapter_pid, request}, 10_000
+      assert request.permissions.publish_allow == ["flows.raw.sflow"]
+
+      send(
+        adapter_pid,
+        {:datasvc_release, {:respond, credential_response("U9TESTCOLLECTOR#{u}", u)}}
+      )
+
+      assert :ok = Task.await(task, 30_000)
+      assert Ash.get!(CollectorPackage, package.id, actor: actor).status == :ready
     end
   end
 
@@ -246,7 +494,7 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorkerTest do
     end
   end
 
-  defp start_perform_task(package_id) do
+  defp start_perform_task(package_id, opts \\ [certificate_issuer: IssuingStub], attempt \\ 1) do
     task =
       Task.async(fn ->
         receive do
@@ -255,7 +503,7 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorkerTest do
           10_000 -> exit(:no_go)
         end
 
-        ProvisionCollectorWorker.perform(build_job(package_id))
+        ProvisionCollectorWorker.perform(build_job(package_id, attempt), opts)
       end)
 
     # Serial tests run under a shared sandbox owner (DataCase, async: false), so every
@@ -265,20 +513,20 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorkerTest do
     task
   end
 
-  defp build_job(package_id) do
+  defp build_job(package_id, attempt \\ 1) do
     %Oban.Job{
       args: %{"package_id" => package_id},
-      attempt: 1,
+      attempt: attempt,
       max_attempts: 5
     }
   end
 
-  defp create_package!(actor, unique_id) do
+  defp create_package!(actor, unique_id, collector_type \\ :flowgger) do
     CollectorPackage
     |> Ash.Changeset.for_create(
       :create,
       %{
-        collector_type: :flowgger,
+        collector_type: collector_type,
         site: "collector-race-#{unique_id}",
         hostname: "collector-#{unique_id}.example.com"
       },

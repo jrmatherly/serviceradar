@@ -1010,7 +1010,7 @@ defmodule ServiceRadarWebNGWeb.Admin.CollectorLive.Index do
   defp collector_config_filename("flowgger"), do: "flowgger.toml"
   defp collector_config_filename("otel"), do: "otel.toml"
   defp collector_config_filename("trapd"), do: "trapd.json"
-  defp collector_config_filename("netflow"), do: "netflow.json"
+  defp collector_config_filename(type) when type in ["netflow", "sflow"], do: "flow-collector.json"
   defp collector_config_filename("falcosidekick"), do: "falcosidekick.yaml"
   defp collector_config_filename(_), do: ""
 

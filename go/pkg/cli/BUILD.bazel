@@ -45,13 +45,24 @@ go_test(
         "nats_bootstrap_acl_test.go",
         "nats_bootstrap_platform_subjects_integration_test.go",
         "nats_edge_collector_creds_integration_test.go",
+        "nats_leaf_authorization_integration_test.go",
     ],
+    data = glob(["testdata/**"]),
     embed = [":cli"],
     deps = [
         "//go/pkg/nats/accounts",
         "@com_github_nats_io_jwt_v2//:jwt",
         "@com_github_nats_io_nats_go//:nats_go",
         "@com_github_nats_io_nats_server_v2//server",
+        "@com_github_nats_io_nkeys//:nkeys",
         "@org_golang_x_crypto//bcrypt",
     ],
+)
+
+exports_files(
+    [
+        "testdata/leaf-collectors.conf",
+        "testdata/leaf-no-collectors.conf",
+    ],
+    visibility = ["//elixir/serviceradar_core:__pkg__"],
 )

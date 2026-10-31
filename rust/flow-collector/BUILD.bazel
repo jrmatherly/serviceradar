@@ -8,6 +8,8 @@ package(default_visibility = ["//visibility:public"])
 exports_files([
     "flow-collector.json",
     "data/flows/netflow_to_ocsf.json",
+    "testdata/edge-netflow.json",
+    "testdata/edge-sflow.json",
 ])
 
 cargo_build_script(
@@ -42,7 +44,11 @@ rust_binary(
     srcs = glob(["src/**/*.rs"]),
     # Needed for include_str!("../flow-collector.json") in unit tests (and
     # rust_test(crate = ...) inherits compile_data from the crate).
-    compile_data = ["flow-collector.json"],
+    compile_data = [
+        "flow-collector.json",
+        "testdata/edge-netflow.json",
+        "testdata/edge-sflow.json",
+    ],
     crate_root = "src/main.rs",
     deps = all_crate_deps(
         cargo_only = True,
@@ -54,7 +60,11 @@ rust_binary(
 
 rust_test(
     name = "flow_collector_test",
-    compile_data = ["flow-collector.json"],
+    compile_data = [
+        "flow-collector.json",
+        "testdata/edge-netflow.json",
+        "testdata/edge-sflow.json",
+    ],
     crate = ":flow-collector",
     # `crate` inherits the binary's srcs/deps/features/compile_data, so only
     # test-only extras belong here; re-listing normal deps duplicates the

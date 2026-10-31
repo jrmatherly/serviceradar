@@ -285,6 +285,9 @@ pub(super) async fn ensure_stream(
     jetstream: &jetstream::Context,
     config: &NATSConfig,
 ) -> Result<()> {
+    if !config.stream_owner {
+        return Ok(());
+    }
     debug!("Creating/verifying JetStream stream: {}", config.stream);
     let create_config = create_stream_config(config);
     debug!("Stream will handle subjects: {:?}", create_config.subjects);

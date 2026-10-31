@@ -20,16 +20,16 @@ package proto;
 
 option go_package = "github.com/carverauto/serviceradar/proto";
 
-// NATSAccountService provides stateless NATS JWT signing operations.
+// NATSAccountService provides NATS JWT signing operations.
 //
 // This service is called by Elixir core (with platform mTLS credentials) to:
 // - Bootstrap the NATS operator (first-time platform setup)
 // - Generate new account keys and sign account JWTs
-// - Generate user credentials signed with account keys
+// - Generate user credentials signed with the platform account seed
 // - Re-sign account JWTs when claims change (revocations, limits)
 //
-// Elixir is responsible for storing account data in CNPG.
-// datasvc holds only the operator key and performs cryptographic operations.
+// datasvc holds the operator key and the platform account seed. Callers never
+// see the platform account seed; they request credentials by account name.
 service NATSAccountService {
   // BootstrapOperator initializes the NATS operator for the platform.
   // This can either generate a new operator key pair or import an existing seed.
@@ -45,7 +45,8 @@ service NATSAccountService {
   rpc CreateAccount(CreateAccountRequest) returns (CreateAccountResponse) {}
 
   // GenerateUserCredentials creates NATS user credentials for an account.
-  // Requires the account_seed to sign the user JWT.
+  // datasvc signs with its platform account seed. FAILED_PRECONDITION when it has
+  // no seed, INVALID_ARGUMENT when account_name is not the platform account.
   rpc GenerateUserCredentials(GenerateUserCredentialsRequest) returns (GenerateUserCredentialsResponse) {}
 
   // SignAccountJWT regenerates an account JWT with updated claims.
@@ -125,8 +126,9 @@ message UserPermissions {
 
 // GenerateUserCredentialsRequest is the request to create user credentials.
 message GenerateUserCredentialsRequest {
-  string account_name = 1;             // Account the user belongs to
-  string account_seed = 2;             // Account's private seed for signing (from Elixir storage)
+  reserved 2;
+  reserved "account_seed";
+  string account_name = 1;             // Account the user belongs to (the platform account)
   string user_name = 3;                // Human-readable user identifier
   UserCredentialType credential_type = 4; // Type of credentials to generate
   UserPermissions permissions = 5;     // Optional custom permissions (defaults based on type)

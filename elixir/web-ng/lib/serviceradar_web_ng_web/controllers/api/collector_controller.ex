@@ -629,7 +629,8 @@ defmodule ServiceRadarWebNGWeb.Api.CollectorController do
     return_error(conn, :internal_server_error, "NATS credentials not provisioned")
   end
 
-  defp handle_bundle_error(conn, reason) when reason in [:tls_key_not_found, :tls_cert_not_found] do
+  defp handle_bundle_error(conn, reason)
+       when reason in [:tls_key_not_found, :tls_cert_not_found, :tls_material_missing] do
     return_error(conn, :internal_server_error, "TLS certificates not provisioned")
   end
 
@@ -723,7 +724,7 @@ defmodule ServiceRadarWebNGWeb.Api.CollectorController do
   defp collector_config_filename("flowgger"), do: "flowgger.toml"
   defp collector_config_filename("otel"), do: "otel.toml"
   defp collector_config_filename("trapd"), do: "trapd.json"
-  defp collector_config_filename("netflow"), do: "netflow.json"
+  defp collector_config_filename(type) when type in ["netflow", "sflow"], do: "flow-collector.json"
   defp collector_config_filename("falcosidekick"), do: "falcosidekick.yaml"
   defp collector_config_filename(_), do: ""
 end

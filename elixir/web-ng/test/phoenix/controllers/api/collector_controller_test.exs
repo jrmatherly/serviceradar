@@ -114,7 +114,7 @@ defmodule ServiceRadarWebNGWeb.Api.CollectorControllerTest do
       assert Enum.any?(file_names, &String.ends_with?(&1, "/certs/collector.pem"))
     end
 
-    test "downloads a bundle when TLS certificates were not provisioned", %{conn: _conn} do
+    test "refuses a bundle when TLS certificates were not provisioned", %{conn: _conn} do
       {package, token} = create_ready_collector_package(:flowgger, %{tls: false})
 
       conn =
@@ -122,13 +122,7 @@ defmodule ServiceRadarWebNGWeb.Api.CollectorControllerTest do
         |> put_req_header("x-serviceradar-download-token", token)
         |> post(~p"/api/collectors/#{package.id}/bundle", %{})
 
-      body = response(conn, 200)
-      {:ok, files} = :erl_tar.extract({:binary, body}, [:compressed, :memory])
-      file_names = Enum.map(files, fn {name, _content} -> to_string(name) end)
-
-      assert Enum.any?(file_names, &String.ends_with?(&1, "/creds/nats.creds"))
-      assert Enum.any?(file_names, &String.ends_with?(&1, "/config/flowgger.toml"))
-      refute Enum.any?(file_names, &String.contains?(&1, "/certs/"))
+      assert %{"error" => "TLS certificates not provisioned"} = json_response(conn, 500)
     end
 
     test "downloads a falcosidekick bundle that reuses runtime certs", %{conn: _conn} do

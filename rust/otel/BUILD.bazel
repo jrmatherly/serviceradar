@@ -6,6 +6,8 @@ load("@rules_rs//rs:rust_test.bzl", "rust_test")
 
 package(default_visibility = ["//visibility:public"])
 
+exports_files(["testdata/edge-otel.toml"])
+
 # //proto:kv.proto, staged INTO this package, and that is the whole point.
 #
 # symlink-exec-root below symlinks each execroot entry into the build script's synthetic
@@ -54,6 +56,8 @@ cargo_build_script(
 rust_library(
     name = "otel_lib",
     srcs = glob(["src/**/*.rs"]),
+    # include_str! in unit tests; rust_test(crate = ...) inherits compile_data.
+    compile_data = ["testdata/edge-otel.toml"],
     crate_name = "otel",
     crate_root = "src/lib.rs",
     visibility = ["//visibility:public"],

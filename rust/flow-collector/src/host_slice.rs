@@ -317,6 +317,7 @@ mod tests {
             publish_timeout_ms: 1000,
             security: None,
             metrics_addr: None,
+            stream_owner: true,
             host_slice_allowlist,
             host_slices,
             listeners: vec![ListenerConfig::Sflow {
