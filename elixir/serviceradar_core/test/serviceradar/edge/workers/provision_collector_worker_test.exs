@@ -111,6 +111,14 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorkerTest do
     def issue(package), do: raise("no certificate expected for #{package.collector_type}")
   end
 
+  defmodule HubStub do
+    @moduledoc false
+    def revoke_users_on_core(keys) do
+      send(self(), {:hub_revoke, keys})
+      Process.get(:hub_revoke_result, {:ok, %{account_public_key: "invented-account"}})
+    end
+  end
+
   setup_all do
     ServiceRadar.TestSupport.start_core!()
     :ok
@@ -465,6 +473,94 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorkerTest do
 
       assert count_credentials(actor) == 0
       assert stored_creds_ciphertext(package.id) == nil
+    end
+  end
+
+  describe "revoking a provisioned package" do
+    setup do
+      prior_client = Application.get_env(:serviceradar, :nats_account_client)
+      Application.put_env(:serviceradar, :nats_account_client, HubStub)
+      on_exit(fn -> restore_env(:serviceradar, :nats_account_client, prior_client) end)
+
+      actor = SystemActor.system(:provision_collector_worker_test)
+      unique_id = System.unique_integer([:positive])
+      key = "U" <> String.pad_leading("#{unique_id}", 55, "A")
+
+      credential =
+        NatsCredential
+        |> Ash.Changeset.for_create(
+          :create,
+          %{user_name: "collector-#{unique_id}", user_public_key: key},
+          actor: actor
+        )
+        |> Ash.create!()
+
+      package =
+        actor
+        |> create_package!(unique_id)
+        |> Ash.Changeset.for_update(:provision, %{}, actor: actor)
+        |> Ash.update!()
+        |> Ash.Changeset.for_update(
+          :ready,
+          %{nats_credential_id: credential.id, nats_creds_content: "invented-creds"},
+          actor: actor
+        )
+        |> Ash.update!()
+
+      %{actor: actor, key: key, credential: credential, package: package}
+    end
+
+    test "tells the hub, then marks both records revoked", ctx do
+      revoked =
+        ctx.package
+        |> Ash.Changeset.for_update(:revoke, %{reason: "invented reason"}, actor: ctx.actor)
+        |> Ash.update!()
+
+      assert revoked.status == :revoked
+      assert_received {:hub_revoke, [key]}
+      assert key == ctx.key
+      assert Ash.get!(NatsCredential, ctx.credential.id, actor: ctx.actor).status == :revoked
+    end
+
+    test "a hub refusal leaves both records active and the error visible", ctx do
+      Process.put(:hub_revoke_result, {:error, {:grpc_error, "invented outage"}})
+
+      assert {:error, error} =
+               ctx.package
+               |> Ash.Changeset.for_update(:revoke, %{}, actor: ctx.actor)
+               |> Ash.update()
+
+      assert Exception.message(error) =~ "invented outage"
+      assert Ash.get!(CollectorPackage, ctx.package.id, actor: ctx.actor).status == :ready
+      assert Ash.get!(NatsCredential, ctx.credential.id, actor: ctx.actor).status == :active
+    end
+
+    test "a credential already revoked does not block the package", ctx do
+      ctx.credential
+      |> Ash.Changeset.for_update(:revoke, %{}, actor: ctx.actor)
+      |> Ash.update!()
+
+      assert_received {:hub_revoke, _keys}
+
+      revoked =
+        ctx.package
+        |> Ash.Changeset.for_update(:revoke, %{}, actor: ctx.actor)
+        |> Ash.update!()
+
+      assert revoked.status == :revoked
+      refute_received {:hub_revoke, _keys}
+    end
+
+    test "a deployment with no NATS account refuses instead of pretending", ctx do
+      Process.put(:hub_revoke_result, {:error, :nats_not_configured})
+
+      assert {:error, error} =
+               ctx.credential
+               |> Ash.Changeset.for_update(:revoke, %{}, actor: ctx.actor)
+               |> Ash.update()
+
+      assert Exception.message(error) =~ "nats_not_configured"
+      assert Ash.get!(NatsCredential, ctx.credential.id, actor: ctx.actor).status == :active
     end
   end
 

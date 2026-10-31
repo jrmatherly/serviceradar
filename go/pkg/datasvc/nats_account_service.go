@@ -39,6 +39,9 @@ import (
 	"github.com/carverauto/serviceradar/proto"
 )
 
+// resolverRequestTimeout bounds a $SYS claims request to the NATS resolver.
+const resolverRequestTimeout = 5 * time.Second
+
 // NATSAccountServer implements the NATSAccountService gRPC interface.
 // It performs NATS JWT/NKeys cryptographic operations with the keys it holds: the
 // operator key and the platform account seed. Callers never see the platform seed;
@@ -57,6 +60,9 @@ type NATSAccountServer struct {
 	// Both are empty when the deployment has no platform account seed.
 	platformAccountName string
 	platformAccountSeed string
+
+	// revokeMu serializes the read, re-sign and push of RevokeUsers.
+	revokeMu sync.Mutex
 
 	// systemAccountSeed is stored after bootstrap for JWT push operations
 	systemAccountSeed string
@@ -760,83 +766,65 @@ func refusedForMinting(subject string) bool {
 		strings.HasPrefix(subject, "$JS.API.STREAM.MSG.DELETE.")
 }
 
-// SignAccountJWT regenerates an account JWT with updated claims.
-// Use this when revocations or limits change. Requires account_seed from Elixir storage.
-func (s *NATSAccountServer) SignAccountJWT(
+// RevokeUsers makes the hub refuse the given users of the platform account. It
+// re-issues the JWT the resolver holds rather than one built from a request, so
+// the account's limits and earlier revocations survive, and it needs the operator
+// key because only the operator can sign an account JWT. The server drops a revoked
+// user's open connections when the update arrives. Revoking a key twice is harmless.
+func (s *NATSAccountServer) RevokeUsers(
 	ctx context.Context,
-	req *proto.SignAccountJWTRequest,
-) (*proto.SignAccountJWTResponse, error) {
+	req *proto.RevokeUsersRequest,
+) (*proto.RevokeUsersResponse, error) {
 	if err := s.authorizeRequest(ctx); err != nil {
 		return nil, err
 	}
 
+	if len(req.GetUserPublicKeys()) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "user_public_keys is required")
+	}
+
 	s.mu.RLock()
 	signer, err := s.ensureInitialized()
+	platformName, platformSeed := s.platformAccountName, s.platformAccountSeed
 	s.mu.RUnlock()
 	if err != nil {
 		return nil, err
 	}
 
-	if req.GetAccountName() == "" {
-		return nil, status.Error(codes.InvalidArgument, "account_name is required")
+	if platformSeed == "" {
+		return nil, status.Error(codes.FailedPrecondition, "platform account seed is not configured")
 	}
-	if req.GetAccountSeed() == "" {
-		return nil, status.Error(codes.InvalidArgument, "account_seed is required")
-	}
-
-	// Convert proto limits to domain model
-	var limits *accounts.AccountLimits
-	if req.GetLimits() != nil {
-		limits = protoToAccountLimits(req.GetLimits())
+	if req.GetAccountName() != platformName {
+		return nil, status.Errorf(codes.InvalidArgument, "account_name %q is not the platform account", req.GetAccountName())
 	}
 
-	// Convert proto subject mappings to domain model
-	protoMappings := req.GetSubjectMappings()
-	mappings := make([]accounts.SubjectMapping, 0, len(protoMappings))
-	for _, m := range protoMappings {
-		mappings = append(mappings, accounts.SubjectMapping{
-			From: m.GetFrom(),
-			To:   m.GetTo(),
-		})
-	}
-
-	protoExports := req.GetExports()
-	exports := make([]accounts.StreamExport, 0, len(protoExports))
-	for _, ex := range protoExports {
-		exports = append(exports, accounts.StreamExport{
-			Subject: ex.GetSubject(),
-			Name:    ex.GetName(),
-		})
-	}
-
-	protoImports := req.GetImports()
-	imports := make([]accounts.StreamImport, 0, len(protoImports))
-	for _, imp := range protoImports {
-		imports = append(imports, accounts.StreamImport{
-			Subject:          imp.GetSubject(),
-			AccountPublicKey: imp.GetAccountPublicKey(),
-			LocalSubject:     imp.GetLocalSubject(),
-			Name:             imp.GetName(),
-		})
-	}
-
-	accountPublicKey, accountJWT, err := signer.SignAccountJWT(
-		req.GetAccountName(),
-		req.GetAccountSeed(),
-		limits,
-		mappings,
-		exports,
-		imports,
-		req.GetRevokedUserKeys(),
-	)
+	accountPublicKey, err := accounts.AccountPublicKey(platformSeed)
 	if err != nil {
-		return nil, natsAccountSigningStatus("failed to sign account JWT", err)
+		return nil, status.Errorf(codes.Internal, "platform account seed: %v", err)
 	}
 
-	return &proto.SignAccountJWTResponse{
-		AccountPublicKey: accountPublicKey,
-		AccountJwt:       accountJWT,
-	}, nil
+	// Two revocations reading the same JWT would otherwise lose one of the keys.
+	s.revokeMu.Lock()
+	defer s.revokeMu.Unlock()
+
+	current, err := s.lookupAccountJWT(accountPublicKey)
+	if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "read account JWT from resolver: %v", err)
+	}
+
+	revoked, err := signer.RevokeUsers(current, req.GetUserPublicKeys())
+	if err != nil {
+		if errors.Is(err, accounts.ErrInvalidUserKey) {
+			return nil, status.Error(codes.InvalidArgument, err.Error())
+		}
+		return nil, status.Errorf(codes.Internal, "re-issue account JWT: %v", err)
+	}
+
+	if _, err := s.pushAccountJWT(accountPublicKey, revoked); err != nil {
+		return nil, status.Errorf(codes.Unavailable, "push account JWT to resolver: %v", err)
+	}
+
+	return &proto.RevokeUsersResponse{AccountPublicKey: accountPublicKey}, nil
 }
 
 // Helper functions for proto conversion
@@ -912,54 +900,71 @@ func (s *NATSAccountServer) PushAccountJWT(
 		return nil, status.Error(codes.InvalidArgument, "account_jwt is required")
 	}
 
-	conn, err := s.getResolverConn()
+	message, err := s.pushAccountJWT(req.GetAccountPublicKey(), req.GetAccountJwt())
 	if err != nil {
 		return &proto.PushAccountJWTResponse{
 			Success: false,
-			Message: "resolver connection not available: " + err.Error(),
+			Message: err.Error(),
 		}, nil
-	}
-
-	subject := fmt.Sprintf("$SYS.REQ.ACCOUNT.%s.CLAIMS.UPDATE", req.GetAccountPublicKey())
-	resp, err := conn.Request(subject, []byte(req.GetAccountJwt()), 5*time.Second)
-	if err != nil {
-		return &proto.PushAccountJWTResponse{
-			Success: false,
-			Message: "failed to push JWT to resolver: " + err.Error(),
-		}, nil
-	}
-
-	if len(resp.Data) == 0 {
-		return &proto.PushAccountJWTResponse{
-			Success: false,
-			Message: "resolver response was empty",
-		}, nil
-	}
-
-	var updateResp claimUpdateResponse
-	if err := json.Unmarshal(resp.Data, &updateResp); err != nil {
-		return &proto.PushAccountJWTResponse{
-			Success: false,
-			Message: "failed to parse resolver response: " + err.Error(),
-		}, nil
-	}
-
-	if updateResp.Error != nil {
-		return &proto.PushAccountJWTResponse{
-			Success: false,
-			Message: updateResp.Error.Description,
-		}, nil
-	}
-
-	message := "JWT pushed to resolver successfully"
-	if updateResp.Data != nil && updateResp.Data.Message != "" {
-		message = updateResp.Data.Message
 	}
 
 	return &proto.PushAccountJWTResponse{
 		Success: true,
 		Message: message,
 	}, nil
+}
+
+// pushAccountJWT sends an account JWT to the resolver and returns its reply message.
+func (s *NATSAccountServer) pushAccountJWT(accountPublicKey, accountJWT string) (string, error) {
+	conn, err := s.getResolverConn()
+	if err != nil {
+		return "", fmt.Errorf("resolver connection not available: %w", err)
+	}
+
+	subject := fmt.Sprintf("$SYS.REQ.ACCOUNT.%s.CLAIMS.UPDATE", accountPublicKey)
+	resp, err := conn.Request(subject, []byte(accountJWT), resolverRequestTimeout)
+	if err != nil {
+		return "", fmt.Errorf("failed to push JWT to resolver: %w", err)
+	}
+
+	if len(resp.Data) == 0 {
+		return "", errResolverEmptyResponse
+	}
+
+	var updateResp claimUpdateResponse
+	if err := json.Unmarshal(resp.Data, &updateResp); err != nil {
+		return "", fmt.Errorf("failed to parse resolver response: %w", err)
+	}
+
+	if updateResp.Error != nil {
+		return "", fmt.Errorf("%w: %s", errResolverRejectedJWT, updateResp.Error.Description)
+	}
+
+	if updateResp.Data != nil && updateResp.Data.Message != "" {
+		return updateResp.Data.Message, nil
+	}
+
+	return "JWT pushed to resolver successfully", nil
+}
+
+// lookupAccountJWT returns the account JWT the resolver currently serves.
+func (s *NATSAccountServer) lookupAccountJWT(accountPublicKey string) (string, error) {
+	conn, err := s.getResolverConn()
+	if err != nil {
+		return "", err
+	}
+
+	subject := fmt.Sprintf("$SYS.REQ.ACCOUNT.%s.CLAIMS.LOOKUP", accountPublicKey)
+	resp, err := conn.Request(subject, nil, resolverRequestTimeout)
+	if err != nil {
+		return "", err
+	}
+
+	if len(resp.Data) == 0 {
+		return "", errResolverEmptyResponse
+	}
+
+	return string(resp.Data), nil
 }
 
 type claimUpdateResponse struct {

@@ -22,7 +22,9 @@ defmodule ServiceRadar.Edge.NatsCredential do
   ## Status Values
 
   - `:active` - Credential is valid and in use
-  - `:revoked` - Credential has been revoked
+  - `:revoked` - The hub refuses the credential. `:revoke` asks datasvc to revoke it
+    first, and leaves the row `:active` if that fails, so this status never claims
+    more than the hub enforces.
   - `:expired` - Credential has expired (if expiration was set)
   """
 
@@ -34,6 +36,7 @@ defmodule ServiceRadar.Edge.NatsCredential do
 
   alias ServiceRadar.Changes.AfterAction
   alias ServiceRadar.Edge.PubSub
+  alias ServiceRadar.NATS.AccountClient
 
   @credential_fields [:user_name, :credential_type, :collector_type, :expires_at, :metadata]
 
@@ -114,6 +117,7 @@ defmodule ServiceRadar.Edge.NatsCredential do
           :revoke_reason,
           Ash.Changeset.get_argument(changeset, :reason)
         )
+        |> Ash.Changeset.before_transaction(&__MODULE__.revoke_on_hub/1)
         |> AfterAction.after_action(fn credential ->
           __MODULE__.broadcast_revoked(credential)
         end)
@@ -234,6 +238,21 @@ defmodule ServiceRadar.Edge.NatsCredential do
 
   identities do
     identity :unique_user_public_key, [:user_public_key]
+  end
+
+  @doc false
+  def revoke_on_hub(changeset) do
+    client = Application.get_env(:serviceradar, :nats_account_client, AccountClient)
+
+    case client.revoke_users_on_core([changeset.data.user_public_key]) do
+      {:ok, _result} ->
+        changeset
+
+      {:error, reason} ->
+        Ash.Changeset.add_error(changeset,
+          message: "the NATS hub did not revoke this credential: #{inspect(reason)}"
+        )
+    end
   end
 
   # PubSub broadcast helpers - delegates to ServiceRadar.Edge.PubSub

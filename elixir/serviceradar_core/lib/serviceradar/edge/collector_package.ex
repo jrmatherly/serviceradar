@@ -294,9 +294,11 @@ defmodule ServiceRadar.Edge.CollectorPackage do
           :revoke_reason,
           Ash.Changeset.get_argument(changeset, :reason)
         )
-        |> AfterAction.after_action(fn package ->
-          revoke_associated_nats_credential(package)
-          __MODULE__.broadcast_status_changed(package, old_status, :revoked)
+        |> AfterAction.after_action_result(fn package ->
+          with :ok <- revoke_associated_nats_credential(package) do
+            __MODULE__.broadcast_status_changed(package, old_status, :revoked)
+            :ok
+          end
         end)
       end
     end
@@ -511,16 +513,23 @@ defmodule ServiceRadar.Edge.CollectorPackage do
   defp revoke_associated_nats_credential(package) do
     actor = SystemActor.system(:collector_package)
 
-    case Ash.get(NatsCredential, package.nats_credential_id, actor: actor) do
-      {:ok, credential} when not is_nil(credential) ->
-        credential
-        |> Ash.Changeset.for_update(:revoke, %{reason: "Package revoked"})
-        |> Ash.update(actor: actor)
+    case Ash.get(NatsCredential, package.nats_credential_id,
+           actor: actor,
+           not_found_error?: false
+         ) do
+      {:ok, %{status: :active} = credential} ->
+        result =
+          credential
+          |> Ash.Changeset.for_update(:revoke, %{reason: "Package revoked"})
+          |> Ash.update(actor: actor)
 
-      _ ->
+        with {:ok, _credential} <- result, do: :ok
+
+      {:ok, _not_active_or_missing} ->
         :ok
-    end
 
-    :ok
+      {:error, _reason} = error ->
+        error
+    end
   end
 end

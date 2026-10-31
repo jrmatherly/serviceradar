@@ -585,7 +585,8 @@ func generateSystemCreds(systemAccountSeed string, userName string) (string, err
 	}
 
 	permissions := &accounts.UserPermissions{
-		PublishAllow:   []string{"$SYS.REQ.ACCOUNT.*.CLAIMS.UPDATE"},
+		// LOOKUP: revoking a user re-issues the JWT the resolver holds.
+		PublishAllow:   []string{"$SYS.REQ.ACCOUNT.*.CLAIMS.UPDATE", "$SYS.REQ.ACCOUNT.*.CLAIMS.LOOKUP"},
 		SubscribeAllow: []string{"_INBOX.>"},
 		AllowResponses: true,
 		MaxResponses:   10,

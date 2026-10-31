@@ -123,8 +123,8 @@ func (s *AccountSigner) CreateAccount(
 	}, nil
 }
 
-// SignAccountJWT regenerates an account JWT with updated claims.
-// Use this when revocations or limits change.
+// SignAccountJWT builds an account JWT from these arguments alone. To change an
+// issued account, RevokeUsers and ResizeAccountJetStream keep its other claims.
 func (s *AccountSigner) SignAccountJWT(
 	accountName string,
 	accountSeed string,
@@ -152,6 +152,28 @@ func (s *AccountSigner) SignAccountJWT(
 	}
 
 	return accountPublicKey, accountJWT, nil
+}
+
+// RevokeUsers re-issues accountJWT with the given users revoked. Every other
+// claim, including earlier revocations, carries over.
+func (s *AccountSigner) RevokeUsers(accountJWT string, userPublicKeys []string) (string, error) {
+	claims, err := jwt.DecodeAccountClaims(accountJWT)
+	if err != nil {
+		return "", fmt.Errorf("decode account JWT: %w", err)
+	}
+
+	if claims.Issuer != s.operator.PublicKey() {
+		return "", fmt.Errorf("%w: account %s issued by %s", ErrAccountNotIssuedByOperator, claims.Subject, claims.Issuer)
+	}
+
+	for _, key := range userPublicKeys {
+		if !nkeys.IsValidPublicUserKey(key) {
+			return "", fmt.Errorf("%w: %q", ErrInvalidUserKey, key)
+		}
+		claims.Revoke(key)
+	}
+
+	return s.operator.SignAccountClaims(claims)
 }
 
 // signAccountJWT creates and signs an account JWT with the operator key.
@@ -366,7 +388,7 @@ func allowedSystemSubject(
 ) bool {
 	// System-account-only subjects.
 	if namespace == "SYS" && credType == CredentialTypeService {
-		if subject == "$SYS.REQ.ACCOUNT.*.CLAIMS.UPDATE" {
+		if subject == "$SYS.REQ.ACCOUNT.*.CLAIMS.UPDATE" || subject == "$SYS.REQ.ACCOUNT.*.CLAIMS.LOOKUP" {
 			return true
 		}
 	}

@@ -89,7 +89,7 @@ func composeCredsMounts(t *testing.T, compose []byte) (seedReaders, wholeVolume 
 			case long.Source != "nats-creds":
 			case long.Volume.Subpath == "":
 				wholeVolume = append(wholeVolume, name)
-			case long.Volume.Subpath == "platform_account.seed":
+			case long.Volume.Subpath == "platform_account.seed", long.Volume.Subpath == "operator.seed":
 				seedReaders = append(seedReaders, name)
 			}
 		}
@@ -97,12 +97,12 @@ func composeCredsMounts(t *testing.T, compose []byte) (seedReaders, wholeVolume 
 	slices.Sort(seedReaders)
 	slices.Sort(wholeVolume)
 
-	return seedReaders, wholeVolume
+	return slices.Compact(seedReaders), wholeVolume
 }
 
-// platform_account.seed signs any user in the platform account. Only datasvc is
-// given it by name, and every service that mounts the whole volume can also read
-// it, so adding a whole-volume mount must be a deliberate change here.
+// platform_account.seed signs any user in the platform account and operator.seed
+// any account. Only datasvc is given them by name, and every service that mounts the whole volume can also read
+// them, so adding a whole-volume mount must be a deliberate change here.
 func TestComposePlatformSeedReaders(t *testing.T) {
 	path, err := runfiles.Rlocation("_main/docker-compose.yml")
 	require.NoError(t, err)
