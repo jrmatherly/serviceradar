@@ -90,15 +90,25 @@ defmodule ServiceRadar.NATS.AccountClientTest do
 
   describe "revoke_users/3" do
     test "reports how many keys the hub did not already hold" do
-      start_supervised!({DynamicSupervisor, name: GRPC.Client.Supervisor, strategy: :one_for_one})
+      # The grpc application owns this supervisor once core has booted.
+      if !Process.whereis(GRPC.Client.Supervisor) do
+        start_supervised!(
+          {DynamicSupervisor, name: GRPC.Client.Supervisor, strategy: :one_for_one}
+        )
+      end
 
       start_supervised!(
         {Client, host: "127.0.0.1", port: 1, sec_mode: "plaintext", connect_timeout_ms: 10}
       )
 
-      :sys.replace_state(Client, fn state ->
-        %{state | channel: %GRPC.Channel{adapter: RevokedAdapter}, connect_task: nil}
-      end)
+      # A booted core runs Gun, and the client's first connect holds its mailbox while Gun retries.
+      :sys.replace_state(
+        Client,
+        fn state ->
+          %{state | channel: %GRPC.Channel{adapter: RevokedAdapter}, connect_task: nil}
+        end,
+        15_000
+      )
 
       assert AccountClient.revoke_users("invented", ["UINVENTED"]) ==
                {:ok, %{account_public_key: "AINVENTED", newly_revoked: 2}}
