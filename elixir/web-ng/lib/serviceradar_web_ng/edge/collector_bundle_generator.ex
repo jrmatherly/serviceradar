@@ -4,7 +4,7 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
 
   A collector bundle contains everything needed to configure an already-installed collector:
   - NATS credentials file (.creds) for account-isolated messaging
-  - mTLS certificates for host-installed collectors, when the package has them
+  - mTLS certificates for host-installed collectors
   - Collector configuration file (TOML for flowgger/otel, JSON for trapd/netflow)
   - Update or deploy script for the target runtime
 
@@ -13,7 +13,7 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
       collector-package-<id>/
       ├── creds/
       │   └── nats.creds           # NATS account credentials
-      ├── certs/                   # omitted entirely when the package has no TLS material
+      ├── certs/
       │   ├── collector.pem        # TLS certificate
       │   ├── collector-key.pem    # TLS private key
       │   └── ca-chain.pem         # CA certificate chain
@@ -22,10 +22,9 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
       ├── update.sh                # Script to copy files and restart service
       └── README.md                # Installation instructions
 
-  `update.sh` copies `certs/` only when all three files are in the bundle.
-  README.md lists those certificate files, and the mTLS note, only when the
-  files are in the bundle. A package marked ready with NATS credentials and
-  no PEMs still downloads.
+  Every host collector config says `mode: mtls` and nothing else puts certificates
+  on the host, so a package without all three PEMs returns
+  `{:error, :tls_material_missing}` rather than a bundle that fails at connect.
 
   Falcosidekick is the Kubernetes exception: its bundle ships Helm values and
   a deploy script, and it expects the cluster-wide `serviceradar-runtime-certs`
@@ -60,9 +59,9 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
 
   ## Parameters
 
-    * `package` - The CollectorPackage struct. Nil TLS PEM fields are left out of the tarball.
+    * `package` - The CollectorPackage struct
     * `nats_creds` - Plaintext NATS credentials (AshCloak decrypts the field when it is loaded)
-    * `tls_key_pem` - Plaintext TLS private key, or nil when the package has none
+    * `tls_key_pem` - Plaintext TLS private key (falcosidekick does not use it)
     * `opts` - Additional options:
       * `:nats_url` - NATS server URL (default: from config)
 
@@ -73,35 +72,39 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
   """
   @spec create_tarball(CollectorPackage.t(), String.t(), String.t() | nil, keyword()) ::
           {:ok, binary()} | {:error, term()}
-  def create_tarball(package, nats_creds, tls_key_pem, opts \\ []) do
+  def create_tarball(package, nats_creds, tls_key_pem, opts \\ [])
+
+  def create_tarball(%{collector_type: :falcosidekick} = package, nats_creds, _tls_key_pem, opts) do
     package_dir = "collector-package-#{short_id(package.id)}"
 
-    files =
-      case package.collector_type do
-        :falcosidekick ->
-          # Falcosidekick deploys via Helm in k8s and reuses the shared
-          # serviceradar-runtime-certs secret that already exists in-cluster.
-          [
-            {"#{package_dir}/creds/nats.creds", nats_creds},
-            {"#{package_dir}/#{config_filename(package)}", generate_config(package, opts)},
-            {"#{package_dir}/deploy.sh", generate_falcosidekick_deploy_script(package)},
-            {"#{package_dir}/README.md", generate_readme(package)}
-          ]
+    # Falcosidekick deploys via Helm in k8s and reuses the shared
+    # serviceradar-runtime-certs secret that already exists in-cluster.
+    create_tar_gz([
+      {"#{package_dir}/creds/nats.creds", nats_creds},
+      {"#{package_dir}/#{config_filename(package)}", generate_config(package, opts)},
+      {"#{package_dir}/deploy.sh", generate_falcosidekick_deploy_script(package)},
+      {"#{package_dir}/README.md", generate_readme(package)}
+    ])
+  end
 
-        _ ->
-          # Standard collectors: systemd services on bare metal / VMs
-          [
-            {"#{package_dir}/creds/nats.creds", nats_creds},
-            {"#{package_dir}/certs/collector.pem", package.tls_cert_pem},
-            {"#{package_dir}/certs/collector-key.pem", tls_key_pem},
-            {"#{package_dir}/certs/ca-chain.pem", package.ca_chain_pem},
-            {"#{package_dir}/config/#{config_filename(package)}", generate_config(package, opts)},
-            {"#{package_dir}/update.sh", generate_update_script(package)},
-            {"#{package_dir}/README.md", generate_readme(package, tls_key_pem)}
-          ]
-      end
+  def create_tarball(%{tls_cert_pem: cert, ca_chain_pem: ca}, _nats_creds, key, _opts)
+      when is_nil(cert) or is_nil(ca) or is_nil(key) do
+    {:error, :tls_material_missing}
+  end
 
-    create_tar_gz(Enum.reject(files, fn {_name, content} -> is_nil(content) end))
+  def create_tarball(package, nats_creds, tls_key_pem, opts) do
+    package_dir = "collector-package-#{short_id(package.id)}"
+
+    # Standard collectors: systemd services on bare metal / VMs
+    create_tar_gz([
+      {"#{package_dir}/creds/nats.creds", nats_creds},
+      {"#{package_dir}/certs/collector.pem", package.tls_cert_pem},
+      {"#{package_dir}/certs/collector-key.pem", tls_key_pem},
+      {"#{package_dir}/certs/ca-chain.pem", package.ca_chain_pem},
+      {"#{package_dir}/config/#{config_filename(package)}", generate_config(package, opts)},
+      {"#{package_dir}/update.sh", generate_update_script(package)},
+      {"#{package_dir}/README.md", generate_readme(package)}
+    ])
   end
 
   @doc """
@@ -146,13 +149,17 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
 
   defp short_id(id) when is_binary(id), do: String.slice(id, 0, 8)
 
+  # NetFlow and sFlow share one binary: the serviceradar-flow-collector package,
+  # whose unit reads /etc/serviceradar/flow-collector.json.
+  defp service_name(%{collector_type: type}) when type in [:netflow, :sflow], do: "serviceradar-flow-collector"
+  defp service_name(%{collector_type: type}), do: "serviceradar-#{type}"
+
   defp config_filename(package) do
     case package.collector_type do
       :flowgger -> "flowgger.toml"
       :otel -> "otel.toml"
       :trapd -> "trapd.json"
-      :netflow -> "netflow.json"
-      :sflow -> "sflow.json"
+      type when type in [:netflow, :sflow] -> "flow-collector.json"
       :falcosidekick -> "falcosidekick.yaml"
       _ -> "config.toml"
     end
@@ -496,7 +503,7 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
 
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     COLLECTOR_TYPE=#{Shell.literal(collector_type)}
-    SERVICE_NAME=#{Shell.literal("serviceradar-#{collector_type}")}
+    SERVICE_NAME=#{Shell.literal(service_name(package))}
     CONFIG_DIR="/etc/serviceradar"
     CERTS_DIR="$CONFIG_DIR/certs"
     CREDS_DIR="$CONFIG_DIR/creds"
@@ -515,13 +522,13 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
     # Check if service exists
     if ! systemctl list-unit-files | grep -q "$SERVICE_NAME"; then
         echo "Error: Service $SERVICE_NAME not found."
-        echo "Please install the serviceradar-$COLLECTOR_TYPE package first."
+        echo "Please install the $SERVICE_NAME package first."
         echo ""
         echo "On Debian/Ubuntu:"
-        echo "  apt install serviceradar-$COLLECTOR_TYPE"
+        echo "  apt install $SERVICE_NAME"
         echo ""
         echo "On RHEL/CentOS:"
-        echo "  dnf install serviceradar-$COLLECTOR_TYPE"
+        echo "  dnf install $SERVICE_NAME"
         exit 1
     fi
 
@@ -535,14 +542,12 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
     cp "$SCRIPT_DIR/creds/nats.creds" "$CREDS_DIR/"
     chmod 600 "$CREDS_DIR/nats.creds"
 
-    if [ -f "$SCRIPT_DIR/certs/collector.pem" ] && [ -f "$SCRIPT_DIR/certs/collector-key.pem" ] && [ -f "$SCRIPT_DIR/certs/ca-chain.pem" ]; then
-        echo "Installing certificates..."
-        cp "$SCRIPT_DIR/certs/collector.pem" "$CERTS_DIR/"
-        cp "$SCRIPT_DIR/certs/collector-key.pem" "$CERTS_DIR/"
-        cp "$SCRIPT_DIR/certs/ca-chain.pem" "$CERTS_DIR/"
-        chmod 644 "$CERTS_DIR/collector.pem" "$CERTS_DIR/ca-chain.pem"
-        chmod 600 "$CERTS_DIR/collector-key.pem"
-    fi
+    echo "Installing certificates..."
+    cp "$SCRIPT_DIR/certs/collector.pem" "$CERTS_DIR/"
+    cp "$SCRIPT_DIR/certs/collector-key.pem" "$CERTS_DIR/"
+    cp "$SCRIPT_DIR/certs/ca-chain.pem" "$CERTS_DIR/"
+    chmod 644 "$CERTS_DIR/collector.pem" "$CERTS_DIR/ca-chain.pem"
+    chmod 600 "$CERTS_DIR/collector-key.pem"
 
     echo "Installing configuration..."
     cp "$SCRIPT_DIR/config/#{config_file}" "$CONFIG_DIR/"
@@ -687,10 +692,10 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
     """
   end
 
-  defp generate_readme(package, tls_key_pem \\ nil) do
+  defp generate_readme(package) do
     collector_type = to_string(package.collector_type)
+    service = service_name(package)
     config_file = config_filename(package)
-    cert_contents = readme_cert_contents(package, tls_key_pem)
 
     port_info =
       case package.collector_type do
@@ -718,10 +723,10 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
 
     ```bash
     # Debian/Ubuntu
-    sudo apt install serviceradar-#{collector_type}
+    sudo apt install #{service}
 
     # RHEL/CentOS
-    sudo dnf install serviceradar-#{collector_type}
+    sudo dnf install #{service}
     ```
 
     ## Quick Start
@@ -741,7 +746,10 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
     ## Contents
 
     - `creds/nats.creds` - NATS account credentials
-    #{cert_contents}- `config/#{config_file}` - Collector configuration
+    - `certs/collector.pem` - TLS certificate
+    - `certs/collector-key.pem` - TLS private key (keep secure!)
+    - `certs/ca-chain.pem` - CA certificate chain
+    - `config/#{config_file}` - Collector configuration
     - `update.sh` - Update script (copies files, restarts service)
 
     ## Network Ports
@@ -750,17 +758,21 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
 
     ## Security Notes
 
-    #{readme_security_notes(tls_key_pem, cert_contents)}
+    - The private key and NATS credentials should be kept secure (mode 600)
+    - Credentials authenticate this collector to your NATS account
+    - All messages are scoped to this deployment's account
+    - mTLS ensures encrypted, authenticated communication
+
     ## Troubleshooting
 
     Check collector status and logs:
 
     ```bash
     # Service status
-    systemctl status serviceradar-#{collector_type}
+    systemctl status #{service}
 
     # View logs
-    journalctl -u serviceradar-#{collector_type} -f
+    journalctl -u #{service} -f
     ```
 
     ## Support
@@ -768,55 +780,6 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
     Documentation: https://docs.serviceradar.cloud
     Issues: https://github.com/carverauto/serviceradar/issues
     """
-  end
-
-  # create_tarball/4 drops nil entries, so the README lists a cert file only
-  # when that entry is present.
-  defp readme_cert_contents(package, tls_key_pem) do
-    lines =
-      Enum.reject(
-        [
-          bundle_readme_line(package.tls_cert_pem, "- `certs/collector.pem` - TLS certificate"),
-          bundle_readme_line(
-            tls_key_pem,
-            "- `certs/collector-key.pem` - TLS private key (keep secure!)"
-          ),
-          bundle_readme_line(package.ca_chain_pem, "- `certs/ca-chain.pem` - CA certificate chain")
-        ],
-        &is_nil/1
-      )
-
-    case lines do
-      [] -> ""
-      _ -> Enum.join(lines, "\n") <> "\n"
-    end
-  end
-
-  defp bundle_readme_line(nil, _line), do: nil
-  defp bundle_readme_line(_content, line), do: line
-
-  defp readme_security_notes(tls_key_pem, cert_contents) do
-    credential_line =
-      if is_nil(tls_key_pem) do
-        "- NATS credentials should be kept secure (mode 600)"
-      else
-        "- The private key and NATS credentials should be kept secure (mode 600)"
-      end
-
-    lines = [
-      credential_line,
-      "- Credentials authenticate this collector to your NATS account",
-      "- All messages are scoped to this deployment's account"
-    ]
-
-    lines =
-      if cert_contents == "" do
-        lines
-      else
-        lines ++ ["- mTLS ensures encrypted, authenticated communication"]
-      end
-
-    Enum.join(lines, "\n") <> "\n"
   end
 
   defp generate_edge_site_section(%{edge_site: %EdgeSite{} = site}) do

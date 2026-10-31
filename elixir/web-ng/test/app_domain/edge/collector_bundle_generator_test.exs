@@ -112,42 +112,18 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
   end
 
   describe "create_tarball/4 for flowgger" do
-    test "omits certificate files when TLS material was not provisioned" do
+    test "installs into the service the package provides" do
       {:ok, tarball} =
         CollectorBundleGenerator.create_tarball(
           sample_flowgger_package(),
           sample_nats_creds(),
-          nil,
-          nats_url: "nats://serviceradar-nats:4222"
-        )
-
-      file_names = tarball |> extract_files() |> Map.keys()
-
-      assert Enum.any?(file_names, &String.ends_with?(&1, "/creds/nats.creds"))
-      assert Enum.any?(file_names, &String.ends_with?(&1, "/config/flowgger.toml"))
-      refute Enum.any?(file_names, &String.contains?(&1, "/certs/"))
-    end
-
-    test "restarts the collector when the bundle has no certificates" do
-      {:ok, tarball} =
-        CollectorBundleGenerator.create_tarball(
-          sample_flowgger_package(),
-          sample_nats_creds(),
-          nil,
+          sample_tls_key(),
           nats_url: "nats://serviceradar-nats:4222"
         )
 
       assert {:ok, installed} = install_bundle(tarball)
-
       assert File.read!(Path.join(installed, "creds/nats.creds")) =~ "BEGIN NATS USER JWT"
       assert File.exists?(Path.join(installed, "flowgger.toml"))
-      refute File.exists?(Path.join(installed, "certs/collector.pem"))
-      refute File.exists?(Path.join(installed, "certs/collector-key.pem"))
-      refute File.exists?(Path.join(installed, "certs/ca-chain.pem"))
-
-      log = File.read!(Path.join(installed, "systemctl.log"))
-      assert log =~ "stop serviceradar-flowgger"
-      assert log =~ "start serviceradar-flowgger"
     end
 
     test "installs certificate files when the bundle includes them" do
@@ -216,7 +192,65 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
     end
   end
 
+  describe "create_tarball/4 without TLS material" do
+    # Every host collector config says mode mtls and nothing else puts certs on the
+    # host, so such a bundle could only fail at connect time.
+    for type <- [:flowgger, :otel, :trapd, :netflow, :sflow] do
+      test "#{type} refuses rather than ship an mTLS config with no certificates" do
+        package = %{sample_flow_package(unquote(type)) | tls_cert_pem: nil, ca_chain_pem: nil}
+
+        assert {:error, :tls_material_missing} =
+                 CollectorBundleGenerator.create_tarball(package, sample_nats_creds(), nil,
+                   nats_url: "tls://host01.example.com:4222"
+                 )
+      end
+    end
+
+    test "a package missing any one file also refuses" do
+      assert {:error, :tls_material_missing} =
+               CollectorBundleGenerator.create_tarball(
+                 sample_flow_package(:netflow),
+                 sample_nats_creds(),
+                 nil,
+                 nats_url: "tls://host01.example.com:4222"
+               )
+    end
+  end
+
   describe "create_tarball/4 for flow collectors" do
+    for type <- [:netflow, :sflow] do
+      test "#{type} installs into the unit the flow-collector package ships" do
+        unit_name = "serviceradar-flow-collector.service"
+
+        unit =
+          [@repo_root, "build/packaging/flow-collector/systemd", unit_name]
+          |> Path.join()
+          |> File.read!()
+
+        [_, config_path] = Regex.run(~r/^ExecStart=\S+ --config (\S+)$/m, unit)
+
+        {:ok, tarball} =
+          CollectorBundleGenerator.create_tarball(
+            sample_flow_package(unquote(type)),
+            sample_nats_creds(),
+            sample_tls_key(),
+            nats_url: "tls://host01.example.com:4222"
+          )
+
+        assert {:ok, installed} = install_bundle(tarball)
+        assert File.exists?(Path.join(installed, Path.basename(config_path)))
+
+        log = File.read!(Path.join(installed, "systemctl.log"))
+        assert log =~ "stop serviceradar-flow-collector"
+        assert log =~ "start serviceradar-flow-collector"
+
+        readme = tarball |> extract_files() |> find_file("README.md")
+        assert readme =~ "apt install serviceradar-flow-collector"
+        assert readme =~ "dnf install serviceradar-flow-collector"
+        refute readme =~ "serviceradar-#{unquote(type)}"
+      end
+    end
+
     test "netflow bundle uses flow-collector listeners" do
       config = flow_bundle_config(sample_flow_package(:netflow))
 
@@ -269,7 +303,7 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
         )
 
       files = extract_files(tarball)
-      config = files |> find_file("netflow.json") |> Jason.decode!()
+      config = files |> find_file("flow-collector.json") |> Jason.decode!()
       update_script = find_file(files, "update.sh")
 
       assert config["nats_creds_file"] == "/etc/serviceradar/creds/nats.creds"
@@ -470,6 +504,7 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
     printf '%s\\n' "$*" >> "#{log}"
     if [ "$1" = "list-unit-files" ]; then
       echo "serviceradar-flowgger.service enabled"
+      echo "serviceradar-flow-collector.service enabled"
     fi
     exit 0
     """
@@ -547,14 +582,14 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
 
   defp bundle_text(package, file) do
     {:ok, tarball} =
-      CollectorBundleGenerator.create_tarball(package, sample_nats_creds(), nil,
+      CollectorBundleGenerator.create_tarball(package, sample_nats_creds(), sample_tls_key(),
         nats_url: "tls://host01.example.com:4222"
       )
 
     tarball |> extract_files() |> find_file(file)
   end
 
-  defp flow_bundle_config(package), do: bundle_json(package, "#{package.collector_type}.json")
+  defp flow_bundle_config(package), do: bundle_json(package, "flow-collector.json")
 
   defp sample_flow_package(type, config_overrides \\ %{}) do
     %CollectorPackage{
@@ -562,6 +597,8 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
       collector_type: type,
       site: "site01",
       inserted_at: ~U[2026-03-08 12:00:00Z],
+      tls_cert_pem: "cert-pem\n",
+      ca_chain_pem: "ca-pem\n",
       config_overrides: config_overrides
     }
   end
@@ -572,6 +609,8 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
       collector_type: :otel,
       site: "demo",
       inserted_at: ~U[2026-03-08 12:00:00Z],
+      tls_cert_pem: "cert-pem\n",
+      ca_chain_pem: "ca-pem\n",
       config_overrides: config_overrides
     }
   end
@@ -582,6 +621,8 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
       collector_type: :flowgger,
       site: "SITE01",
       inserted_at: ~U[2030-10-06 03:20:29Z],
+      tls_cert_pem: "cert-pem\n",
+      ca_chain_pem: "ca-pem\n",
       config_overrides: config_overrides
     }
   end
