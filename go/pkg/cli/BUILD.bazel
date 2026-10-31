@@ -63,6 +63,10 @@ exports_files(
     [
         "testdata/leaf-collectors.conf",
         "testdata/leaf-no-collectors.conf",
+        "testdata/nats-permissions.json",
     ],
-    visibility = ["//elixir/serviceradar_core:__pkg__"],
+    visibility = [
+        "//elixir/serviceradar_core:__pkg__",
+        "//go/pkg/datasvc:__pkg__",
+    ],
 )

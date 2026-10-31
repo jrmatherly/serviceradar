@@ -21,6 +21,8 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 
@@ -603,9 +605,8 @@ func TestProtoConversions(t *testing.T) {
 }
 
 // A compromised core reaches accounts only through this RPC, so it must not be
-// able to mint a credential that reaches everything. The "real" cases are copies
-// of what core sends (Elixir, so they cannot be shared): collector_permissions/1,
-// AgentFlowCollectorPermissions and NatsLeafCredentials.
+// able to mint a credential that reaches everything. The real cases come from the
+// fixture core's Elixir test pins to what it sends.
 func TestGenerateUserCredentialsPermissionLimits(t *testing.T) {
 	server := newTestNATSAccountServer(t)
 	ctx := authorizedContext()
@@ -662,36 +663,28 @@ func TestGenerateUserCredentialsPermissionLimits(t *testing.T) {
 		}
 	}
 
+	contents, err := os.ReadFile("../cli/testdata/nats-permissions.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture map[string]*proto.UserPermissions
+	if err := json.Unmarshal(contents, &fixture); err != nil {
+		t.Fatal(err)
+	}
+
 	allowed := []struct {
 		name     string
 		credType proto.UserCredentialType
 		perms    *proto.UserPermissions
 	}{
-		{"flowgger", collector, publisher("logs.syslog")},
-		{"trapd", collector, publisher("logs.snmp")},
-		{"otel", collector, publisher("otel.traces.>", "otel.metrics.>", "logs.otel")},
-		{"netflow", collector, publisher("flows.raw.netflow")},
-		{"sflow", collector, publisher("flows.raw.sflow")},
-		{"falcosidekick", collector, publisher("falco.logs")},
-		{"agent flow collector", service, &proto.UserPermissions{
-			PublishAllow: []string{
-				"flow.host-slice.agent-42",
-				"$JS.API.STREAM.INFO.flows",
-				"$JS.API.STREAM.CREATE.flows",
-				"$JS.API.STREAM.UPDATE.flows",
-				"$JS.API.STREAM.INFO.events",
-				"$JS.API.STREAM.UPDATE.events",
-			},
-			PublishDeny:    []string{"$SYS.>", "flow.attributed.>"},
-			SubscribeAllow: []string{"_INBOX.>", "config.flow-collector.agent-42.>"},
-			SubscribeDeny:  []string{"$SYS.>", "flow.host-slice.>", "flow.attributed.>"},
-			AllowResponses: true,
-			MaxResponses:   16,
-		}},
-		{"leaf", service, &proto.UserPermissions{
-			PublishAllow:   []string{"logs.>", "otel.>", "events.>", "netflow.>", "flows.raw.>", "falco.>", "$JS.ACK.>", "_INBOX.>"},
-			SubscribeAllow: []string{"$JS.ACK.>", "_INBOX.>"},
-		}},
+		{"flowgger", collector, fixture["flowgger"]},
+		{"trapd", collector, fixture["trapd"]},
+		{"otel", collector, fixture["otel"]},
+		{"netflow", collector, fixture["netflow"]},
+		{"sflow", collector, fixture["sflow"]},
+		{"falcosidekick", collector, fixture["falcosidekick"]},
+		{"agent flow collector", service, fixture["agent_flow_collector"]},
+		{"leaf", service, fixture["leaf"]},
 		{"deny everything stays expressible", collector, &proto.UserPermissions{
 			PublishAllow: []string{"logs.syslog"}, SubscribeAllow: inbox, PublishDeny: []string{">"}, SubscribeDeny: []string{">"},
 		}},

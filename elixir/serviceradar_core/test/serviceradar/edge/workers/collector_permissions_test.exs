@@ -2,7 +2,9 @@ defmodule ServiceRadar.Edge.Workers.CollectorPermissionsTest do
   use ExUnit.Case, async: false
 
   alias ServiceRadar.Analytics.StarRocks
+  alias ServiceRadar.Edge.NatsLeafCredentials
   alias ServiceRadar.Edge.Workers.ProvisionCollectorWorker
+  alias ServiceRadar.NATS.AgentFlowCollectorPermissions
 
   # The subject each collector binary publishes, matching its bundle config.
   @expected %{
@@ -21,6 +23,23 @@ defmodule ServiceRadar.Edge.Workers.CollectorPermissionsTest do
                subscribe_allow: ["_INBOX.>"]
              }
     end
+  end
+
+  test "matches the fixture the Go tests mint and validate" do
+    {:ok, agent} = AgentFlowCollectorPermissions.permissions("agent-42")
+
+    current =
+      @expected
+      |> Map.new(fn {type, _} -> {type, ProvisionCollectorWorker.collector_permissions(type)} end)
+      |> Map.merge(%{agent_flow_collector: agent, leaf: NatsLeafCredentials.leaf_permissions()})
+
+    fixture =
+      "../../../../../../go/pkg/cli/testdata/nats-permissions.json"
+      |> Path.expand(__DIR__)
+      |> File.read!()
+      |> Jason.decode!()
+
+    assert current |> Jason.encode!() |> Jason.decode!() == fixture
   end
 
   test "no edge collector holds any stream API" do

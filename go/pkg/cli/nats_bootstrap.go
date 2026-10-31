@@ -52,7 +52,7 @@ const (
 	natsBootstrapEndpoint   = "/api/admin/nats/bootstrap"
 	natsStatusEndpoint      = "/api/admin/nats/status"
 	natsBootstrapTokenPath  = "/api/admin/nats/bootstrap-token"
-	defaultPlatformAccount  = "platform"
+	defaultPlatformAccount  = accounts.DefaultPlatformAccount
 	defaultPlatformUser     = "platform-services"
 	defaultSystemUser       = "system-resolver"
 )

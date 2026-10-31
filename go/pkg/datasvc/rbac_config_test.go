@@ -27,6 +27,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
+
+	"github.com/carverauto/serviceradar/go/pkg/nats/accounts"
 )
 
 func TestComposeAgentIdentityIsReadOnly(t *testing.T) {
@@ -113,6 +115,33 @@ func TestComposePlatformSeedReaders(t *testing.T) {
 
 	assert.Equal(t, []string{"datasvc"}, seedReaders)
 	assert.Equal(t, []string{"nats", "nats-account-limits", "nats-config-init", "nats-creds-init"}, wholeVolume)
+}
+
+// Core names the account, datasvc refuses to mint for any other, and nats-bootstrap
+// creates it, so the three must agree or every collector package fails to provision.
+func TestComposeAccountNameAgrees(t *testing.T) {
+	path, err := runfiles.Rlocation("_main/docker-compose.yml")
+	require.NoError(t, err)
+	compose, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	var file struct {
+		Services map[string]struct {
+			Environment []string `yaml:"environment"`
+		} `yaml:"services"`
+	}
+	require.NoError(t, yaml.Unmarshal(compose, &file))
+	assert.Contains(t, file.Services["core-elx"].Environment, "NATS_ACCOUNT_NAME="+accounts.DefaultPlatformAccount)
+
+	path, err = runfiles.Rlocation("_main/docker/compose/datasvc.mtls.json")
+	require.NoError(t, err)
+	contents, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	var config Config
+	require.NoError(t, json.Unmarshal(contents, &config))
+	require.NotNil(t, config.NATSOperator)
+	assert.Equal(t, accounts.DefaultPlatformAccount, config.NATSOperator.PlatformAccountName)
 }
 
 // The onboarding key signs collector enrollment tokens. web-ng is the only signer,

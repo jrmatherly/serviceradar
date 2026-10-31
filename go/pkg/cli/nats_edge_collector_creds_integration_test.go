@@ -17,6 +17,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -33,10 +34,29 @@ import (
 	"github.com/carverauto/serviceradar/go/pkg/nats/accounts"
 )
 
+// corePermissions reads what core requests from the fixture its Elixir test pins.
+func corePermissions(t *testing.T, name string) accounts.UserPermissions {
+	t.Helper()
+
+	contents, err := os.ReadFile(filepath.Join("testdata", "nats-permissions.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture map[string]accounts.UserPermissions
+	if err := json.Unmarshal(contents, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	permissions, ok := fixture[name]
+	if !ok {
+		t.Fatalf("no %s in nats-permissions.json", name)
+	}
+
+	return permissions
+}
+
 // Edge collector credentials are minted as collector-type users through the
-// same GenerateUserCredentials call datasvc serves. The shape core requests
-// (data subject plus read-only stream info) must pass the validator, publish
-// into the owner's stream, and be unable to rewrite or delete it.
+// same GenerateUserCredentials call datasvc serves. The shape core requests must
+// publish into the owner's stream and hold no stream API: not even a read.
 func TestEdgeCollectorTypeCredsPublishWithoutStreamAdmin(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -66,11 +86,7 @@ func TestEdgeCollectorTypeCredsPublishWithoutStreamAdmin(t *testing.T) {
 		PublishAllow:   []string{"$JS.API.>", "_INBOX.>"},
 		SubscribeAllow: []string{"_INBOX.>"},
 	})
-	trapd := mint("edge-trapd", accounts.CredentialTypeCollector, accounts.UserPermissions{
-		PublishAllow:   []string{"logs.snmp", "$JS.API.STREAM.INFO.events"},
-		PublishDeny:    []string{"$SYS.>"},
-		SubscribeAllow: []string{"_INBOX.>"},
-	})
+	trapd := mint("edge-trapd", accounts.CredentialTypeCollector, corePermissions(t, "trapd"))
 
 	operatorClaims, err := jwt.DecodeOperatorClaims(boot.OperatorJWT)
 	if err != nil {
@@ -108,17 +124,21 @@ func TestEdgeCollectorTypeCredsPublishWithoutStreamAdmin(t *testing.T) {
 	}
 
 	ownerJS := connect(owner)
-	if _, err := ownerJS.AddStream(&nats.StreamConfig{Name: "events", Subjects: []string{"logs.>"}, MaxBytes: 1 << 20}); err != nil {
+	info, err := ownerJS.AddStream(&nats.StreamConfig{Name: "events", Subjects: []string{"logs.>"}, MaxBytes: 1 << 20})
+	if err != nil {
 		t.Fatalf("owner create events: %v", err)
 	}
 
 	js := connect(trapd)
-	info, err := js.StreamInfo("events")
+	ack, err := js.Publish("logs.snmp", []byte(`{}`), nats.AckWait(2*time.Second))
 	if err != nil {
-		t.Fatalf("trapd stream info: %v", err)
+		t.Fatalf("trapd publish logs.snmp: %v", err)
 	}
-	if _, err := js.Publish("logs.snmp", []byte(`{}`), nats.AckWait(2*time.Second)); err != nil {
-		t.Errorf("trapd publish logs.snmp: %v", err)
+	if ack.Stream != "events" {
+		t.Errorf("ack stream = %q, want events", ack.Stream)
+	}
+	if _, err := js.StreamInfo("events", shortJSContext(t)); !deniedJS(err) {
+		t.Errorf("trapd stream info: got %v, want a denied (timed out) request", err)
 	}
 	shrunk := info.Config
 	shrunk.MaxBytes = 1024
@@ -205,11 +225,7 @@ func TestLeafCredsReachHubStreamWithoutJetStreamAPI(t *testing.T) {
 		t.Fatalf("owner create events: %v", err)
 	}
 
-	// Mirrors @leaf_permissions in nats_leaf_credentials.ex.
-	leafCreds := mint("leaf", accounts.UserPermissions{
-		PublishAllow:   []string{"logs.>", "otel.>", "events.>", "netflow.>", "flows.raw.>", "falco.>", "$JS.ACK.>", "_INBOX.>"},
-		SubscribeAllow: []string{"$JS.ACK.>", "_INBOX.>"},
-	})
+	leafCreds := mint("leaf", corePermissions(t, "leaf"))
 	hubLeafURL, err := url.Parse(fmt.Sprintf("nats-leaf://127.0.0.1:%d", leafPort))
 	if err != nil {
 		t.Fatal(err)
