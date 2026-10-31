@@ -6,6 +6,7 @@ package(default_visibility = ["//visibility:public"])
 # workflow and the package inventory agree. A test only sees files declared in its data, so
 # these have to be exported even though nothing builds them.
 exports_files([
+    "components.json",
     "packages.bzl",
     "release_targets.bzl",
 ])

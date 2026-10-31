@@ -113,6 +113,15 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
   end
 
   @doc """
+  Returns the system package and systemd unit a host collector installs into.
+  """
+  @spec service_name(CollectorPackage.t()) :: String.t()
+  # NetFlow and sFlow share one binary, whose unit reads flow-collector.json.
+  def service_name(%{collector_type: type}) when type in [:netflow, :sflow], do: "serviceradar-flow-collector"
+  def service_name(%{collector_type: type}) when type in [:flowgger, :otel], do: "serviceradar-log-collector"
+  def service_name(%{collector_type: type}), do: "serviceradar-#{type}"
+
+  @doc """
   Returns the bundle filename for a collector package.
   """
   @spec bundle_filename(CollectorPackage.t()) :: String.t()
@@ -156,10 +165,6 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
 
   # NetFlow and sFlow share one binary: the serviceradar-flow-collector package,
   # whose unit reads /etc/serviceradar/flow-collector.json.
-  defp service_name(%{collector_type: type}) when type in [:netflow, :sflow], do: "serviceradar-flow-collector"
-  defp service_name(%{collector_type: type}) when type in [:flowgger, :otel], do: "serviceradar-log-collector"
-  defp service_name(%{collector_type: type}), do: "serviceradar-#{type}"
-
   defp config_filename(package) do
     case package.collector_type do
       :flowgger -> "flowgger.toml"

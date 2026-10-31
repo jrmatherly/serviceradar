@@ -588,11 +588,31 @@ defmodule ServiceRadarWebNGWeb.Admin.CollectorLive.Index do
                 <% else %>
                   <code class="text-xs">
                     # Debian/Ubuntu<br />
-                    sudo apt install serviceradar-{@created_package.collector_type}<br /><br />
+                    sudo apt install {CollectorBundleGenerator.service_name(@created_package)}<br /><br />
                     # RHEL/CentOS<br />
-                    sudo dnf install serviceradar-{@created_package.collector_type}
+                    sudo dnf install {CollectorBundleGenerator.service_name(@created_package)}
                   </code>
                 <% end %>
+              </div>
+
+              <div class="bg-sr-subtle rounded-lg p-3">
+                <div class="flex items-center justify-between mb-2">
+                  <div class="text-xs uppercase tracking-wide text-sr-muted">
+                    Download token (the command in the next step asks for it)
+                  </div>
+                  <.ui_button
+                    type="button"
+                    phx-click="copy_token"
+                    phx-value-token={@download_token}
+                    size="xs"
+                    variant="ghost"
+                  >
+                    <.icon name="hero-clipboard-document" class="size-3" /> Copy
+                  </.ui_button>
+                </div>
+                <code class="font-mono text-xs break-all bg-sr-control p-2 rounded block">
+                  {@download_token}
+                </code>
               </div>
 
               <div class="bg-sr-subtle rounded-lg p-3">

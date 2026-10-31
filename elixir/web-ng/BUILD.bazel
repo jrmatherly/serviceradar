@@ -473,7 +473,8 @@ ex_unit_tests(
         "//rust/otel:testdata/edge-otel.toml",
         "//rust/trapd:testdata/edge-trapd.json",
         # CollectorBundleGeneratorTest installs bundles against the service name and
-        # config path each unit really uses.
+        # config path each unit really uses, and print a package that exists.
+        "//build/packaging:components.json",
         "//build/packaging/flow-collector:systemd/serviceradar-flow-collector.service",
         "//build/packaging/log-collector:config/log-collector.toml",
         "//build/packaging/log-collector:systemd/serviceradar-log-collector.service",

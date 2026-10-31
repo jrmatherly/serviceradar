@@ -518,6 +518,21 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
     end
   end
 
+  describe "service_name/1" do
+    test "names a package build/packaging/components.json ships" do
+      packages =
+        @repo_root
+        |> Path.join("build/packaging/components.json")
+        |> File.read!()
+        |> Jason.decode!()
+        |> Enum.map(& &1["package_name"])
+
+      for type <- [:flowgger, :otel, :trapd, :netflow, :sflow] do
+        assert CollectorBundleGenerator.service_name(%{collector_type: type}) in packages
+      end
+    end
+  end
+
   describe "update_command/3" do
     test "uses the public collector bundle path for standard collectors" do
       command =
