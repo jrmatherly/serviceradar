@@ -289,6 +289,12 @@ func isAPIError(err error, code nats.ErrorCode) bool {
 // nats-config-init prepares it, connects with platform.creds and runs fn.
 func withPlatformJetStream(t *testing.T, credsDir, storeDir string, fn func(nats.JetStreamContext)) {
 	t.Helper()
+	withJetStreamAs(t, credsDir, storeDir, "platform.creds", fn)
+}
+
+// withJetStreamAs is withPlatformJetStream connecting with credsDir/credsFile.
+func withJetStreamAs(t *testing.T, credsDir, storeDir, credsFile string, fn func(nats.JetStreamContext)) {
+	t.Helper()
 
 	resolverDir := t.TempDir()
 
@@ -349,9 +355,9 @@ jetstream { store_dir: %q, max_memory_store: 1G, max_file_store: 30G }
 		t.Fatal("embedded nats server started without JetStream")
 	}
 
-	nc, err := nats.Connect(srv.ClientURL(), nats.UserCredentials(filepath.Join(credsDir, "platform.creds")))
+	nc, err := nats.Connect(srv.ClientURL(), nats.UserCredentials(filepath.Join(credsDir, credsFile)))
 	if err != nil {
-		t.Fatalf("connect with platform.creds: %v", err)
+		t.Fatalf("connect with %s: %v", credsFile, err)
 	}
 	defer nc.Close()
 

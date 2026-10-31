@@ -279,6 +279,7 @@ type natsBootstrapPaths struct {
 	systemCredsPath            string
 	platformCredsPath          string
 	flowCollectorCredsPath     string
+	datasvcCredsPath           string
 	platformAccountPublicKey   string
 }
 
@@ -446,6 +447,15 @@ func writePlatformAccountFiles(cfg *CmdConfig, paths *natsBootstrapPaths, result
 		return fmt.Errorf("write flow-collector.creds: %w", err)
 	}
 
+	datasvcCreds, err := generateDatasvcCreds(platformAccount, platformResult.AccountSeed)
+	if err != nil {
+		return fmt.Errorf("generate datasvc creds: %w", err)
+	}
+	paths.datasvcCredsPath = filepath.Join(paths.outputDir, "datasvc.creds")
+	if err := os.WriteFile(paths.datasvcCredsPath, []byte(datasvcCreds.CredsFileContent), 0600); err != nil {
+		return fmt.Errorf("write datasvc.creds: %w", err)
+	}
+
 	platformJWTPath := filepath.Join(paths.jwtDir, platformResult.AccountPublicKey+".jwt")
 	if err := os.WriteFile(platformJWTPath, []byte(platformResult.AccountJWT), 0644); err != nil {
 		return fmt.Errorf("write platform account JWT: %w", err)
@@ -506,6 +516,7 @@ func outputNATSBootstrapJSON(result *natsBootstrapAPIResponse, paths *natsBootst
 		"system_creds_path":              paths.systemCredsPath,
 		"platform_creds_path":            paths.platformCredsPath,
 		"flow_collector_creds_path":      paths.flowCollectorCredsPath,
+		"datasvc_creds_path":             paths.datasvcCredsPath,
 		"platform_account_public_key":    paths.platformAccountPublicKey,
 	}
 	if result.OperatorSeed != "" {
@@ -640,6 +651,7 @@ func generatePlatformAccount(
 			"logs.>",
 			"live.logs.>",
 			"events.>",
+			"metrics.>",
 			"config.>",
 			"$JS.API.>",
 			"$JS.ACK.>",
@@ -663,6 +675,7 @@ func generatePlatformAccount(
 			"flows.raw.>",
 			"logs.>",
 			"events.>",
+			"metrics.>",
 			"config.>",
 			"$JS.API.>",
 			"$JS.ACK.>",
@@ -765,6 +778,37 @@ func generateFlowCollectorCreds(accountName string, accountSeed string) (*accoun
 		"flow-collector",
 		accounts.CredentialTypeService,
 		permissions,
+		0,
+	)
+}
+
+// generateDatasvcCreds issues datasvc's own identity, matching the Helm
+// CN=serviceradar-datasvc user, so services on platform.creds cannot write the
+// datasvc KV bucket that holds agent configuration.
+func generateDatasvcCreds(accountName string, accountSeed string) (*accounts.UserCredentials, error) {
+	subjects := []string{
+		"events.>",
+		"config.>",
+		"$KV.serviceradar-datasvc.>",
+		"$O.serviceradar-objects.>",
+		"$JS.FC.OBJ_serviceradar-objects.>",
+		"$JS.API.>",
+		"$JS.ACK.>",
+		"_INBOX.>",
+	}
+	return accounts.GenerateUserCredentials(
+		accountName,
+		accountSeed,
+		"datasvc",
+		accounts.CredentialTypeService,
+		&accounts.UserPermissions{
+			PublishAllow:   subjects,
+			PublishDeny:    []string{"$SYS.>"},
+			SubscribeAllow: subjects,
+			SubscribeDeny:  []string{"$SYS.>"},
+			AllowResponses: true,
+			MaxResponses:   1000,
+		},
 		0,
 	)
 }

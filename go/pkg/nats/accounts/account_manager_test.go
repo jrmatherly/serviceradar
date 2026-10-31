@@ -40,35 +40,6 @@ func TestNewAccountSigner(t *testing.T) {
 	if signer.operator != op {
 		t.Error("NewAccountSigner() operator not set correctly")
 	}
-
-	// Verify default subject mappings are set
-	if len(signer.defaultSubjectMappings) == 0 {
-		t.Error("NewAccountSigner() defaultSubjectMappings is empty")
-	}
-
-	// Check for expected default mappings (collectors publish to these, NATS maps to namespace-prefixed)
-	expectedMappings := []string{
-		"events.>",
-		"logs.syslog.>",
-		"logs.snmp.>",
-		"netflow.>",
-		"arancini.updates.>",
-		"otel.>",
-		"logs.>",
-		"telemetry.>",
-	}
-	for _, expected := range expectedMappings {
-		found := false
-		for _, mapping := range signer.defaultSubjectMappings {
-			if mapping.From == expected {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Errorf("NewAccountSigner() missing expected mapping for %q", expected)
-		}
-	}
 }
 
 func TestAccountSigner_CreateAccount(t *testing.T) {
@@ -113,18 +84,11 @@ func TestAccountSigner_CreateAccount(t *testing.T) {
 		t.Errorf("JWT claims.Issuer = %q, want %q", claims.Issuer, op.PublicKey())
 	}
 
-	// Verify subject mappings are applied
-	if len(claims.Mappings) == 0 {
-		t.Error("JWT claims.Mappings is empty, expected default mappings")
+	if len(claims.Mappings) != 0 {
+		t.Errorf("JWT claims.Mappings = %v, want none: subjects stay unprefixed", claims.Mappings)
 	}
-
-	// Check that mappings use the account name as namespace
-	for from, to := range claims.Mappings {
-		if strings.HasPrefix(string(from), "events.") {
-			if len(to) == 0 || !strings.HasPrefix(string(to[0].Subject), "acme-corp.events.") {
-				t.Errorf("Mapping for %q = %v, want prefix 'acme-corp.events.'", from, to)
-			}
-		}
+	if len(claims.Exports) != 0 {
+		t.Errorf("JWT claims.Exports = %v, want none", claims.Exports)
 	}
 }
 

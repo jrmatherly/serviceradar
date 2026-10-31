@@ -84,10 +84,6 @@ type AccountResult struct {
 type AccountSigner struct {
 	operator *Operator
 
-	// Default subject mappings applied to all accounts.
-	defaultSubjectMappings []SubjectMapping
-	defaultStreamExports   []StreamExport
-
 	// jetStreamSizing, when set, replaces the default disk limits of every
 	// account this signer issues (see WithJetStreamSizing).
 	jetStreamSizing *JetStreamSizing
@@ -97,32 +93,6 @@ type AccountSigner struct {
 func NewAccountSigner(operator *Operator) *AccountSigner {
 	return &AccountSigner{
 		operator: operator,
-		defaultSubjectMappings: []SubjectMapping{
-			// Common event subjects
-			{From: "events.>", To: "{{namespace}}.events.>"},
-
-			// Flowgger (syslog collector)
-			{From: "logs.syslog.>", To: "{{namespace}}.logs.syslog.>"},
-
-			// Trapd (SNMP trap receiver)
-			{From: "logs.snmp.>", To: "{{namespace}}.logs.snmp.>"},
-
-			// NetFlow/sFlow/IPFIX collector
-			{From: "netflow.>", To: "{{namespace}}.netflow.>"},
-			{From: "arancini.updates.>", To: "{{namespace}}.arancini.updates.>"},
-
-			// OpenTelemetry collector
-			{From: "otel.>", To: "{{namespace}}.otel.>"},
-
-			// Legacy/generic subjects
-			{From: "logs.>", To: "{{namespace}}.logs.>"},
-			{From: "telemetry.>", To: "{{namespace}}.telemetry.>"},
-		},
-		defaultStreamExports: []StreamExport{
-			{Name: "account-logs", Subject: "{{namespace}}.logs.>"},
-			{Name: "account-events", Subject: "{{namespace}}.events.>"},
-			{Name: "account-otel", Subject: "{{namespace}}.otel.>"},
-		},
 	}
 }
 
@@ -213,18 +183,10 @@ func (s *AccountSigner) signAccountJWT(
 		return "", err
 	}
 
-	// Apply subject mappings
-	mappings := s.defaultSubjectMappings
-	if len(customMappings) > 0 {
-		mappings = append(mappings, customMappings...)
-	}
-	applySubjectMappings(claims, accountName, mappings)
-
-	exports := s.defaultStreamExports
-	if len(customExports) > 0 {
-		exports = append(exports, customExports...)
-	}
-	applyStreamExports(claims, accountName, exports)
+	// No default mappings: the server rewrites a mapped subject before it checks
+	// publish permissions, and deployments rely on unprefixed subjects.
+	applySubjectMappings(claims, accountName, customMappings)
+	applyStreamExports(claims, accountName, customExports)
 
 	if len(customImports) > 0 {
 		applyStreamImports(claims, customImports)
@@ -420,6 +382,7 @@ func allowedSystemSubject(
 			subject == "$JS.ACK.>",
 			subject == "$JS.FC.>",
 			strings.HasPrefix(subject, "$O."),
+			strings.HasPrefix(subject, "$KV."),
 			strings.HasPrefix(subject, "$JS.API."),
 			strings.HasPrefix(subject, "$JS.ACK."),
 			strings.HasPrefix(subject, "$JS.FC."):

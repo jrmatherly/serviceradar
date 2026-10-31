@@ -43,6 +43,7 @@ go_test(
         "nats_account_limits_test.go",
         "nats_bootstrap_acl_integration_test.go",
         "nats_bootstrap_acl_test.go",
+        "nats_bootstrap_platform_subjects_integration_test.go",
     ],
     embed = [":cli"],
     deps = [

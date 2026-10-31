@@ -11,15 +11,7 @@ bootstrap_complete() {
   [ -f "${creds_dir}/system.creds" ] &&
   [ -f "${creds_dir}/platform.creds" ] &&
   [ -f "${creds_dir}/flow-collector.creds" ] &&
-  [ -f "${creds_dir}/nats.conf" ]
-}
-
-legacy_bootstrap_complete() {
-  [ -f "${creds_dir}/operator.jwt" ] &&
-  [ -f "${creds_dir}/system.jwt" ] &&
-  [ -f "${creds_dir}/system_account.pub" ] &&
-  [ -f "${creds_dir}/system.creds" ] &&
-  [ -f "${creds_dir}/platform.creds" ] &&
+  [ -f "${creds_dir}/datasvc.creds" ] &&
   [ -f "${creds_dir}/nats.conf" ]
 }
 
@@ -55,13 +47,8 @@ if bootstrap_complete; then
   exit 0
 fi
 
-if legacy_bootstrap_complete; then
-  echo "Existing NATS credentials predate scoped flow-collector credentials; recreate the Docker NATS credentials and data volumes together." >&2
-  exit 1
-fi
-
 partial_bootstrap=false
-for artifact in operator.jwt system.jwt system_account.pub system.creds platform.creds flow-collector.creds nats.conf; do
+for artifact in operator.jwt system.jwt system_account.pub system.creds platform.creds flow-collector.creds datasvc.creds nats.conf; do
   if [[ -e "${creds_dir}/${artifact}" ]]; then
     partial_bootstrap=true
     break
@@ -89,7 +76,7 @@ if [[ -f "${seed_dir}/operator.jwt" ]]; then
   fi
   fix_runtime_perms
   if ! bootstrap_complete; then
-    echo "Seed NATS credentials are incomplete; operator, system, platform, flow-collector, and server config artifacts are all required." >&2
+    echo "Seed NATS credentials are incomplete; operator, system, platform, flow-collector, datasvc, and server config artifacts are all required." >&2
     exit 1
   fi
   exit 0

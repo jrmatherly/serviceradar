@@ -72,7 +72,7 @@ defmodule ServiceRadar.NATS.AccountClient do
   ## Options
 
     * `:limits` - AccountLimits struct with resource constraints
-    * `:subject_mappings` - Custom subject mappings (defaults are applied automatically)
+    * `:subject_mappings` - Subject mappings (none by default; subjects stay unprefixed)
     * `:exports` - Stream exports for cross-account consumption (optional)
     * `:timeout` - gRPC call timeout in milliseconds (default: 30000)
 
