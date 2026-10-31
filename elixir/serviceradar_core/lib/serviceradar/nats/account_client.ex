@@ -28,7 +28,8 @@ defmodule ServiceRadar.NATS.AccountClient do
       {:ok, creds} = AccountClient.generate_user_credentials(
         "platform",
         "collector-1",
-        :collector
+        :collector,
+        permissions: %{publish_allow: ["logs.syslog"], subscribe_allow: ["_INBOX.>"]}
       )
 
       # Re-sign account JWT (for revocations or limit changes)
@@ -124,8 +125,9 @@ defmodule ServiceRadar.NATS.AccountClient do
   Generate NATS user credentials for the platform account.
 
   datasvc signs with the platform account seed it holds. It answers
-  `FAILED_PRECONDITION` when it has no seed and `INVALID_ARGUMENT` when
-  `account_name` is not the platform account.
+  `FAILED_PRECONDITION` when it has no seed, and `INVALID_ARGUMENT` when
+  `account_name` is not the platform account or `:permissions` is missing or
+  holds a subject it refuses to mint.
 
   ## Credential Types
 
@@ -135,7 +137,7 @@ defmodule ServiceRadar.NATS.AccountClient do
 
   ## Options
 
-    * `:permissions` - Custom UserPermissions to override defaults
+    * `:permissions` - Required. Map of publish and subscribe allow lists, plus optional deny lists
     * `:expiration_seconds` - Credential expiration in seconds (0 = no expiration)
     * `:timeout` - gRPC call timeout in milliseconds
 
@@ -144,13 +146,8 @@ defmodule ServiceRadar.NATS.AccountClient do
       {:ok, creds} = AccountClient.generate_user_credentials(
         "platform",
         "flowgger-collector-1",
-        :collector
-      )
-
-      {:ok, creds} = AccountClient.generate_user_credentials(
-        "platform",
-        "event-writer",
-        :service,
+        :collector,
+        permissions: %{publish_allow: ["logs.syslog"], subscribe_allow: ["_INBOX.>"]},
         expiration_seconds: 86_400  # 24 hours
       )
   """

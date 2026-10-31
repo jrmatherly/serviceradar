@@ -220,6 +220,10 @@ func TestNATSAccountServer_CreateAccount(t *testing.T) {
 	})
 }
 
+func mintablePermissions() *proto.UserPermissions {
+	return &proto.UserPermissions{PublishAllow: []string{"logs.syslog"}, SubscribeAllow: []string{"_INBOX.>"}}
+}
+
 func TestNATSAccountServer_GenerateUserCredentials(t *testing.T) {
 	server := newTestNATSAccountServer(t)
 	ctx := authorizedContext()
@@ -238,6 +242,7 @@ func TestNATSAccountServer_GenerateUserCredentials(t *testing.T) {
 			AccountName:    "test-ns",
 			UserName:       "collector-1",
 			CredentialType: proto.UserCredentialType_USER_CREDENTIAL_TYPE_COLLECTOR,
+			Permissions:    mintablePermissions(),
 		}
 
 		resp, err := server.GenerateUserCredentials(ctx, req)
@@ -270,6 +275,7 @@ func TestNATSAccountServer_GenerateUserCredentials(t *testing.T) {
 			UserName:          "expiring-user",
 			CredentialType:    proto.UserCredentialType_USER_CREDENTIAL_TYPE_SERVICE,
 			ExpirationSeconds: 3600, // 1 hour
+			Permissions:       mintablePermissions(),
 		}
 
 		resp, err := server.GenerateUserCredentials(ctx, req)
@@ -323,6 +329,7 @@ func TestNATSAccountServer_GenerateUserCredentials(t *testing.T) {
 		resp, err := server.GenerateUserCredentials(ctx, &proto.GenerateUserCredentialsRequest{
 			AccountName: "test-ns",
 			UserName:    "trapd-edge",
+			Permissions: mintablePermissions(),
 		})
 		if err != nil {
 			t.Fatalf("GenerateUserCredentials failed: %v", err)
@@ -414,6 +421,7 @@ func TestNATSAccountServer_SignAccountJWT(t *testing.T) {
 		userResp, err := server.GenerateUserCredentials(ctx, &proto.GenerateUserCredentialsRequest{
 			AccountName: "resign-account",
 			UserName:    "revoke-me",
+			Permissions: mintablePermissions(),
 		})
 		if err != nil {
 			t.Fatalf("Failed to create user: %v", err)
@@ -632,6 +640,14 @@ func TestGenerateUserCredentialsPermissionLimits(t *testing.T) {
 		{"subscribe the whole JetStream API", &proto.UserPermissions{PublishAllow: []string{"logs.syslog"}, SubscribeAllow: []string{"$JS.API.>"}}},
 		{"no publish list falls back to type defaults", &proto.UserPermissions{SubscribeAllow: inbox}},
 		{"no subscribe list falls back to type defaults", &proto.UserPermissions{PublishAllow: []string{"logs.syslog"}}},
+		{"no permissions fall back to type defaults", nil},
+		{"delete a named stream", publisher("$JS.API.STREAM.DELETE.events")},
+		{"purge a named stream", publisher("$JS.API.STREAM.PURGE.events")},
+		{"delete a message from a named stream", publisher("$JS.API.STREAM.MSG.DELETE.events")},
+		{"delete a stream through a domain prefix", publisher("$JS.hub.API.STREAM.DELETE.events")},
+		{"publish a system request", publisher("$SYS.REQ.CLAIMS.UPDATE")},
+		{"publish all system subjects", publisher("$SYS.>")},
+		{"subscribe a system subject", &proto.UserPermissions{PublishAllow: []string{"logs.syslog"}, SubscribeAllow: []string{"$SYS.ACCOUNT.CONNECT"}}},
 	}
 	for _, credType := range []proto.UserCredentialType{collector, service} {
 		for _, tc := range refused {

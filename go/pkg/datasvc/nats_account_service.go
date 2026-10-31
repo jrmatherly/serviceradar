@@ -693,18 +693,12 @@ func (s *NATSAccountServer) GenerateUserCredentials(
 	// Convert proto credential type to domain model
 	credType := protoToCredentialType(req.GetCredentialType())
 
-	// Convert proto permissions to domain model
-	var permissions *accounts.UserPermissions
-	if req.GetPermissions() != nil {
-		permissions = protoToUserPermissions(req.GetPermissions())
-	}
-
 	creds, err := accounts.GenerateUserCredentials(
 		platformName,
 		platformSeed,
 		req.GetUserName(),
 		credType,
-		permissions,
+		protoToUserPermissions(req.GetPermissions()),
 		req.GetExpirationSeconds(),
 	)
 	if err != nil {
@@ -724,35 +718,46 @@ func (s *NATSAccountServer) GenerateUserCredentials(
 	}, nil
 }
 
-// validateMintedPermissions is the limit on what a compromised core can obtain
-// from this RPC. It lives here rather than in accounts.validateUserPermissions
-// because the offline bootstrap, a trusted path, grants $JS.API.> to platform
-// services through that validator. Deny lists are not checked: deny ">" is how a
-// credential is granted nothing.
+// validateMintedPermissions narrows what a compromised core can obtain from this
+// RPC. It refuses omitted permissions, which would mint the credential type's wide
+// defaults, and every subject refusedForMinting names. It does not stop a named
+// $JS.API.STREAM.CREATE or UPDATE, which agent flow collectors need, or a $KV. or
+// $O. grant; docs/superpowers/plans/2026-10-31-nats-hardening-followups.md Task 5
+// covers those last two. It lives here rather than in
+// accounts.validateUserPermissions because the offline bootstrap, a trusted path,
+// grants $JS.API.> to platform services through that validator. Deny lists are not
+// checked: deny ">" is how a credential is granted nothing.
 func validateMintedPermissions(p *proto.UserPermissions) error {
 	if p == nil {
-		return nil
+		return status.Error(codes.InvalidArgument, "permissions are required")
 	}
 	// An empty list keeps the credential type's broad defaults.
 	if len(p.GetPublishAllow()) == 0 || len(p.GetSubscribeAllow()) == 0 {
 		return status.Error(codes.InvalidArgument, "custom permissions need publish and subscribe allow lists")
 	}
 	for _, subject := range slices.Concat(p.GetPublishAllow(), p.GetSubscribeAllow()) {
-		if tooBroadForMinting(subject) {
-			return status.Errorf(codes.InvalidArgument, "subject %q is too broad to mint", subject)
+		if refusedForMinting(subject) {
+			return status.Errorf(codes.InvalidArgument, "subject %q cannot be minted", subject)
 		}
 	}
 	return nil
 }
 
-// tooBroadForMinting catches a wildcard first token, which matches every subject
-// tree, and any wildcard in the JetStream API, which reaches stream deletion.
-func tooBroadForMinting(subject string) bool {
+// refusedForMinting catches a wildcard first token, which matches every subject
+// tree, any wildcard in the JetStream API, the JetStream calls that destroy stored
+// data even when they name one stream, and the server's system subjects.
+func refusedForMinting(subject string) bool {
 	first, _, _ := strings.Cut(subject, ".")
 	if first == "*" || first == ">" {
 		return true
 	}
-	return strings.HasPrefix(subject, "$JS.API.") && strings.ContainsAny(subject, "*>")
+	if strings.HasPrefix(subject, "$JS.API.") && strings.ContainsAny(subject, "*>") {
+		return true
+	}
+	return strings.HasPrefix(subject, "$SYS.") ||
+		strings.HasPrefix(subject, "$JS.API.STREAM.DELETE.") ||
+		strings.HasPrefix(subject, "$JS.API.STREAM.PURGE.") ||
+		strings.HasPrefix(subject, "$JS.API.STREAM.MSG.DELETE.")
 }
 
 // SignAccountJWT regenerates an account JWT with updated claims.
