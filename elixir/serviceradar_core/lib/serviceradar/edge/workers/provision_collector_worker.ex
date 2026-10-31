@@ -188,8 +188,9 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorker do
   def collector_permissions(:otel),
     do: publisher(["otel.traces.>", "otel.metrics.>", "logs.otel"], ["events"])
 
-  def collector_permissions(:netflow), do: publisher(["flows.raw.netflow"], ["flows", "events"])
-  def collector_permissions(:sflow), do: publisher(["flows.raw.sflow"], ["flows", "events"])
+  # Non-owner flow-collector makes no stream call and goes by the publish result.
+  def collector_permissions(:netflow), do: publisher(["flows.raw.netflow"], [])
+  def collector_permissions(:sflow), do: publisher(["flows.raw.sflow"], [])
 
   # Falcosidekick publishes plain NATS messages, so it needs no stream call. The
   # events stream captures only falco.logs (EventWriter FALCO entry).

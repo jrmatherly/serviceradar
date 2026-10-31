@@ -654,8 +654,8 @@ func TestGenerateUserCredentialsPermissionLimits(t *testing.T) {
 		{"flowgger", collector, publisher("logs.syslog", "$JS.API.STREAM.INFO.events")},
 		{"trapd", collector, publisher("logs.snmp", "$JS.API.STREAM.INFO.events")},
 		{"otel", collector, publisher("otel.traces.>", "otel.metrics.>", "logs.otel", "$JS.API.STREAM.INFO.events")},
-		{"netflow", collector, publisher("flows.raw.netflow", "$JS.API.STREAM.INFO.flows", "$JS.API.STREAM.INFO.events")},
-		{"sflow", collector, publisher("flows.raw.sflow", "$JS.API.STREAM.INFO.flows", "$JS.API.STREAM.INFO.events")},
+		{"netflow", collector, publisher("flows.raw.netflow")},
+		{"sflow", collector, publisher("flows.raw.sflow")},
 		{"falcosidekick", collector, publisher("falco.logs")},
 		{"agent flow collector", service, &proto.UserPermissions{
 			PublishAllow: []string{

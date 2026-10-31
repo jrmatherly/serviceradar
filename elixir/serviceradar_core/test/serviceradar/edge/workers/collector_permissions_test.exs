@@ -8,8 +8,8 @@ defmodule ServiceRadar.Edge.Workers.CollectorPermissionsTest do
     flowgger: ["logs.syslog", "$JS.API.STREAM.INFO.events"],
     trapd: ["logs.snmp", "$JS.API.STREAM.INFO.events"],
     otel: ["otel.traces.>", "otel.metrics.>", "logs.otel", "$JS.API.STREAM.INFO.events"],
-    netflow: ["flows.raw.netflow", "$JS.API.STREAM.INFO.flows", "$JS.API.STREAM.INFO.events"],
-    sflow: ["flows.raw.sflow", "$JS.API.STREAM.INFO.flows", "$JS.API.STREAM.INFO.events"],
+    netflow: ["flows.raw.netflow"],
+    sflow: ["flows.raw.sflow"],
     falcosidekick: ["falco.logs"]
   }
 

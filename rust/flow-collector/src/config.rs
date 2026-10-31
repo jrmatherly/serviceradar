@@ -34,8 +34,8 @@ pub struct Config {
     pub ready_state_path: Option<PathBuf>,
     #[serde(default = "default_partition")]
     pub partition: String,
-    /// False on edge collectors, whose credentials can only read stream info:
-    /// wait for the stream's central owner instead of creating or changing it.
+    /// False on edge collectors, which never call the stream API: they publish,
+    /// and retry on no-responders until the stream's central owner has created it.
     #[serde(default = "default_stream_owner")]
     pub stream_owner: bool,
 
