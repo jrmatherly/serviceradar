@@ -24,6 +24,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -685,6 +686,10 @@ func (s *NATSAccountServer) GenerateUserCredentials(
 		return nil, status.Errorf(codes.InvalidArgument, "account_name %q is not the platform account", req.GetAccountName())
 	}
 
+	if err := validateMintedPermissions(req.GetPermissions()); err != nil {
+		return nil, err
+	}
+
 	// Convert proto credential type to domain model
 	credType := protoToCredentialType(req.GetCredentialType())
 
@@ -717,6 +722,37 @@ func (s *NATSAccountServer) GenerateUserCredentials(
 		CredsFileContent: creds.CredsFileContent,
 		ExpiresAtUnix:    expiresAtUnix,
 	}, nil
+}
+
+// validateMintedPermissions is the limit on what a compromised core can obtain
+// from this RPC. It lives here rather than in accounts.validateUserPermissions
+// because the offline bootstrap, a trusted path, grants $JS.API.> to platform
+// services through that validator. Deny lists are not checked: deny ">" is how a
+// credential is granted nothing.
+func validateMintedPermissions(p *proto.UserPermissions) error {
+	if p == nil {
+		return nil
+	}
+	// An empty list keeps the credential type's broad defaults.
+	if len(p.GetPublishAllow()) == 0 || len(p.GetSubscribeAllow()) == 0 {
+		return status.Error(codes.InvalidArgument, "custom permissions need publish and subscribe allow lists")
+	}
+	for _, subject := range slices.Concat(p.GetPublishAllow(), p.GetSubscribeAllow()) {
+		if tooBroadForMinting(subject) {
+			return status.Errorf(codes.InvalidArgument, "subject %q is too broad to mint", subject)
+		}
+	}
+	return nil
+}
+
+// tooBroadForMinting catches a wildcard first token, which matches every subject
+// tree, and any wildcard in the JetStream API, which reaches stream deletion.
+func tooBroadForMinting(subject string) bool {
+	first, _, _ := strings.Cut(subject, ".")
+	if first == "*" || first == ">" {
+		return true
+	}
+	return strings.HasPrefix(subject, "$JS.API.") && strings.ContainsAny(subject, "*>")
 }
 
 // SignAccountJWT regenerates an account JWT with updated claims.

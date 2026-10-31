@@ -58,6 +58,8 @@ defmodule ServiceRadar.Edge.NatsLeafCredentialsTest do
     assert_received {:minted, "tenant-account", ^user_name, :service, permissions}
 
     refute "config.>" in permissions.subscribe_allow
+    refute "$JS.API.>" in permissions.publish_allow
+    refute "$JS.API.>" in permissions.subscribe_allow
 
     assert {:ok, [credential]} =
              NatsCredential

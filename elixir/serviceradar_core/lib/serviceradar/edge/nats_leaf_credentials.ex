@@ -14,6 +14,9 @@ defmodule ServiceRadar.Edge.NatsLeafCredentials do
   alias ServiceRadar.Actors.SystemActor
   alias ServiceRadar.Edge.NatsCredential
 
+  # No $JS.API.>: a leaf answers $JS.API from its own JetStream (domain edge), and
+  # JetStream publishes cross on their data subject and an inbox reply. Pinned by
+  # TestLeafCredsReachHubStreamWithoutJetStreamAPI in go/pkg/cli.
   @leaf_permissions %{
     publish_allow: [
       "logs.>",
@@ -22,11 +25,10 @@ defmodule ServiceRadar.Edge.NatsLeafCredentials do
       "netflow.>",
       "flows.raw.>",
       "falco.>",
-      "$JS.API.>",
       "$JS.ACK.>",
       "_INBOX.>"
     ],
-    subscribe_allow: ["$JS.API.>", "$JS.ACK.>", "_INBOX.>"]
+    subscribe_allow: ["$JS.ACK.>", "_INBOX.>"]
   }
 
   @doc """

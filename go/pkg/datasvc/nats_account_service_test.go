@@ -593,3 +593,100 @@ func TestProtoConversions(t *testing.T) {
 		}
 	})
 }
+
+// A compromised core reaches accounts only through this RPC, so it must not be
+// able to mint a credential that reaches everything. The "real" cases are copies
+// of what core sends (Elixir, so they cannot be shared): collector_permissions/1,
+// AgentFlowCollectorPermissions and NatsLeafCredentials.
+func TestGenerateUserCredentialsPermissionLimits(t *testing.T) {
+	server := newTestNATSAccountServer(t)
+	ctx := authorizedContext()
+
+	createResp, err := server.CreateAccount(ctx, &proto.CreateAccountRequest{AccountName: "test-ns"})
+	if err != nil {
+		t.Fatalf("Failed to create test account: %v", err)
+	}
+	server.SetPlatformAccount("test-ns", createResp.AccountSeed)
+
+	const (
+		collector = proto.UserCredentialType_USER_CREDENTIAL_TYPE_COLLECTOR
+		service   = proto.UserCredentialType_USER_CREDENTIAL_TYPE_SERVICE
+	)
+	inbox := []string{"_INBOX.>"}
+	publisher := func(subjects ...string) *proto.UserPermissions {
+		return &proto.UserPermissions{PublishAllow: subjects, SubscribeAllow: inbox}
+	}
+
+	refused := []struct {
+		name  string
+		perms *proto.UserPermissions
+	}{
+		{"publish everything", publisher(">")},
+		{"publish one token", publisher("*")},
+		{"publish any first token", publisher("*.foo")},
+		{"subscribe everything", &proto.UserPermissions{PublishAllow: []string{"logs.syslog"}, SubscribeAllow: []string{">"}}},
+		{"subscribe any first token", &proto.UserPermissions{PublishAllow: []string{"logs.syslog"}, SubscribeAllow: []string{"*.>"}}},
+		{"publish the whole JetStream API", publisher("$JS.API.>")},
+		{"publish all stream admin", publisher("$JS.API.STREAM.>")},
+		{"publish any stream delete", publisher("$JS.API.STREAM.DELETE.*")},
+		{"subscribe the whole JetStream API", &proto.UserPermissions{PublishAllow: []string{"logs.syslog"}, SubscribeAllow: []string{"$JS.API.>"}}},
+		{"no publish list falls back to type defaults", &proto.UserPermissions{SubscribeAllow: inbox}},
+		{"no subscribe list falls back to type defaults", &proto.UserPermissions{PublishAllow: []string{"logs.syslog"}}},
+	}
+	for _, credType := range []proto.UserCredentialType{collector, service} {
+		for _, tc := range refused {
+			t.Run(credType.String()+"/refuses "+tc.name, func(t *testing.T) {
+				_, err := server.GenerateUserCredentials(ctx, &proto.GenerateUserCredentialsRequest{
+					AccountName: "test-ns", UserName: "u", CredentialType: credType, Permissions: tc.perms,
+				})
+				if got := status.Code(err); got != codes.InvalidArgument {
+					t.Errorf("code = %v, want InvalidArgument (err %v)", got, err)
+				}
+			})
+		}
+	}
+
+	allowed := []struct {
+		name     string
+		credType proto.UserCredentialType
+		perms    *proto.UserPermissions
+	}{
+		{"flowgger", collector, publisher("logs.syslog", "$JS.API.STREAM.INFO.events")},
+		{"trapd", collector, publisher("logs.snmp", "$JS.API.STREAM.INFO.events")},
+		{"otel", collector, publisher("otel.traces.>", "otel.metrics.>", "logs.otel", "$JS.API.STREAM.INFO.events")},
+		{"netflow", collector, publisher("flows.raw.netflow", "$JS.API.STREAM.INFO.flows", "$JS.API.STREAM.INFO.events")},
+		{"sflow", collector, publisher("flows.raw.sflow", "$JS.API.STREAM.INFO.flows", "$JS.API.STREAM.INFO.events")},
+		{"falcosidekick", collector, publisher("falco.logs")},
+		{"agent flow collector", service, &proto.UserPermissions{
+			PublishAllow: []string{
+				"flow.host-slice.agent-42",
+				"$JS.API.STREAM.INFO.flows",
+				"$JS.API.STREAM.CREATE.flows",
+				"$JS.API.STREAM.UPDATE.flows",
+				"$JS.API.STREAM.INFO.events",
+				"$JS.API.STREAM.UPDATE.events",
+			},
+			PublishDeny:    []string{"$SYS.>", "flow.attributed.>"},
+			SubscribeAllow: []string{"_INBOX.>", "config.flow-collector.agent-42.>"},
+			SubscribeDeny:  []string{"$SYS.>", "flow.host-slice.>", "flow.attributed.>"},
+			AllowResponses: true,
+			MaxResponses:   16,
+		}},
+		{"leaf", service, &proto.UserPermissions{
+			PublishAllow:   []string{"logs.>", "otel.>", "events.>", "netflow.>", "flows.raw.>", "falco.>", "$JS.ACK.>", "_INBOX.>"},
+			SubscribeAllow: []string{"$JS.ACK.>", "_INBOX.>"},
+		}},
+		{"deny everything stays expressible", collector, &proto.UserPermissions{
+			PublishAllow: []string{"logs.syslog"}, SubscribeAllow: inbox, PublishDeny: []string{">"}, SubscribeDeny: []string{">"},
+		}},
+	}
+	for _, tc := range allowed {
+		t.Run("allows "+tc.name, func(t *testing.T) {
+			if _, err := server.GenerateUserCredentials(ctx, &proto.GenerateUserCredentialsRequest{
+				AccountName: "test-ns", UserName: "u", CredentialType: tc.credType, Permissions: tc.perms,
+			}); err != nil {
+				t.Errorf("GenerateUserCredentials: %v", err)
+			}
+		})
+	}
+}
