@@ -276,7 +276,7 @@ func connectHubAdmin(t *testing.T, pki *leafTestPKI, hub *server.Server) *nats.C
 func runLeafTestHub(t *testing.T, pki *leafTestPKI) (*server.Server, int) {
 	t.Helper()
 
-	free, err := net.Listen("tcp", "127.0.0.1:0")
+	free, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
