@@ -27,8 +27,9 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
   host keep separate identities. Flowgger and OTel share the `serviceradar-log-collector`
   package and its one service, which runs each input whose config file is present.
 
-  Every host collector config says `mode: mtls` and nothing else puts certificates
-  on the host, so a package without all three PEMs returns
+  Every host collector config points at mTLS certificates (the JSON ones also say
+  `mode: mtls`) and nothing else puts them on the host, so a package without all
+  three PEMs returns
   `{:error, :tls_material_missing}` rather than a bundle that fails at connect.
 
   Falcosidekick is the Kubernetes exception: its bundle ships Helm values and
@@ -46,7 +47,8 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
   configuration uses the local NATS leaf URL instead of the upstream NATS URL. This
   enables:
   - Low-latency local message delivery
-  - WAN resilience (collectors buffer locally when upstream is down)
+  - No WAN buffering: nothing creates a stream on the leaf, so while upstream is down
+    a publish gets no ack and the collector retries or drops it
   - Simplified network topology (only leaf -> upstream connection needed)
   """
 
@@ -738,7 +740,7 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
 
     port_info =
       case package.collector_type do
-        :flowgger -> "514 (TCP/UDP)"
+        :flowgger -> "514 (UDP)"
         :trapd -> "162 (UDP)"
         :netflow -> "2055 (UDP)"
         :sflow -> "6343 (UDP)"
@@ -832,7 +834,7 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
     """
   end
 
-  defp generate_edge_site_section(%{edge_site: %EdgeSite{} = site}) do
+  defp generate_edge_site_section(%{edge_site: %EdgeSite{} = site} = package) do
     """
 
     ## Edge Site Deployment
@@ -840,12 +842,13 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
     This collector connects to a **local NATS leaf server** at your edge site.
 
     **Edge Site:** #{site.name}
-    **NATS Leaf URL:** #{site.nats_leaf_url || "Not configured"}
+    **NATS Leaf URL:** #{get_nats_url(package)}
 
     ### Benefits
 
     - **Low latency**: Messages are delivered locally before forwarding upstream
-    - **WAN resilience**: Local buffering when upstream connection is down
+    - **No WAN buffering**: Nothing creates a stream on the leaf, so while its upstream
+      connection is down a publish gets no ack and the collector retries or drops it
     - **Simplified networking**: Only the leaf server needs outbound connectivity
     """
   end

@@ -20,9 +20,9 @@ defmodule ServiceRadar.NATS.AgentFlowCollectorPermissions do
 
   ## Trust model
 
-  - The account seed lives only in datasvc. Core names the account
-    (`ServiceRadar.NATS.AccountClient.account_name/0`) and datasvc
-    signs.
+  - Core cannot read the account seed, and datasvc is the only service given it
+    by name. Core names the account
+    (`ServiceRadar.NATS.AccountClient.account_name/0`) and datasvc signs.
   - The agent only ever receives the resulting `*.creds` file, never the
     seed itself. This mirrors the collector pattern (see
     `provision_collector_worker.ex`) and the comment on the Go helper that

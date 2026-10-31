@@ -579,7 +579,7 @@ type GenerateUserCredentialsRequest struct {
 	AccountName       string                 `protobuf:"bytes,1,opt,name=account_name,json=accountName,proto3" json:"account_name,omitempty"`                                         // Account the user belongs to (the platform account)
 	UserName          string                 `protobuf:"bytes,3,opt,name=user_name,json=userName,proto3" json:"user_name,omitempty"`                                                  // Human-readable user identifier
 	CredentialType    UserCredentialType     `protobuf:"varint,4,opt,name=credential_type,json=credentialType,proto3,enum=proto.UserCredentialType" json:"credential_type,omitempty"` // Type of credentials to generate
-	Permissions       *UserPermissions       `protobuf:"bytes,5,opt,name=permissions,proto3" json:"permissions,omitempty"`                                                            // Optional custom permissions (defaults based on type)
+	Permissions       *UserPermissions       `protobuf:"bytes,5,opt,name=permissions,proto3" json:"permissions,omitempty"`                                                            // Required: there are no defaults by type
 	ExpirationSeconds int64                  `protobuf:"varint,6,opt,name=expiration_seconds,json=expirationSeconds,proto3" json:"expiration_seconds,omitempty"`                      // Credential expiration in seconds (0 = no expiration)
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache

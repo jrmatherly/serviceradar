@@ -69,7 +69,8 @@ type NATSAccountServiceClient interface {
 	CreateAccount(ctx context.Context, in *CreateAccountRequest, opts ...grpc.CallOption) (*CreateAccountResponse, error)
 	// GenerateUserCredentials creates NATS user credentials for an account.
 	// datasvc signs with its platform account seed. FAILED_PRECONDITION when it has
-	// no seed, INVALID_ARGUMENT when account_name is not the platform account.
+	// no seed, INVALID_ARGUMENT when account_name is not the platform account or when
+	// permissions are missing or exceed what an edge credential may hold.
 	GenerateUserCredentials(ctx context.Context, in *GenerateUserCredentialsRequest, opts ...grpc.CallOption) (*GenerateUserCredentialsResponse, error)
 	// SignAccountJWT regenerates an account JWT with updated claims.
 	// Use this when revocations or limits change.
@@ -175,7 +176,8 @@ type NATSAccountServiceServer interface {
 	CreateAccount(context.Context, *CreateAccountRequest) (*CreateAccountResponse, error)
 	// GenerateUserCredentials creates NATS user credentials for an account.
 	// datasvc signs with its platform account seed. FAILED_PRECONDITION when it has
-	// no seed, INVALID_ARGUMENT when account_name is not the platform account.
+	// no seed, INVALID_ARGUMENT when account_name is not the platform account or when
+	// permissions are missing or exceed what an edge credential may hold.
 	GenerateUserCredentials(context.Context, *GenerateUserCredentialsRequest) (*GenerateUserCredentialsResponse, error)
 	// SignAccountJWT regenerates an account JWT with updated claims.
 	// Use this when revocations or limits change.

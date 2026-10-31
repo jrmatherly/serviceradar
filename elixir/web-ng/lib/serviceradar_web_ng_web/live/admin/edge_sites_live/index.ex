@@ -229,8 +229,8 @@ defmodule ServiceRadarWebNGWeb.Admin.EdgeSitesLive.Index do
         <div class="font-semibold">Edge NATS Leaf Deployment</div>
         <div class="text-xs text-sr-muted">
           Edge sites deploy NATS leaf servers in your network. Collectors connect to the local
-          leaf server for low latency and WAN resilience. The leaf forwards messages to the
-          SaaS cluster.
+          leaf server for low latency. The leaf forwards messages to the SaaS cluster and
+          does not buffer them while that link is down.
         </div>
       </div>
     </div>

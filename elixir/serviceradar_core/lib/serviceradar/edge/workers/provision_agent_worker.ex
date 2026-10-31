@@ -11,8 +11,8 @@ defmodule ServiceRadar.Edge.Workers.ProvisionAgentWorker do
 
   ## Why mint server-side?
 
-  The platform account seed is held only by datasvc; core asks datasvc to
-  mint by account name (`ServiceRadar.NATS.AccountClient.account_name/0`).
+  Core cannot read the platform account seed, and datasvc is the only service
+  given it by name; core asks datasvc to mint by account name (`ServiceRadar.NATS.AccountClient.account_name/0`).
   Self-minting on the agent would require shipping the seed in the bundle,
   which inverts the current trust boundary and would let any compromised
   agent forge subjects for any other agent. Shipping a pre-signed `*.creds`

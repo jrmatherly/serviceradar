@@ -514,6 +514,19 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
     end
 
     @tag :db_free
+    test "the README names the URL the bundle dials when the site has no leaf URL" do
+      package = %{
+        sample_flow_package(:netflow)
+        | edge_site: %EdgeSite{name: "Edge", nats_leaf_url: nil, nats_leaf_server: %{local_listen: "0.0.0.0:4222"}}
+      }
+
+      readme = bundle_text(package, "README.md")
+
+      assert readme =~ "**NATS Leaf URL:** tls://"
+      refute readme =~ "Not configured"
+      refute readme =~ "buffering when"
+    end
+
     test "an explicit edge site leaf URL overrides the local listen address" do
       package = %CollectorPackage{
         collector_type: :netflow,
