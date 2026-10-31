@@ -904,13 +904,15 @@ func TestComposeAccountLimitsNeverBlocksNATS(t *testing.T) {
 		t.Fatalf("service %s command = %q, want /bin/sh -c <script>", natsAccountLimitsService, command)
 	}
 
+	const wantArgs = "nats-account-limits --creds-dir /etc/serviceradar/creds --resolver-data-dir /data"
+
 	for name, cli := range map[string]struct {
 		body     string
 		wantArgs string
 	}{
-		"succeeds":         {"exit 0", "nats-account-limits --creds-dir /etc/serviceradar/creds --resolver-data-dir /data"},
-		"fails":            {"echo boom >&2; exit 1", "nats-account-limits --creds-dir /etc/serviceradar/creds --resolver-data-dir /data"},
-		"predates command": {"echo 'unknown command' >&2; exit 2", "nats-account-limits --creds-dir /etc/serviceradar/creds --resolver-data-dir /data"},
+		"succeeds":         {"exit 0", wantArgs},
+		"fails":            {"echo boom >&2; exit 1", wantArgs},
+		"predates command": {"echo 'unknown command' >&2; exit 2", wantArgs},
 	} {
 		t.Run(name, func(t *testing.T) {
 			dir := t.TempDir()
