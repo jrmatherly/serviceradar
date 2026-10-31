@@ -52,7 +52,7 @@ const (
 // - Bootstrap the NATS operator (first-time platform setup)
 // - Generate new account keys and sign account JWTs
 // - Generate user credentials signed with the platform account seed
-// - Re-sign account JWTs when claims change (revocations, limits)
+// - Revoke users by re-issuing the platform account JWT the resolver holds
 //
 // datasvc holds the operator key and the platform account seed. Callers never
 // see the platform account seed; they request credentials by account name.
@@ -161,7 +161,7 @@ func (c *nATSAccountServiceClient) PushAccountJWT(ctx context.Context, in *PushA
 // - Bootstrap the NATS operator (first-time platform setup)
 // - Generate new account keys and sign account JWTs
 // - Generate user credentials signed with the platform account seed
-// - Re-sign account JWTs when claims change (revocations, limits)
+// - Revoke users by re-issuing the platform account JWT the resolver holds
 //
 // datasvc holds the operator key and the platform account seed. Callers never
 // see the platform account seed; they request credentials by account name.
