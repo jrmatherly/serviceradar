@@ -115,6 +115,41 @@ func TestComposePlatformSeedReaders(t *testing.T) {
 	assert.Equal(t, []string{"nats", "nats-account-limits", "nats-config-init", "nats-creds-init"}, wholeVolume)
 }
 
+// The onboarding key signs collector enrollment tokens. web-ng is the only signer,
+// and onboarding-keygen only writes it.
+func TestComposeOnboardingKeyReaders(t *testing.T) {
+	path, err := runfiles.Rlocation("_main/docker-compose.yml")
+	require.NoError(t, err)
+	compose, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	var file struct {
+		Services map[string]struct {
+			Environment []string    `yaml:"environment"`
+			Volumes     []yaml.Node `yaml:"volumes"`
+		} `yaml:"services"`
+	}
+	require.NoError(t, yaml.Unmarshal(compose, &file))
+
+	var mounts []string
+	for name, service := range file.Services {
+		for _, node := range service.Volumes {
+			var short string
+			if node.Decode(&short) == nil && strings.HasPrefix(short, "onboarding-key:") {
+				mounts = append(mounts, name+" "+short)
+			}
+		}
+	}
+	slices.Sort(mounts)
+
+	assert.Equal(t, []string{
+		"onboarding-keygen onboarding-key:/etc/serviceradar/onboarding",
+		"web-ng onboarding-key:/etc/serviceradar/onboarding:ro",
+	}, mounts)
+	assert.Contains(t, file.Services["web-ng"].Environment,
+		"SERVICERADAR_ONBOARDING_TOKEN_PRIVATE_KEY_FILE=/etc/serviceradar/onboarding/onboarding.key")
+}
+
 func TestComposeCredsMountsSeesEveryMountForm(t *testing.T) {
 	seedReaders, wholeVolume := composeCredsMounts(t, []byte(`
 services:

@@ -145,8 +145,8 @@ defmodule ServiceRadarWebNGWeb.Admin.CollectorLive.Index do
            |> load_packages(actor)
            |> put_flash(:info, "Collector package created")}
 
-        {:error, _reason} ->
-          {:noreply, put_flash(socket, :error, "Failed to create package")}
+        {:error, reason} ->
+          {:noreply, put_flash(socket, :error, create_error_message(reason))}
       end
     else
       {:noreply, put_flash(socket, :error, collectors_disabled_message())}
@@ -926,51 +926,44 @@ defmodule ServiceRadarWebNGWeb.Admin.CollectorLive.Index do
     secret = EnrollmentToken.generate_secret()
     temp_package_id = "placeholder"
 
-    {:ok, {_temp_token, token_hash, ^secret}} =
-      EnrollmentToken.generate(temp_package_id,
-        secret: secret,
-        base_url: base_url,
-        config_filename: collector_config_filename(collector_type)
-      )
-
-    token_expires_at = EnrollmentToken.expiry_datetime()
-
-    attrs = %{
-      collector_type: type_atom,
-      site: site,
-      hostname: hostname
-    }
-
-    attrs = if edge_site_id, do: Map.put(attrs, :edge_site_id, edge_site_id), else: attrs
-
-    # Arguments go in the params: Ash ignores set_argument/3 once
-    # for_create/3 has validated the changeset.
-    changeset =
-      Ash.Changeset.for_create(
-        CollectorPackage,
-        :create,
-        Map.merge(attrs, %{token_hash: token_hash, token_expires_at: token_expires_at})
-      )
-
-    case Ash.create(changeset, actor: actor) do
-      {:ok, package} ->
-        # Generate the final enrollment token with actual package ID and SAME secret
-        case EnrollmentToken.generate(package.id,
-               secret: secret,
-               base_url: base_url,
-               config_filename: collector_config_filename(collector_type)
-             ) do
-          {:ok, {final_token, ^token_hash, ^secret}} ->
-            {:ok, package, final_token}
-
-          {:error, reason} ->
-            {:error, reason}
-        end
-
-      {:error, error} ->
-        {:error, error}
+    with {:ok, {_temp_token, token_hash, ^secret}} <-
+           EnrollmentToken.generate(temp_package_id,
+             secret: secret,
+             base_url: base_url,
+             config_filename: collector_config_filename(collector_type)
+           ),
+         attrs = if(edge_site_id, do: %{edge_site_id: edge_site_id}, else: %{}),
+         # Arguments go in the params: Ash ignores set_argument/3 once
+         # for_create/3 has validated the changeset.
+         changeset =
+           Ash.Changeset.for_create(
+             CollectorPackage,
+             :create,
+             Map.merge(attrs, %{
+               collector_type: type_atom,
+               site: site,
+               hostname: hostname,
+               token_hash: token_hash,
+               token_expires_at: EnrollmentToken.expiry_datetime()
+             })
+           ),
+         {:ok, package} <- Ash.create(changeset, actor: actor),
+         # The final token carries the real package ID and the SAME secret.
+         {:ok, {final_token, ^token_hash, ^secret}} <-
+           EnrollmentToken.generate(package.id,
+             secret: secret,
+             base_url: base_url,
+             config_filename: collector_config_filename(collector_type)
+           ) do
+      {:ok, package, final_token}
     end
   end
+
+  defp create_error_message(reason) when reason in [:missing_signing_key, :invalid_private_key] do
+    "Collector enrollment tokens cannot be signed: this deployment's signing key is missing or invalid."
+  end
+
+  defp create_error_message(_reason), do: "Failed to create package"
 
   defp get_package(id, actor) do
     case CollectorPackage

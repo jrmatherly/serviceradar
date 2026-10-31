@@ -1732,7 +1732,10 @@ if config_env() == :prod do
   gateway_addr = System.get_env("SERVICERADAR_GATEWAY_ADDR")
   gateway_server_name = System.get_env("SERVICERADAR_GATEWAY_SERVER_NAME")
   agent_release_public_key = System.get_env("SERVICERADAR_AGENT_RELEASE_PUBLIC_KEY")
-  onboarding_token_private_key = System.get_env("SERVICERADAR_ONBOARDING_TOKEN_PRIVATE_KEY")
+
+  onboarding_token_private_key =
+    read_secret_env.("SERVICERADAR_ONBOARDING_TOKEN_PRIVATE_KEY", "SERVICERADAR_ONBOARDING_TOKEN_PRIVATE_KEY_FILE")
+
   onboarding_token_public_key_env = System.get_env("SERVICERADAR_ONBOARDING_TOKEN_PUBLIC_KEY")
 
   decode_ed25519_key = fn raw_key ->
