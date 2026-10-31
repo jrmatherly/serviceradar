@@ -96,6 +96,16 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorkerTest do
     def issue(_package), do: {:error, {:collector_certificate_issue_failed, :ca_not_available}}
   end
 
+  defmodule NotConnectedStub do
+    @moduledoc false
+    def issue(_package), do: {:error, :not_connected}
+  end
+
+  defmodule RaisingStub do
+    @moduledoc false
+    def issue(_package), do: raise("invented issuer crash")
+  end
+
   defmodule UnexpectedCallStub do
     @moduledoc false
     def issue(package), do: raise("no certificate expected for #{package.collector_type}")
@@ -271,6 +281,92 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorkerTest do
       failed = Ash.get!(CollectorPackage, package.id, actor: actor)
       assert failed.status == :failed
       assert failed.error_message =~ "ca_not_available"
+    end
+
+    test "datasvc not connected is retried, then fails the package on the last attempt", %{
+      actor: actor,
+      unique_id: u
+    } do
+      package = create_package!(actor, u)
+      first = start_perform_task(package.id, certificate_issuer: NotConnectedStub)
+      assert_receive {:datasvc_generate_user_credentials, adapter_pid, _request}, 10_000
+
+      send(
+        adapter_pid,
+        {:datasvc_release, {:respond, credential_response("U9TESTCOLLECTOR#{u}", u)}}
+      )
+
+      assert {:error, :not_connected} = Task.await(first, 30_000)
+      assert Ash.get!(CollectorPackage, package.id, actor: actor).status == :provisioning
+
+      last = start_perform_task(package.id, [certificate_issuer: NotConnectedStub], 5)
+      assert_receive {:datasvc_generate_user_credentials, adapter_pid, _request}, 10_000
+
+      send(
+        adapter_pid,
+        {:datasvc_release, {:respond, credential_response("U9TESTCOLLECTOR#{u}", u)}}
+      )
+
+      assert {:error, :not_connected} = Task.await(last, 30_000)
+
+      failed = Ash.get!(CollectorPackage, package.id, actor: actor)
+      assert failed.status == :failed
+      assert failed.error_message =~ "datasvc"
+    end
+
+    test "a crash on the last attempt fails the package and still reaches Oban", %{
+      actor: actor,
+      unique_id: u
+    } do
+      package = create_package!(actor, u)
+
+      task =
+        Task.async(fn ->
+          assert_raise RuntimeError, "invented issuer crash", fn ->
+            ProvisionCollectorWorker.perform(build_job(package.id, 5),
+              certificate_issuer: RaisingStub
+            )
+          end
+        end)
+
+      assert_receive {:datasvc_generate_user_credentials, adapter_pid, _request}, 10_000
+
+      send(
+        adapter_pid,
+        {:datasvc_release, {:respond, credential_response("U9TESTCOLLECTOR#{u}", u)}}
+      )
+
+      Task.await(task, 30_000)
+
+      failed = Ash.get!(CollectorPackage, package.id, actor: actor)
+      assert failed.status == :failed
+      assert failed.error_message =~ "invented issuer crash"
+    end
+
+    test "a crash before the last attempt leaves the package for the retry", %{
+      actor: actor,
+      unique_id: u
+    } do
+      package = create_package!(actor, u)
+
+      task =
+        Task.async(fn ->
+          assert_raise RuntimeError, fn ->
+            ProvisionCollectorWorker.perform(build_job(package.id),
+              certificate_issuer: RaisingStub
+            )
+          end
+        end)
+
+      assert_receive {:datasvc_generate_user_credentials, adapter_pid, _request}, 10_000
+
+      send(
+        adapter_pid,
+        {:datasvc_release, {:respond, credential_response("U9TESTCOLLECTOR#{u}", u)}}
+      )
+
+      Task.await(task, 30_000)
+      assert Ash.get!(CollectorPackage, package.id, actor: actor).status == :provisioning
     end
 
     test "falcosidekick asks for no certificate", %{actor: actor, unique_id: u} do

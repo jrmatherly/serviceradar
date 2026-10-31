@@ -30,6 +30,32 @@ defmodule ServiceRadar.Edge.Workers.CollectorPermissionsTest do
     end
   end
 
+  test "retries outlast a gateway restart, as the leaf worker's do" do
+    job = ProvisionCollectorWorker.new(%{"package_id" => "invented"})
+    assert job.changes.max_attempts == 10
+  end
+
+  describe "failure_message/1" do
+    test "a datasvc outage says so instead of an internal atom" do
+      assert ProvisionCollectorWorker.failure_message(:not_connected) =~ "datasvc"
+    end
+
+    test "each retryable error names its cause" do
+      assert ProvisionCollectorWorker.failure_message({:grpc_error, "refused"}) == "refused"
+
+      assert ProvisionCollectorWorker.failure_message(:gateway_unavailable) =~
+               "No agent-gateway is reachable"
+
+      assert ProvisionCollectorWorker.failure_message(
+               {:collector_certificate_issue_failed, :ca_not_available}
+             ) =~
+               "ca_not_available"
+
+      assert ProvisionCollectorWorker.failure_message({:connection_failed, :econnrefused}) =~
+               "econnrefused"
+    end
+  end
+
   describe "require_flow_storage/1" do
     setup do
       prior = Application.get_env(:serviceradar_core, StarRocks)

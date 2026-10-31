@@ -9,9 +9,9 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorker do
 
   ## Retries
 
-  The job will retry up to 5 times with exponential backoff, which covers a
-  gateway that is restarting. If all retries fail, the collector package status
-  is set to `:failed`.
+  The job runs up to 10 times with exponential backoff, about 19 minutes in all,
+  which covers a gateway or datasvc that is restarting. If the last attempt
+  fails, including by raising, the collector package status is set to `:failed`.
 
   ## Usage
 
@@ -21,7 +21,7 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorker do
 
   use Oban.Worker,
     queue: :nats_accounts,
-    max_attempts: 5,
+    max_attempts: 10,
     unique: [period: :infinity, keys: [:package_id]]
 
   alias ServiceRadar.Actors.SystemActor
@@ -112,57 +112,43 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorker do
         mark_failed(package_id, "NATS account not configured for this deployment")
         {:discard, :nats_not_configured}
 
-      {:error, {:grpc_error, message}} = error ->
-        Logger.error("gRPC error provisioning credentials for package #{package_id}: #{message}")
+      {:error, reason} = error ->
+        message = failure_message(reason)
+
+        Logger.warning(
+          "Provisioning collector package #{package_id} failed (attempt #{attempt}/#{max}): #{message}"
+        )
 
         if attempt >= max do
           mark_failed(package_id, message)
         end
 
         error
-
-      {:error, :not_connected} = error ->
-        Logger.warning("datasvc not connected, will retry for package #{package_id}")
-        error
-
-      {:error, :gateway_unavailable} = error ->
-        Logger.warning("No agent-gateway reachable for package #{package_id}, will retry")
-
-        if attempt >= max do
-          mark_failed(
-            package_id,
-            "No agent-gateway is reachable to issue the collector's TLS certificate"
-          )
-        end
-
-        error
-
-      {:error, {:collector_certificate_issue_failed, reason}} = error ->
-        Logger.error(
-          "Gateway refused the certificate for package #{package_id}: #{inspect(reason)}"
-        )
-
-        if attempt >= max do
-          mark_failed(
-            package_id,
-            "The agent-gateway could not issue the collector's TLS certificate: #{inspect(reason)}"
-          )
-        end
-
-        error
-
-      {:error, reason} = error ->
-        Logger.error(
-          "Error provisioning credentials for package #{package_id}: #{inspect(reason)}"
-        )
-
-        if attempt >= max do
-          mark_failed(package_id, inspect(reason))
-        end
-
-        error
     end
+  catch
+    # Oban counts a raise or exit as a failed attempt but it skips the branches
+    # above, so without this the last one leaves the package in :provisioning.
+    kind, reason ->
+      if attempt >= max do
+        mark_failed(package_id, Exception.format_banner(kind, reason, __STACKTRACE__))
+      end
+
+      :erlang.raise(kind, reason, __STACKTRACE__)
   end
+
+  @doc false
+  # What a package shows the operator when a retryable error used its last attempt.
+  @spec failure_message(term()) :: String.t()
+  def failure_message(:not_connected), do: "datasvc is not reachable to mint NATS credentials"
+  def failure_message({:grpc_error, message}), do: message
+
+  def failure_message(:gateway_unavailable),
+    do: "No agent-gateway is reachable to issue the collector's TLS certificate"
+
+  def failure_message({:collector_certificate_issue_failed, reason}),
+    do: "The agent-gateway could not issue the collector's TLS certificate: #{inspect(reason)}"
+
+  def failure_message(reason), do: inspect(reason)
 
   @doc false
   # Without StarRocks, EventWriter acknowledges flow batches without storing them,
