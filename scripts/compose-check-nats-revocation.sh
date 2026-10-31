@@ -6,7 +6,8 @@
 #
 # Environment: SR_URL (default http://localhost), SR_ADMIN_EMAIL (default
 # root@localhost), SR_NETWORK (default serviceradar_serviceradar-net) and
-# SR_TOOLS_IMAGE (default the running stack's tools image).
+# SR_TOOLS_IMAGE (default the running stack's tools image). Start the stack with
+# SERVICERADAR_NATS_COLLECTOR_URL=tls://nats.serviceradar:4222.
 set -euo pipefail
 
 url="${SR_URL:-http://localhost}"
@@ -54,19 +55,17 @@ rpc() {
   docker exec serviceradar-web-ng-mtls bin/serviceradar_web_ng rpc "$1" | tail -1
 }
 
-# Sets provisioned to a new trapd package that is ready, with its material in work/<id>.
-# It is created over rpc because Compose configures no onboarding signing key, which
-# POST /api/admin/collectors needs for the enrollment token.
+# Sets provisioned to a new trapd package that is ready, created and downloaded the way
+# an operator does, with its bundle extracted in work/<id>. The stack needs
+# SERVICERADAR_NATS_COLLECTOR_URL set, or the bundle endpoint refuses hub-direct packages.
 provision() {
-  local name="$1" id status body=""
-  id="$(rpc "
-    actor = ServiceRadar.Actors.SystemActor.system(:revocation_check)
-    package =
-      ServiceRadar.Edge.CollectorPackage
-      |> Ash.Changeset.for_create(:create, %{collector_type: :trapd, site: \"revocation-check\", hostname: \"${name}.example.com\"}, actor: actor)
-      |> Ash.create!()
-    IO.puts(package.id)")"
-  [[ "${id}" =~ ^[0-9a-f-]{36}$ ]] || fail "create package answered: ${id}"
+  local name="$1" id status body="" enrollment bundle_dir
+  body="$(api POST /api/admin/collectors \
+    -d "{\"collector_type\":\"trapd\",\"site\":\"revocation-check\",\"hostname\":\"${name}.example.com\"}")"
+  id="$(jq -r .id <<<"${body}")"
+  enrollment="$(jq -r .enrollment_token <<<"${body}")"
+  [[ "${id}" =~ ^[0-9a-f-]{36}$ ]] || fail "create package answered: ${body}"
+  [ "${enrollment}" != null ] || fail "create package returned no enrollment token: ${body}"
   packages+=("${id}")
 
   status=""
@@ -80,19 +79,20 @@ provision() {
   [ "${status}" = ready ] || fail "package ${name} stuck in ${status}: ${body}"
 
   mkdir -p "${work}/${id}"
-  rpc "
-    actor = ServiceRadar.Actors.SystemActor.system(:revocation_check)
-    package =
-      ServiceRadar.Edge.CollectorPackage
-      |> Ash.get!(\"${id}\", actor: actor)
-      |> Ash.load!([:nats_creds_ciphertext, :tls_key_pem_ciphertext], actor: actor)
-    IO.puts(Jason.encode!(%{creds: package.nats_creds_ciphertext, cert: package.tls_cert_pem, key: package.tls_key_pem_ciphertext, ca: package.ca_chain_pem}))" \
-    >"${work}/${id}/material.json"
-  local field file
-  for field in creds:nats.creds cert:collector.pem key:collector-key.pem ca:ca-chain.pem; do
-    file="${work}/${id}/${field#*:}"
-    jq -er ".${field%%:*}" "${work}/${id}/material.json" >"${file}" || fail "package ${name} has no ${field%%:*}"
-    chmod 0644 "${file}"
+  curl -fsS -X POST -H "x-serviceradar-download-token: ${enrollment}" \
+    -o "${work}/${id}/bundle.tar.gz" "${url}/api/collectors/${id}/bundle" || fail "bundle download failed for ${name}"
+  tar -xzf "${work}/${id}/bundle.tar.gz" -C "${work}/${id}"
+  bundle_dir="$(find "${work}/${id}" -mindepth 1 -maxdepth 1 -type d | head -1)"
+  [ -x "${bundle_dir}/update.sh" ] || fail "package ${name}: update.sh is not executable"
+  [ "$(stat -f %Lp "${bundle_dir}/certs/collector-key.pem" 2>/dev/null || stat -c %a "${bundle_dir}/certs/collector-key.pem")" = 600 ] ||
+    fail "package ${name}: the private key is not 0600"
+  jq -er --arg url "${nats_url}" 'select(.nats_url == $url)' "${bundle_dir}/config/trapd.json" >/dev/null ||
+    fail "package ${name}: the bundle does not name ${nats_url}"
+  local file
+  for file in certs/collector.pem certs/collector-key.pem certs/ca-chain.pem creds/nats.creds; do
+    # The nats CLI runs as another uid in a container; this copy dies with the trap.
+    cp "${bundle_dir}/${file}" "${work}/${id}/$(basename "${file}")"
+    chmod 0644 "${work}/${id}/$(basename "${file}")"
   done
   provisioned="${id}"
 }
