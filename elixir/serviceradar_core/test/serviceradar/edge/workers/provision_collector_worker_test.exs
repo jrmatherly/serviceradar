@@ -1,6 +1,6 @@
 defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorkerTest do
   @moduledoc """
-  ExUnit coverage for `ProvisionCollectorWorker.perform/1` persistence.
+  ExUnit coverage for `ProvisionCollectorWorker.perform/2` persistence.
 
   The datasvc transport is faked at the existing public
   `GRPC.Client.Adapter` contract: the supervised `DataService.Client`
@@ -76,6 +76,29 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorkerTest do
 
     @impl true
     def cancel(_stream), do: :ok
+  end
+
+  defmodule IssuingStub do
+    @moduledoc false
+    def issue(_package) do
+      {:ok,
+       %{tls_cert_pem: "invented-cert", tls_key_pem: "invented-key", ca_chain_pem: "invented-ca"}}
+    end
+  end
+
+  defmodule UnavailableStub do
+    @moduledoc false
+    def issue(_package), do: {:error, :gateway_unavailable}
+  end
+
+  defmodule RefusingStub do
+    @moduledoc false
+    def issue(_package), do: {:error, {:collector_certificate_issue_failed, :ca_not_available}}
+  end
+
+  defmodule UnexpectedCallStub do
+    @moduledoc false
+    def issue(package), do: raise("no certificate expected for #{package.collector_type}")
   end
 
   setup_all do
@@ -178,6 +201,94 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorkerTest do
 
       assert count_credentials(actor) == 1
       assert stored_creds_ciphertext(package.id)
+
+      assert ready.tls_cert_pem == "invented-cert"
+      assert ready.ca_chain_pem == "invented-ca"
+
+      assert {:ok, %{tls_key_pem_ciphertext: "invented-key"}} =
+               Ash.load(ready, [:tls_key_pem_ciphertext], actor: actor)
+    end
+  end
+
+  describe "perform/1 certificate issuance" do
+    test "no live gateway is retried, leaves the package provisioning, and stores nothing", %{
+      actor: actor,
+      unique_id: u
+    } do
+      package = create_package!(actor, u)
+      task = start_perform_task(package.id, certificate_issuer: UnavailableStub)
+
+      assert_receive {:datasvc_generate_user_credentials, adapter_pid, _request}, 10_000
+
+      send(
+        adapter_pid,
+        {:datasvc_release, {:respond, credential_response("U9TESTCOLLECTOR#{u}", u)}}
+      )
+
+      assert {:error, :gateway_unavailable} = Task.await(task, 30_000)
+
+      stalled = Ash.get!(CollectorPackage, package.id, actor: actor)
+      assert stalled.status == :provisioning
+      assert is_nil(stalled.error_message)
+      assert count_credentials(actor) == 0
+      assert stored_creds_ciphertext(package.id) == nil
+    end
+
+    test "no live gateway on the last attempt fails the package with a clear message", %{
+      actor: actor,
+      unique_id: u
+    } do
+      package = create_package!(actor, u)
+      task = start_perform_task(package.id, [certificate_issuer: UnavailableStub], 5)
+
+      assert_receive {:datasvc_generate_user_credentials, adapter_pid, _request}, 10_000
+
+      send(
+        adapter_pid,
+        {:datasvc_release, {:respond, credential_response("U9TESTCOLLECTOR#{u}", u)}}
+      )
+
+      assert {:error, :gateway_unavailable} = Task.await(task, 30_000)
+
+      failed = Ash.get!(CollectorPackage, package.id, actor: actor)
+      assert failed.status == :failed
+      assert failed.error_message =~ "No agent-gateway is reachable"
+    end
+
+    test "a gateway refusal on the last attempt names the reason", %{actor: actor, unique_id: u} do
+      package = create_package!(actor, u)
+      task = start_perform_task(package.id, [certificate_issuer: RefusingStub], 5)
+
+      assert_receive {:datasvc_generate_user_credentials, adapter_pid, _request}, 10_000
+
+      send(
+        adapter_pid,
+        {:datasvc_release, {:respond, credential_response("U9TESTCOLLECTOR#{u}", u)}}
+      )
+
+      assert {:error, _reason} = Task.await(task, 30_000)
+
+      failed = Ash.get!(CollectorPackage, package.id, actor: actor)
+      assert failed.status == :failed
+      assert failed.error_message =~ "ca_not_available"
+    end
+
+    test "falcosidekick asks for no certificate", %{actor: actor, unique_id: u} do
+      package = create_package!(actor, u, :falcosidekick)
+      task = start_perform_task(package.id, certificate_issuer: UnexpectedCallStub)
+
+      assert_receive {:datasvc_generate_user_credentials, adapter_pid, _request}, 10_000
+
+      send(
+        adapter_pid,
+        {:datasvc_release, {:respond, credential_response("U9TESTCOLLECTOR#{u}", u)}}
+      )
+
+      assert :ok = Task.await(task, 30_000)
+
+      ready = Ash.get!(CollectorPackage, package.id, actor: actor)
+      assert ready.status == :ready
+      assert is_nil(ready.tls_cert_pem)
     end
   end
 
@@ -287,7 +398,7 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorkerTest do
     end
   end
 
-  defp start_perform_task(package_id) do
+  defp start_perform_task(package_id, opts \\ [certificate_issuer: IssuingStub], attempt \\ 1) do
     task =
       Task.async(fn ->
         receive do
@@ -296,7 +407,7 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorkerTest do
           10_000 -> exit(:no_go)
         end
 
-        ProvisionCollectorWorker.perform(build_job(package_id))
+        ProvisionCollectorWorker.perform(build_job(package_id, attempt), opts)
       end)
 
     # Serial tests run under a shared sandbox owner (DataCase, async: false), so every
@@ -306,10 +417,10 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorkerTest do
     task
   end
 
-  defp build_job(package_id) do
+  defp build_job(package_id, attempt \\ 1) do
     %Oban.Job{
       args: %{"package_id" => package_id},
-      attempt: 1,
+      attempt: attempt,
       max_attempts: 5
     }
   end

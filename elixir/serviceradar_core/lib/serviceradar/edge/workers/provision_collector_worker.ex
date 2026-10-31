@@ -1,16 +1,17 @@
 defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorker do
   @moduledoc """
-  Oban worker for provisioning NATS credentials for collector packages.
+  Oban worker for provisioning NATS credentials and certificates for collector packages.
 
-  In single-deployment mode:
-  - NATS account configuration comes from environment variables
-  - TLS certificates are handled by external infrastructure (SPIFFE/SPIRE, cert-manager)
   - The worker generates NATS user credentials via datasvc gRPC
+  - It issues the collector's mTLS certificate from the agent-gateway CA via
+    `ServiceRadar.Edge.CollectorCertificateIssuer`. Falcosidekick is exempt: it
+    runs in the cluster and mounts the `serviceradar-runtime-certs` secret.
 
   ## Retries
 
-  The job will retry up to 5 times with exponential backoff. If all retries
-  fail, the collector package status is set to `:failed`.
+  The job will retry up to 5 times with exponential backoff, which covers a
+  gateway that is restarting. If all retries fail, the collector package status
+  is set to `:failed`.
 
   ## Usage
 
@@ -25,6 +26,7 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorker do
 
   alias ServiceRadar.Actors.SystemActor
   alias ServiceRadar.Analytics.StarRocks.Readers
+  alias ServiceRadar.Edge.CollectorCertificateIssuer
   alias ServiceRadar.Edge.CollectorPackage
   alias ServiceRadar.Edge.NatsCredential
   alias ServiceRadar.NATS.AccountClient
@@ -60,7 +62,18 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorker do
   end
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"package_id" => package_id}, attempt: attempt, max_attempts: max}) do
+  def perform(%Oban.Job{} = job), do: perform(job, [])
+
+  @doc """
+  `perform/1` with an injectable `:certificate_issuer`, a module exporting
+  `issue/1` (default `ServiceRadar.Edge.CollectorCertificateIssuer`).
+  """
+  def perform(
+        %Oban.Job{args: %{"package_id" => package_id}, attempt: attempt, max_attempts: max},
+        opts
+      ) do
+    certificate_issuer = Keyword.get(opts, :certificate_issuer, CollectorCertificateIssuer)
+
     Logger.info(
       "Provisioning credentials for collector package #{package_id} (attempt #{attempt}/#{max})"
     )
@@ -71,7 +84,8 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorker do
          :ok <- require_flow_storage(package.collector_type),
          {:ok, account_name} <- get_account_name(),
          {:ok, user_creds} <- generate_user_credentials(account_name, package),
-         {:ok, _package} <- persist_credentials(package, user_creds) do
+         {:ok, tls} <- issue_certificate(certificate_issuer, package),
+         {:ok, _package} <- persist_credentials(package, user_creds, tls) do
       Logger.info("Successfully provisioned credentials for collector package #{package_id}")
       :ok
     else
@@ -109,6 +123,32 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorker do
 
       {:error, :not_connected} = error ->
         Logger.warning("datasvc not connected, will retry for package #{package_id}")
+        error
+
+      {:error, :gateway_unavailable} = error ->
+        Logger.warning("No agent-gateway reachable for package #{package_id}, will retry")
+
+        if attempt >= max do
+          mark_failed(
+            package_id,
+            "No agent-gateway is reachable to issue the collector's TLS certificate"
+          )
+        end
+
+        error
+
+      {:error, {:collector_certificate_issue_failed, reason}} = error ->
+        Logger.error(
+          "Gateway refused the certificate for package #{package_id}: #{inspect(reason)}"
+        )
+
+        if attempt >= max do
+          mark_failed(
+            package_id,
+            "The agent-gateway could not issue the collector's TLS certificate: #{inspect(reason)}"
+          )
+        end
+
         error
 
       {:error, reason} = error ->
@@ -228,12 +268,16 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorker do
     }
   end
 
-  defp persist_credentials(package, user_creds) do
+  # Issued last so a retry after a datasvc failure leaves no orphan certificate.
+  defp issue_certificate(_issuer, %{collector_type: :falcosidekick}), do: {:ok, %{}}
+  defp issue_certificate(issuer, package), do: issuer.issue(package)
+
+  defp persist_credentials(package, user_creds, tls) do
     Repo.transaction(fn ->
       with :ok <- require_provisioning(package.id),
            {:ok, credential} <- create_credential_record(package, user_creds),
            {:ok, ready} <-
-             mark_ready(package, credential.id, user_creds.creds_file_content) do
+             mark_ready(package, credential.id, user_creds.creds_file_content, tls) do
         ready
       else
         {:error, error} -> Repo.rollback(error)
@@ -275,9 +319,7 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorker do
     |> Ash.create()
   end
 
-  defp mark_ready(package, credential_id, nats_creds_content) do
-    # TLS certificates are optional here. Bundle downloads that need a key
-    # supply it on the :ready action; this worker records the NATS creds.
+  defp mark_ready(package, credential_id, nats_creds_content, tls) do
     actor = SystemActor.system(:provision_collector)
 
     with {:ok, current} <- get_package(package.id) do
@@ -286,7 +328,7 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorker do
         |> Ash.Changeset.new()
         |> Ash.Changeset.set_argument(:nats_credential_id, credential_id)
         |> Ash.Changeset.set_argument(:nats_creds_content, nats_creds_content)
-        |> Ash.Changeset.for_update(:ready, %{}, actor: actor)
+        |> Ash.Changeset.for_update(:ready, tls, actor: actor)
         |> guarded_update([:provisioning])
       else
         {:error, :package_not_pending}

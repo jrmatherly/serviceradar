@@ -256,6 +256,7 @@ test/serviceradar/edge/agent_gateway_sync_config_ack_test.exs	ServiceRadar.Edge.
 test/serviceradar/edge/agent_gateway_sync_host_evidence_test.exs	-	not_selected	load_only	not_selected	Static selection audit: this ALL_TEST_SRCS source has zero :integration/:requires_app identities; formatter not run.
 test/serviceradar/edge/agent_gateway_sync_test.exs	ServiceRadar.Edge.AgentGatewaySyncTest	data_case	serial	application_env	test:29-38 replaces agent_release_public_key
 test/serviceradar/edge/agent_release_manager_test.exs	ServiceRadar.Edge.AgentReleaseManagerTest	data_case	serial	application_env	test:75-94 replaces release key and artifact mirror module
+test/serviceradar/edge/collector_certificate_issuer_test.exs	-	not_selected	load_only	not_selected	Pure async unit coverage with an injected RPC function; no app, database, :integration or :requires_app identities.
 test/serviceradar/edge/direct_leaf_eligibility_test.exs	-	not_selected	load_only	not_selected	Static selection audit: this ALL_TEST_SRCS source has zero :integration/:requires_app identities; formatter not run.
 test/serviceradar/edge/direct_leaf_identity_issuer_test.exs	-	not_selected	load_only	not_selected	Static selection audit: this ALL_TEST_SRCS source has zero :integration/:requires_app identities; formatter not run.
 test/serviceradar/edge/direct_leaf_scope_test.exs	-	not_selected	load_only	not_selected	Static selection audit: this ALL_TEST_SRCS source has zero :integration/:requires_app identities; formatter not run.
