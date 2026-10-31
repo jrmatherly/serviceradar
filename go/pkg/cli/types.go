@@ -109,6 +109,7 @@ type CmdConfig struct {
 	NATSWriteSystemCreds bool
 	NATSWritePlatform    bool
 	NATSPlatformAccount  string
+	NATSResolverDataDir  string
 	NATSPlatformUser     string
 	NATSSystemUser       string
 	NATSAccountLimit     int

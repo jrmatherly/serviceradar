@@ -11,7 +11,7 @@ defmodule ServiceRadar.NATS.AgentFlowCollectorPermissions do
   ## Why a separate module?
 
   Sub-issue 1 of the host-network-visibility / B-5 work mints these creds
-  via the existing `ServiceRadar.NATS.AccountClient.generate_user_credentials/5`
+  via the existing `ServiceRadar.NATS.AccountClient.generate_user_credentials/4`
   gRPC path rather than introducing a new RPC. Keeping the permission
   template (and the subject-token safety check) in one named module makes
   the parity contract with the Go helper auditable from a single file
@@ -20,18 +20,18 @@ defmodule ServiceRadar.NATS.AgentFlowCollectorPermissions do
 
   ## Trust model
 
-  - The account seed lives only on core/Elixir
-    (`Application.get_env(:serviceradar, :nats_account_seed)`).
+  - The account seed lives only in datasvc. Core names the account
+    (`ServiceRadar.NATS.AccountClient.account_name/0`) and datasvc
+    signs.
   - The agent only ever receives the resulting `*.creds` file, never the
     seed itself. This mirrors the collector pattern (see
-    `provision_collector_worker.ex`) and the explicit comment on the Go
-    helper that the seed "should be... held by core and never written to
-    agent disk in cleartext".
+    `provision_collector_worker.ex`) and the comment on the Go helper that
+    the seed is never written to agent disk in cleartext.
   """
 
   @typedoc """
   Output map used by `permissions/1`. Keys match the keyword list shape
-  consumed by `ServiceRadar.NATS.AccountClient.generate_user_credentials/5`
+  consumed by `ServiceRadar.NATS.AccountClient.generate_user_credentials/4`
   when passed as `permissions:`.
   """
   @type permissions :: %{

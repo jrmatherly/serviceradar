@@ -570,6 +570,8 @@ services:
       - NATS_TLS=true
       - NATS_SERVER_NAME=nats.serviceradar
       - NATS_CREDS_FILE=/etc/serviceradar/creds/core.creds
+      # Matches nats-bootstrap's default --platform-account, which init-nats-creds.sh keeps.
+      - NATS_ACCOUNT_NAME=platform
       # StarRocks warehouse. Default off so Compose without --profile starrocks
       # keeps logs on CNPG. Set STARROCKS_ENABLED=true with that profile.
       - SERVICERADAR_STARROCKS_ENABLED=${STARROCKS_ENABLED:-false}
@@ -611,7 +613,14 @@ services:
       - ./docker/compose/ssl_dist.core.conf:/etc/serviceradar/ssl_dist.conf:ro
       - cloak-key:/etc/serviceradar/cloak:ro
       - cnpg-credentials:/etc/serviceradar/cnpg:ro
-      - ${NATS_CREDS_DIR:-nats-creds}:/etc/serviceradar/creds:ro
+      # Only core's credentials: core and datasvc share a uid, and the whole
+      # volume would expose platform_account.seed.
+      - type: volume
+        source: nats-creds
+        target: /etc/serviceradar/creds/core.creds
+        read_only: true
+        volume:
+          subpath: core.creds
       - migrations-data:/var/lib/serviceradar/migrations
       - serviceradar-advisory-feeds:/var/lib/serviceradar/advisory-feeds
       - ${DEVICE_ENRICHMENT_RULES_DIR_HOST:-./docker/compose/rules/device-enrichment}:/var/lib/serviceradar/rules/device-enrichment:ro
@@ -680,6 +689,7 @@ services:
     user: "0:0"
     volumes:
       - ${NATS_CREDS_DIR:-nats-creds}:/etc/serviceradar/creds
+      - nats-data:/data
     env_file:
       - ./docker/compose/profiles/${SERVICERADAR_NATS_PROFILE:-small}.env
     environment:
@@ -691,7 +701,7 @@ services:
       - /bin/sh
       - -c
       - |
-          serviceradar-cli nats-account-limits --creds-dir /etc/serviceradar/creds || echo "nats-account-limits: skipped, existing platform account quota kept" >&2
+          serviceradar-cli nats-account-limits --creds-dir /etc/serviceradar/creds --resolver-data-dir /data || echo "nats-account-limits: skipped, existing platform account quota kept" >&2
     restart: "no"
     networks:
       - serviceradar-net
@@ -715,8 +725,9 @@ services:
           set -e
           mkdir -p /data/jwt
           if [ -d /etc/serviceradar/creds/jwt ]; then
-            find /etc/serviceradar/creds/jwt -maxdepth 1 -type f -name '*.jwt' -exec cp {} /data/jwt/ \;
-            echo 'Seeded account JWTs from creds/jwt'
+            # Never over an existing copy: the resolver's JWT holds the revocations.
+            find /etc/serviceradar/creds/jwt -maxdepth 1 -type f -name '*.jwt' -exec cp -n {} /data/jwt/ \;
+            echo 'Seeded missing account JWTs from creds/jwt'
           fi
           if [ -f /etc/serviceradar/creds/system.jwt ] && [ -f /etc/serviceradar/creds/system_account.pub ]; then
             system_key="$$(cat /etc/serviceradar/creds/system_account.pub)"
@@ -787,6 +798,12 @@ services:
         read_only: true
         volume:
           subpath: operator.seed
+      - type: volume
+        source: nats-creds
+        target: /etc/serviceradar/creds/platform_account.seed
+        read_only: true
+        volume:
+          subpath: platform_account.seed
       - type: volume
         source: nats-creds
         target: /etc/serviceradar/creds/system_account.pub

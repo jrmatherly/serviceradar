@@ -17,7 +17,7 @@ defmodule ServiceRadar.Edge.CollectorPackage do
   ## Package Lifecycle
 
   1. Admin creates collector package (triggers credential provisioning)
-  2. Oban worker provisions NATS credentials via datasvc
+  2. Oban worker provisions NATS credentials via datasvc and a certificate via the gateway
   3. Package becomes ready for download
   4. Collector downloads and installs package
   5. Package marked as installed on successful activation
@@ -26,9 +26,8 @@ defmodule ServiceRadar.Edge.CollectorPackage do
 
   - NATS credentials file (.creds)
   - Collector configuration (collector-specific)
-  - mTLS certificates when the package has them (omitted from the bundle otherwise;
-    Falcosidekick uses the cluster runtime-cert secret). Bundle layout:
-    `ServiceRadarWebNG.Edge.CollectorBundleGenerator`
+  - mTLS certificates (Falcosidekick uses the cluster runtime-cert secret instead).
+    Bundle layout: `ServiceRadarWebNG.Edge.CollectorBundleGenerator`
   - Installation instructions
   """
 
@@ -190,8 +189,8 @@ defmodule ServiceRadar.Edge.CollectorPackage do
 
       argument :nats_credential_id, :uuid, allow_nil?: false
       argument :nats_creds_content, :string, allow_nil?: false, sensitive?: true
-      # TLS material is optional. The collector worker records NATS creds only;
-      # bundle downloads that need a key supply these arguments themselves.
+      # ProvisionCollectorWorker supplies these for every host collector. Only
+      # Falcosidekick omits them: it mounts the cluster's runtime-cert secret.
       argument :tls_cert_pem, :string, allow_nil?: true, sensitive?: true
       argument :tls_key_pem, :string, allow_nil?: true, sensitive?: true
       argument :ca_chain_pem, :string, allow_nil?: true, sensitive?: true
@@ -295,9 +294,11 @@ defmodule ServiceRadar.Edge.CollectorPackage do
           :revoke_reason,
           Ash.Changeset.get_argument(changeset, :reason)
         )
-        |> AfterAction.after_action(fn package ->
-          revoke_associated_nats_credential(package)
-          __MODULE__.broadcast_status_changed(package, old_status, :revoked)
+        |> AfterAction.after_action_result(fn package ->
+          with :ok <- revoke_associated_nats_credential(package) do
+            __MODULE__.broadcast_status_changed(package, old_status, :revoked)
+            :ok
+          end
         end)
       end
     end
@@ -512,16 +513,23 @@ defmodule ServiceRadar.Edge.CollectorPackage do
   defp revoke_associated_nats_credential(package) do
     actor = SystemActor.system(:collector_package)
 
-    case Ash.get(NatsCredential, package.nats_credential_id, actor: actor) do
-      {:ok, credential} when not is_nil(credential) ->
-        credential
-        |> Ash.Changeset.for_update(:revoke, %{reason: "Package revoked"})
-        |> Ash.update(actor: actor)
+    case Ash.get(NatsCredential, package.nats_credential_id,
+           actor: actor,
+           not_found_error?: false
+         ) do
+      {:ok, %{status: :active} = credential} ->
+        result =
+          credential
+          |> Ash.Changeset.for_update(:revoke, %{reason: "Package revoked"})
+          |> Ash.update(actor: actor)
 
-      _ ->
+        with {:ok, _credential} <- result, do: :ok
+
+      {:ok, _not_active_or_missing} ->
         :ok
-    end
 
-    :ok
+      {:error, _reason} = error ->
+        error
+    end
   end
 end

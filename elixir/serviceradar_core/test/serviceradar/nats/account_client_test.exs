@@ -10,9 +10,79 @@ defmodule ServiceRadar.NATS.AccountClientTest do
   - Credential type conversion
   """
 
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias Proto.NATSAccountService.Stub
+  alias ServiceRadar.NATS.AccountClient
+
+  describe "revoke_users_on_core/2" do
+    test "asks the first node with an account name, not the one serving the API" do
+      rpc_call = fn
+        :web, AccountClient, :account_name, [], _timeout ->
+          {:error, :nats_not_configured}
+
+        :gateway, AccountClient, :account_name, [], _timeout ->
+          {:badrpc, :nodedown}
+
+        :core, AccountClient, :account_name, [], _timeout ->
+          {:ok, "invented-account"}
+
+        :core, AccountClient, :revoke_users, ["invented-account", ["UINVENTED"]], _timeout ->
+          {:ok, %{account_public_key: "AINVENTED"}}
+      end
+
+      assert AccountClient.revoke_users_on_core(["UINVENTED"],
+               nodes: [:web, :gateway, :core],
+               rpc_call: rpc_call
+             ) == {:ok, %{account_public_key: "AINVENTED"}}
+    end
+
+    test "no node with an account name is an error, not a silent success" do
+      rpc_call = fn _node, AccountClient, :account_name, [], _timeout ->
+        {:error, :nats_not_configured}
+      end
+
+      assert AccountClient.revoke_users_on_core(["UINVENTED"], nodes: [:web], rpc_call: rpc_call) ==
+               {:error, :nats_not_configured}
+    end
+
+    test "a core node lost mid-call is an error" do
+      rpc_call = fn
+        :core, AccountClient, :account_name, [], _timeout -> {:ok, "invented-account"}
+        :core, AccountClient, :revoke_users, _args, _timeout -> {:badrpc, :timeout}
+      end
+
+      assert AccountClient.revoke_users_on_core(["UINVENTED"], nodes: [:core], rpc_call: rpc_call) ==
+               {:error, {:badrpc, :timeout}}
+    end
+  end
+
+  describe "account_name/0" do
+    setup do
+      prior = Application.get_env(:serviceradar, :nats_account_name)
+
+      on_exit(fn ->
+        if prior do
+          Application.put_env(:serviceradar, :nats_account_name, prior)
+        else
+          Application.delete_env(:serviceradar, :nats_account_name)
+        end
+      end)
+    end
+
+    test "returns the configured account" do
+      Application.put_env(:serviceradar, :nats_account_name, "invented-account")
+      assert AccountClient.account_name() == {:ok, "invented-account"}
+    end
+
+    test "missing or empty is not configured" do
+      Application.delete_env(:serviceradar, :nats_account_name)
+      assert AccountClient.account_name() == {:error, :nats_not_configured}
+
+      Application.put_env(:serviceradar, :nats_account_name, "")
+      assert AccountClient.account_name() == {:error, :nats_not_configured}
+    end
+  end
 
   describe "Proto.AccountLimits construction" do
     test "builds limits struct from map" do
@@ -153,7 +223,6 @@ defmodule ServiceRadar.NATS.AccountClientTest do
     test "builds request with all fields" do
       request = %Proto.GenerateUserCredentialsRequest{
         account_name: "edge-account",
-        account_seed: "SATEST123",
         user_name: "collector-1",
         credential_type: :USER_CREDENTIAL_TYPE_COLLECTOR,
         permissions: nil,
@@ -161,25 +230,10 @@ defmodule ServiceRadar.NATS.AccountClientTest do
       }
 
       assert request.account_name == "edge-account"
-      assert request.account_seed == "SATEST123"
+      refute Map.has_key?(request, :account_seed)
       assert request.user_name == "collector-1"
       assert request.credential_type == :USER_CREDENTIAL_TYPE_COLLECTOR
       assert request.expiration_seconds == 86_400
-    end
-  end
-
-  describe "Proto.SignAccountJWTRequest construction" do
-    test "builds request with revocations" do
-      request = %Proto.SignAccountJWTRequest{
-        account_name: "edge-account",
-        account_seed: "SATEST123",
-        limits: nil,
-        subject_mappings: [],
-        revoked_user_keys: ["UABC123", "UDEF456"]
-      }
-
-      assert request.account_name == "edge-account"
-      assert request.revoked_user_keys == ["UABC123", "UDEF456"]
     end
   end
 
@@ -224,18 +278,6 @@ defmodule ServiceRadar.NATS.AccountClientTest do
     end
   end
 
-  describe "Proto.SignAccountJWTResponse structure" do
-    test "has expected fields" do
-      response = %Proto.SignAccountJWTResponse{
-        account_public_key: "ATEST123",
-        account_jwt: "eyJhbGciOiJlZDI1NTE5..."
-      }
-
-      assert response.account_public_key == "ATEST123"
-      assert String.starts_with?(response.account_jwt, "eyJ")
-    end
-  end
-
   describe "GRPC service definition" do
     test "NATSAccountService stub module is defined" do
       # Verify the Stub module exists and has the expected structure
@@ -254,7 +296,7 @@ defmodule ServiceRadar.NATS.AccountClientTest do
 
       assert :create_account in function_names
       assert :generate_user_credentials in function_names
-      assert :sign_account_jwt in function_names
+      assert :revoke_users in function_names
     end
   end
 end

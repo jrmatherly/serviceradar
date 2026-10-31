@@ -7,7 +7,7 @@ seed_dir="/seed/creds"
 required_artifacts=(
   operator.jwt system.jwt system_account.pub nats.conf
   system.creds platform.creds core.creds flow-collector.creds datasvc.creds
-  log-collector.creds trapd.creds bmp-collector.creds
+  log-collector.creds trapd.creds bmp-collector.creds platform_account.seed
 )
 
 bootstrap_complete() {
@@ -27,9 +27,15 @@ fix_runtime_perms() {
     fi
   done
 
-  if [[ -f "${creds_dir}/operator.seed" ]]; then
-    chmod 0600 "${creds_dir}/operator.seed"
-  fi
+  # datasvc reads these as the service uid; root-owned 0600 would lock it out. It
+  # needs the operator seed to re-issue the account JWT that revokes a credential.
+  local seed
+  for seed in operator.seed platform_account.seed; do
+    if [[ -f "${creds_dir}/${seed}" ]]; then
+      chown "${SERVICERADAR_UID:-10001}:${SERVICERADAR_GID:-10001}" "${creds_dir}/${seed}"
+      chmod 0600 "${creds_dir}/${seed}"
+    fi
+  done
 }
 
 if bootstrap_complete; then

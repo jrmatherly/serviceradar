@@ -56,6 +56,9 @@ pub struct NATSConfig {
     /// only bounds cross-request fan-out so a publish burst cannot overwhelm
     /// JetStream.
     pub max_inflight_publishes: usize,
+    /// False for edge collectors: another component owns the stream, so this
+    /// one never creates, reconciles or looks it up.
+    pub stream_owner: bool,
 }
 
 impl Default for NATSConfig {
@@ -75,6 +78,7 @@ impl Default for NATSConfig {
             tls_ca: None,
             tls_material_dir: None,
             max_inflight_publishes: DEFAULT_MAX_INFLIGHT_PUBLISHES,
+            stream_owner: true,
         }
     }
 }

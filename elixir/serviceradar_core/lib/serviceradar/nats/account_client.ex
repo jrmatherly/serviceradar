@@ -3,8 +3,8 @@ defmodule ServiceRadar.NATS.AccountClient do
   gRPC client for the datasvc NATSAccountService.
 
   This client is used to create and manage NATS accounts for account isolation.
-  The datasvc is stateless - it only holds the operator key for signing JWTs.
-  Account state (seeds, JWTs) is stored by Elixir in CNPG with AshCloak encryption.
+  datasvc holds the operator key and the platform account seed. Core never sees
+  that seed; it asks datasvc to mint user credentials by account name.
 
   ## Configuration
 
@@ -24,20 +24,16 @@ defmodule ServiceRadar.NATS.AccountClient do
       {:ok, result} = AccountClient.create_account("edge-account")
       # result.account_seed should be encrypted and stored securely
 
-      # Generate user credentials (requires decrypted account seed)
+      # Generate user credentials, signed by datasvc with the platform account seed
       {:ok, creds} = AccountClient.generate_user_credentials(
-        "edge-account",
-        account_seed,
+        "platform",
         "collector-1",
-        :collector
+        :collector,
+        permissions: %{publish_allow: ["logs.syslog"], subscribe_allow: ["_INBOX.>"]}
       )
 
-      # Re-sign account JWT (for revocations or limit changes)
-      {:ok, result} = AccountClient.sign_account_jwt(
-        "edge-account",
-        account_seed,
-        revoked_user_keys: ["UABC..."]
-      )
+      # Make the hub refuse a user
+      {:ok, _} = AccountClient.revoke_users("platform", ["UABC..."])
   """
 
   alias Proto.NATSAccountService.Stub
@@ -45,6 +41,9 @@ defmodule ServiceRadar.NATS.AccountClient do
   require Logger
 
   @default_timeout 30_000
+  @rpc_lookup_timeout 5_000
+  # Longer than the gRPC call it wraps, so the datasvc error is the one reported.
+  @rpc_timeout @default_timeout + 5_000
 
   @type credential_type :: :collector | :service | :admin
   @type create_result :: %{
@@ -58,10 +57,17 @@ defmodule ServiceRadar.NATS.AccountClient do
           creds_file_content: String.t(),
           expires_at: DateTime.t() | nil
         }
-  @type sign_result :: %{
-          account_public_key: String.t(),
-          account_jwt: String.t()
-        }
+
+  @doc """
+  The NATS account this deployment mints credentials for, from `:nats_account_name`.
+  """
+  @spec account_name() :: {:ok, String.t()} | {:error, :nats_not_configured}
+  def account_name do
+    case Application.get_env(:serviceradar, :nats_account_name) do
+      name when is_binary(name) and name != "" -> {:ok, name}
+      _ -> {:error, :nats_not_configured}
+    end
+  end
 
   @doc """
   Create a new NATS account.
@@ -122,9 +128,12 @@ defmodule ServiceRadar.NATS.AccountClient do
   end
 
   @doc """
-  Generate NATS user credentials for an account.
+  Generate NATS user credentials for the platform account.
 
-  The `account_seed` must be the decrypted seed from stored configuration.
+  datasvc signs with the platform account seed it holds. It answers
+  `FAILED_PRECONDITION` when it has no seed, and `INVALID_ARGUMENT` when
+  `account_name` is not the platform account or `:permissions` is missing or
+  holds a subject it refuses to mint.
 
   ## Credential Types
 
@@ -134,47 +143,27 @@ defmodule ServiceRadar.NATS.AccountClient do
 
   ## Options
 
-    * `:permissions` - Custom UserPermissions to override defaults
+    * `:permissions` - Required. Map of publish and subscribe allow lists, plus optional deny lists
     * `:expiration_seconds` - Credential expiration in seconds (0 = no expiration)
     * `:timeout` - gRPC call timeout in milliseconds
 
   ## Examples
 
       {:ok, creds} = AccountClient.generate_user_credentials(
-        "edge-account",
-        account_seed,
+        "platform",
         "flowgger-collector-1",
-        :collector
-      )
-
-      {:ok, creds} = AccountClient.generate_user_credentials(
-        "edge-account",
-        account_seed,
-        "event-writer",
-        :service,
+        :collector,
+        permissions: %{publish_allow: ["logs.syslog"], subscribe_allow: ["_INBOX.>"]},
         expiration_seconds: 86_400  # 24 hours
       )
   """
-  @spec generate_user_credentials(
-          String.t(),
-          String.t(),
-          String.t(),
-          credential_type(),
-          keyword()
-        ) ::
+  @spec generate_user_credentials(String.t(), String.t(), credential_type(), keyword()) ::
           {:ok, user_credentials()} | {:error, term()}
-  def generate_user_credentials(
-        account_name,
-        account_seed,
-        user_name,
-        credential_type,
-        opts \\ []
-      ) do
+  def generate_user_credentials(account_name, user_name, credential_type, opts \\ []) do
     timeout = opts[:timeout] || @default_timeout
 
     request = %Proto.GenerateUserCredentialsRequest{
       account_name: account_name,
-      account_seed: account_seed,
       user_name: user_name,
       credential_type: credential_type_to_proto(credential_type),
       permissions: build_permissions(opts[:permissions]),
@@ -223,77 +212,82 @@ defmodule ServiceRadar.NATS.AccountClient do
   end
 
   @doc """
-  Re-sign an account JWT with updated claims.
+  Make the hub refuse these users of the platform account.
 
-  Use this when:
-  - Revoking user credentials (add to `revoked_user_keys`)
-  - Updating account limits
-  - Adding custom subject mappings
-
-  The `account_seed` must be the decrypted seed from stored configuration.
+  datasvc re-issues the account JWT the resolver holds with the keys added to its
+  revocations and pushes it back, which also closes their open connections. It
+  answers `FAILED_PRECONDITION` when it lacks the operator key or the platform
+  account seed, and `UNAVAILABLE` when it cannot read or update the resolver.
 
   ## Options
 
-    * `:limits` - Updated AccountLimits
-    * `:subject_mappings` - Updated subject mappings
-    * `:revoked_user_keys` - List of user public keys to revoke
-    * `:exports` - Stream exports for cross-account consumption
-    * `:imports` - Stream imports from external accounts
     * `:timeout` - gRPC call timeout in milliseconds
-
-  ## Examples
-
-      # Revoke a user's credentials
-      {:ok, result} = AccountClient.sign_account_jwt(
-        "edge-account",
-        account_seed,
-        revoked_user_keys: ["UABC123..."]
-      )
-      # Update stored account_jwt with result.account_jwt
-
-      # Update limits
-      {:ok, result} = AccountClient.sign_account_jwt(
-        "edge-account",
-        account_seed,
-        limits: %{max_connections: 200}
-      )
   """
-  @spec sign_account_jwt(String.t(), String.t(), keyword()) ::
-          {:ok, sign_result()} | {:error, term()}
-  def sign_account_jwt(account_name, account_seed, opts \\ []) do
+  @spec revoke_users(String.t(), [String.t()], keyword()) ::
+          {:ok, %{account_public_key: String.t()}} | {:error, term()}
+  def revoke_users(account_name, user_public_keys, opts \\ []) do
     timeout = opts[:timeout] || @default_timeout
 
-    request = %Proto.SignAccountJWTRequest{
+    request = %Proto.RevokeUsersRequest{
       account_name: account_name,
-      account_seed: account_seed,
-      limits: build_limits(opts[:limits]),
-      subject_mappings: build_subject_mappings(opts[:subject_mappings]),
-      revoked_user_keys: opts[:revoked_user_keys] || [],
-      exports: build_stream_exports(opts[:exports]),
-      imports: build_stream_imports(opts[:imports])
+      user_public_keys: user_public_keys
     }
 
     with {:ok, channel} <- get_channel() do
-      case Stub.sign_account_jwt(channel, request, timeout: timeout) do
+      case Stub.revoke_users(channel, request, timeout: timeout) do
         {:ok, response} ->
-          {:ok,
-           %{
-             account_public_key: response.account_public_key,
-             account_jwt: response.account_jwt
-           }}
+          {:ok, %{account_public_key: response.account_public_key}}
 
         {:error, %GRPC.RPCError{} = error} ->
           Logger.error(
-            "gRPC error signing account JWT for #{account_name}: #{GRPC.RPCError.message(error)}"
+            "gRPC error revoking users of #{account_name}: #{GRPC.RPCError.message(error)}"
           )
 
           {:error, {:grpc_error, GRPC.RPCError.message(error)}}
 
         {:error, reason} ->
-          Logger.error("Error signing account JWT for #{account_name}: #{inspect(reason)}")
+          Logger.error("Error revoking users of #{account_name}: #{inspect(reason)}")
           {:error, reason}
       end
     end
+  end
+
+  @doc """
+  Revoke users from the cluster node that can reach datasvc.
+
+  The API runs on web-ng, but only core has the NATS account name and a certificate
+  datasvc accepts, so the call goes to the first connected node with an account name.
+  Returns `{:error, :nats_not_configured}` when no node has one.
+
+  ## Options
+
+    * `:rpc_call` - injectable `:rpc.call/5` (tests)
+    * `:nodes` - injectable node list (tests)
+  """
+  @spec revoke_users_on_core([String.t()], keyword()) ::
+          {:ok, %{account_public_key: String.t()}} | {:error, term()}
+  def revoke_users_on_core(user_public_keys, opts \\ []) do
+    rpc_call = Keyword.get(opts, :rpc_call, &:rpc.call/5)
+    nodes = Keyword.get_lazy(opts, :nodes, fn -> [Node.self() | Node.list()] end)
+
+    Enum.find_value(nodes, {:error, :nats_not_configured}, fn node ->
+      case rpc_call.(node, __MODULE__, :account_name, [], @rpc_lookup_timeout) do
+        {:ok, account_name} ->
+          case rpc_call.(
+                 node,
+                 __MODULE__,
+                 :revoke_users,
+                 [account_name, user_public_keys],
+                 @rpc_timeout
+               ) do
+            {:badrpc, reason} -> {:error, {:badrpc, reason}}
+            result -> result
+          end
+
+        _not_this_node ->
+          nil
+      end
+    end)
   end
 
   @type push_jwt_result :: %{
@@ -631,44 +625,6 @@ defmodule ServiceRadar.NATS.AccountClient do
 
       {subject, name} ->
         %Proto.StreamExport{subject: subject, name: name}
-    end)
-  end
-
-  defp build_stream_imports(nil), do: []
-
-  defp build_stream_imports(imports) when is_list(imports) do
-    Enum.map(imports, fn
-      %{
-        subject: subject,
-        account_public_key: account_public_key,
-        local_subject: local_subject,
-        name: name
-      } ->
-        %Proto.StreamImport{
-          subject: subject,
-          account_public_key: account_public_key,
-          local_subject: local_subject,
-          name: name
-        }
-
-      %{subject: subject, account_public_key: account_public_key, local_subject: local_subject} ->
-        %Proto.StreamImport{
-          subject: subject,
-          account_public_key: account_public_key,
-          local_subject: local_subject
-        }
-
-      %{subject: subject, account_public_key: account_public_key} ->
-        %Proto.StreamImport{
-          subject: subject,
-          account_public_key: account_public_key
-        }
-
-      {subject, account_public_key} ->
-        %Proto.StreamImport{
-          subject: subject,
-          account_public_key: account_public_key
-        }
     end)
   end
 

@@ -38,6 +38,9 @@ var (
 	// ErrAccountNotIssuedByOperator reports an account JWT signed by another
 	// operator, which this operator must not re-issue.
 	ErrAccountNotIssuedByOperator = errors.New("account JWT was not issued by this operator")
+
+	// ErrInvalidUserKey is returned when a revocation names something other than a user public key.
+	ErrInvalidUserKey = errors.New("not a NATS user public key")
 	// ErrTieredJetStreamLimits reports an account with per-replica tiered
 	// limits, which a flat quota cannot express.
 	ErrTieredJetStreamLimits = errors.New("account uses tiered JetStream limits")

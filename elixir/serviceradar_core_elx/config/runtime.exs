@@ -1540,6 +1540,16 @@ if config_env() == :prod do
     config :swoosh, local: false
   end
 
+  # The NATS account datasvc mints edge credentials for. Unset (Helm) means
+  # provisioning workers stop at :nats_not_configured.
+  case System.get_env("NATS_ACCOUNT_NAME") do
+    name when is_binary(name) and name != "" ->
+      config :serviceradar, :nats_account_name, String.trim(name)
+
+    _ ->
+      :ok
+  end
+
   nats_enabled = System.get_env("NATS_ENABLED", "false") in ~w(true 1 yes)
 
   if nats_enabled do

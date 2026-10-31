@@ -54,20 +54,6 @@ defmodule Proto.StreamExport do
   field :name, 2, type: :string
 end
 
-defmodule Proto.StreamImport do
-  @moduledoc false
-
-  use Protobuf,
-    full_name: "proto.StreamImport",
-    protoc_gen_elixir_version: "0.16.0",
-    syntax: :proto3
-
-  field :subject, 1, type: :string
-  field :account_public_key, 2, type: :string, json_name: "accountPublicKey"
-  field :local_subject, 3, type: :string, json_name: "localSubject"
-  field :name, 4, type: :string
-end
-
 defmodule Proto.CreateAccountRequest do
   @moduledoc false
 
@@ -125,7 +111,6 @@ defmodule Proto.GenerateUserCredentialsRequest do
     syntax: :proto3
 
   field :account_name, 1, type: :string, json_name: "accountName"
-  field :account_seed, 2, type: :string, json_name: "accountSeed"
   field :user_name, 3, type: :string, json_name: "userName"
 
   field :credential_type, 4,
@@ -151,38 +136,27 @@ defmodule Proto.GenerateUserCredentialsResponse do
   field :expires_at_unix, 4, type: :int64, json_name: "expiresAtUnix"
 end
 
-defmodule Proto.SignAccountJWTRequest do
+defmodule Proto.RevokeUsersRequest do
   @moduledoc false
 
   use Protobuf,
-    full_name: "proto.SignAccountJWTRequest",
+    full_name: "proto.RevokeUsersRequest",
     protoc_gen_elixir_version: "0.16.0",
     syntax: :proto3
 
   field :account_name, 1, type: :string, json_name: "accountName"
-  field :account_seed, 2, type: :string, json_name: "accountSeed"
-  field :limits, 3, type: Proto.AccountLimits
-
-  field :subject_mappings, 4,
-    repeated: true,
-    type: Proto.SubjectMapping,
-    json_name: "subjectMappings"
-
-  field :revoked_user_keys, 5, repeated: true, type: :string, json_name: "revokedUserKeys"
-  field :exports, 6, repeated: true, type: Proto.StreamExport
-  field :imports, 7, repeated: true, type: Proto.StreamImport
+  field :user_public_keys, 2, repeated: true, type: :string, json_name: "userPublicKeys"
 end
 
-defmodule Proto.SignAccountJWTResponse do
+defmodule Proto.RevokeUsersResponse do
   @moduledoc false
 
   use Protobuf,
-    full_name: "proto.SignAccountJWTResponse",
+    full_name: "proto.RevokeUsersResponse",
     protoc_gen_elixir_version: "0.16.0",
     syntax: :proto3
 
   field :account_public_key, 1, type: :string, json_name: "accountPublicKey"
-  field :account_jwt, 2, type: :string, json_name: "accountJwt"
 end
 
 defmodule Proto.BootstrapOperatorRequest do
@@ -278,7 +252,7 @@ defmodule Proto.NATSAccountService.Service do
     Proto.GenerateUserCredentialsResponse
   )
 
-  rpc(:SignAccountJWT, Proto.SignAccountJWTRequest, Proto.SignAccountJWTResponse)
+  rpc(:RevokeUsers, Proto.RevokeUsersRequest, Proto.RevokeUsersResponse)
 
   rpc(:PushAccountJWT, Proto.PushAccountJWTRequest, Proto.PushAccountJWTResponse)
 end

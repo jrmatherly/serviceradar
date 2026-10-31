@@ -438,6 +438,14 @@ func writePlatformAccountFiles(cfg *CmdConfig, paths *natsBootstrapPaths, result
 		return fmt.Errorf("write platform.creds: %w", err)
 	}
 
+	// datasvc mints edge credentials with this seed and is the only service given
+	// it by name; nats, nats-account-limits, nats-config-init and nats-creds-init
+	// mount the whole volume.
+	seedPath := filepath.Join(paths.outputDir, "platform_account.seed")
+	if err := os.WriteFile(seedPath, []byte(platformResult.AccountSeed), 0600); err != nil {
+		return fmt.Errorf("write platform_account.seed: %w", err)
+	}
+
 	paths.identityCredsPaths = make(map[string]string)
 	for _, id := range serviceIdentities() {
 		creds, err := id.generateCreds(platformAccount, platformResult.AccountSeed)
@@ -577,7 +585,8 @@ func generateSystemCreds(systemAccountSeed string, userName string) (string, err
 	}
 
 	permissions := &accounts.UserPermissions{
-		PublishAllow:   []string{"$SYS.REQ.ACCOUNT.*.CLAIMS.UPDATE"},
+		// LOOKUP: revoking a user re-issues the JWT the resolver holds.
+		PublishAllow:   []string{"$SYS.REQ.ACCOUNT.*.CLAIMS.UPDATE", "$SYS.REQ.ACCOUNT.*.CLAIMS.LOOKUP"},
 		SubscribeAllow: []string{"_INBOX.>"},
 		AllowResponses: true,
 		MaxResponses:   10,
@@ -670,8 +679,8 @@ func generatePlatformAccount(
 //
 // Callers should provision per-agent creds at agent enrollment and rotate
 // them on the standard JWT expiration cadence. The accountSeed is the
-// platform account's seed, typically held by core and never written to
-// agent disk in cleartext.
+// platform account's seed, which datasvc holds and which is never written
+// to agent disk in cleartext.
 func GenerateAgentFlowCollectorCreds(
 	accountName string,
 	accountSeed string,

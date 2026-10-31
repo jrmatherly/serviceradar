@@ -1,4 +1,6 @@
+use log::warn;
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
@@ -10,6 +12,27 @@ pub struct Config {
 
     #[serde(default)]
     pub health: HealthConfig,
+}
+
+impl Config {
+    /// The package ships neither native config; each collector bundle adds its
+    /// own. An input with no file on this host is one that was not installed.
+    pub fn without_unconfigured_inputs(mut self) -> Self {
+        for (name, enabled, file) in [
+            (
+                "flowgger",
+                &mut self.flowgger.enabled,
+                &self.flowgger.config_file,
+            ),
+            ("otel", &mut self.otel.enabled, &self.otel.config_file),
+        ] {
+            if *enabled && !Path::new(file).exists() {
+                warn!("Skipping {name} input: {file} does not exist");
+                *enabled = false;
+            }
+        }
+        self
+    }
 }
 
 /// Configuration for the unified gRPC health check server.
@@ -89,6 +112,58 @@ fn default_otel_config() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn config_with(flowgger: &str, otel: &str) -> Config {
+        Config {
+            flowgger: FlowggerInput {
+                enabled: true,
+                config_file: flowgger.to_string(),
+            },
+            otel: OtelInput {
+                enabled: true,
+                config_file: otel.to_string(),
+            },
+            health: HealthConfig::default(),
+        }
+    }
+
+    #[test]
+    fn an_input_without_its_config_file_is_skipped() {
+        let present =
+            std::env::temp_dir().join(format!("log-collector-input-{}.toml", std::process::id()));
+        std::fs::write(&present, "").unwrap();
+        let present = present.to_str().unwrap().to_string();
+        let absent = format!("{present}.absent");
+
+        let flowgger_only = config_with(&present, &absent).without_unconfigured_inputs();
+        assert!(flowgger_only.flowgger.enabled);
+        assert!(!flowgger_only.otel.enabled);
+
+        let otel_only = config_with(&absent, &present).without_unconfigured_inputs();
+        assert!(!otel_only.flowgger.enabled);
+        assert!(otel_only.otel.enabled);
+
+        let both = config_with(&present, &present).without_unconfigured_inputs();
+        assert!(both.flowgger.enabled && both.otel.enabled);
+
+        std::fs::remove_file(&present).unwrap();
+    }
+
+    #[test]
+    fn a_disabled_input_stays_disabled_when_its_config_exists() {
+        let present = std::env::temp_dir().join(format!(
+            "log-collector-disabled-{}.toml",
+            std::process::id()
+        ));
+        std::fs::write(&present, "").unwrap();
+        let present = present.to_str().unwrap().to_string();
+
+        let mut config = config_with(&present, &present);
+        config.otel.enabled = false;
+        assert!(!config.without_unconfigured_inputs().otel.enabled);
+
+        std::fs::remove_file(&present).unwrap();
+    }
 
     #[test]
     fn test_defaults() {

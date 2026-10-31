@@ -47,6 +47,8 @@ var (
 	errOperatorConfigNotSet     = errors.New("operator config path not set")
 	errOperatorNotInit          = errors.New("operator not initialized")
 	errResolverPathNotSet       = errors.New("resolver path not configured")
+	errResolverEmptyResponse    = errors.New("resolver response was empty")
+	errResolverRejectedJWT      = errors.New("resolver rejected account JWT")
 	errAccountKeyJWTRequired    = errors.New("account public key and JWT are required")
 	errObjectTooLarge           = errors.New("object exceeds configured maximum size")
 	errObjectStoreFull          = errors.New("object store bucket is full")

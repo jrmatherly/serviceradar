@@ -41,6 +41,7 @@ go_test(
     srcs = [
         "config_test.go",
         "jetstream_sizing_test.go",
+        "nats_account_revoke_test.go",
         "nats_account_service_test.go",
         "nats_reconnect_test.go",
         "rbac_config_test.go",
@@ -52,16 +53,19 @@ go_test(
     data = [
         "//docker/compose:datasvc.docker.json",
         "//docker/compose:datasvc.mtls.json",
+        "//:docker-compose.yml",
     ],
     deps = [
         "//go/pkg/models",
         "//go/pkg/nats/accounts",
         "//proto",
+        "@com_github_nats_io_jwt_v2//:jwt",
         "@com_github_nats_io_nats_go//:nats_go",
         "@com_github_nats_io_nats_go//jetstream",
         "@com_github_nats_io_nats_server_v2//server",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@in_gopkg_yaml_v3//:yaml_v3",
         "@io_bazel_rules_go//go/runfiles",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//codes",

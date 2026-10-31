@@ -17,11 +17,14 @@
 package cli
 
 import (
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/nats-io/jwt/v2"
+	"github.com/nats-io/nkeys"
 
 	"github.com/carverauto/serviceradar/go/pkg/nats/accounts"
 )
@@ -130,6 +133,44 @@ func TestGenerateAgentFlowCollectorCreds_ScopedToAgentSubject(t *testing.T) {
 	}
 	if !containsString(claims.Sub.Deny, "flow.attributed.>") {
 		t.Errorf("subscribe deny must contain flow.attributed.>: %v", claims.Sub.Deny)
+	}
+}
+
+func TestBootstrapWritesPlatformAccountSeedFile(t *testing.T) {
+	credsDir := bootstrapLocalCreds(t)
+	seedPath := filepath.Join(credsDir, "platform_account.seed")
+
+	info, err := os.Stat(seedPath)
+	if err != nil {
+		t.Fatalf("stat platform_account.seed: %v", err)
+	}
+	if mode := info.Mode().Perm(); mode != 0o600 {
+		t.Errorf("platform_account.seed mode = %o, want 600", mode)
+	}
+
+	seed, err := os.ReadFile(seedPath)
+	if err != nil {
+		t.Fatalf("read platform_account.seed: %v", err)
+	}
+	if !strings.HasPrefix(string(seed), "SA") {
+		t.Fatal("platform_account.seed does not hold an account seed")
+	}
+
+	keyPair, err := nkeys.FromSeed(seed)
+	if err != nil {
+		t.Fatalf("parse platform_account.seed: %v", err)
+	}
+	publicKey, err := keyPair.PublicKey()
+	if err != nil {
+		t.Fatalf("seed public key: %v", err)
+	}
+
+	creds, err := os.ReadFile(filepath.Join(credsDir, "platform.creds"))
+	if err != nil {
+		t.Fatalf("read platform.creds: %v", err)
+	}
+	if issuer := decodeUserClaims(t, string(creds)).IssuerAccount; issuer != publicKey {
+		t.Errorf("platform.creds issuer account = %s, seed public key = %s", issuer, publicKey)
 	}
 }
 

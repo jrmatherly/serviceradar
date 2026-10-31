@@ -5,6 +5,8 @@ load("@rules_rs//rs:rust_test.bzl", "rust_test")
 
 package(default_visibility = ["//visibility:public"])
 
+exports_files(["testdata/edge-flowgger.toml"])
+
 cargo_build_script(
     name = "build_script",
     srcs = ["build.rs"],
@@ -35,6 +37,8 @@ cargo_build_script(
 rust_library(
     name = "flowgger_lib",
     srcs = glob(["src/**/*.rs"]),
+    # include_str! in unit tests; rust_test(crate = ...) inherits compile_data.
+    compile_data = ["testdata/edge-flowgger.toml"],
     crate_features = [
         "gelf",
         "nats-output",
