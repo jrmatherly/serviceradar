@@ -342,7 +342,7 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
       get_in(package.config_overrides, ["release_name"]) || "falcosidekick-nats-auth"
 
     subject_template =
-      get_in(package.config_overrides, ["subject_template"]) || "falco.<priority>.<rule>"
+      get_in(package.config_overrides, ["subject_template"]) || "falco.logs"
 
     agent_id_template =
       get_in(package.config_overrides, ["agent_id_template"]) ||
@@ -670,7 +670,7 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
 
     # Subscribe to Falco events
     kubectl -n #{namespace} exec deploy/serviceradar-tools -- \\
-      nats --context serviceradar sub 'falco.>'
+      nats --context serviceradar sub falco.logs
     ```
 
     ## Security Notes
@@ -678,7 +678,7 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
     - Falcosidekick reuses the cluster's `serviceradar-runtime-certs` secret
     - mTLS authenticates Falcosidekick to the NATS cluster
     - All messages are scoped to this deployment's account
-    - Events publish to `falco.<priority>.<rule>` subjects
+    - Events publish to the `falco.logs` subject on the shared `events` stream
 
     ## Support
 

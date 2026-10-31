@@ -32,6 +32,12 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
       refute Enum.any?(file_names, &String.contains?(&1, "/certs/"))
     end
 
+    test "publishes on the one subject the events stream captures by default" do
+      values = falcosidekick_values(sample_falcosidekick_package())
+
+      assert values["config"]["nats"]["subjecttemplate"] == "falco.logs"
+    end
+
     test "projects only the required files from the shared runtime cert secret" do
       {:ok, tarball} =
         CollectorBundleGenerator.create_tarball(
@@ -504,14 +510,20 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
     trapd = bundle_json(sample_flow_package(:trapd), "trapd.json")
     flowgger = bundle_text(sample_flow_package(:flowgger), "flowgger.toml")
     otel = bundle_text(sample_flow_package(:otel), "otel.toml")
+    falco = falcosidekick_values(sample_falcosidekick_package())
 
     [
       {:netflow, netflow["stream_name"], hd(netflow["listeners"])["subject"]},
       {:sflow, sflow["stream_name"], hd(sflow["listeners"])["subject"]},
       {:trapd, trapd["stream_name"], trapd["subject"]},
       {:flowgger, toml_string(flowgger, "nats_stream"), toml_string(flowgger, "nats_subject")},
-      {:otel, toml_string(otel, "stream"), toml_string(otel, "logs_subject")}
+      {:otel, toml_string(otel, "stream"), toml_string(otel, "logs_subject")},
+      {:falcosidekick, "events", falco["config"]["nats"]["subjecttemplate"]}
     ]
+  end
+
+  defp falcosidekick_values(package) do
+    package |> bundle_text("falcosidekick.yaml") |> YamlElixir.read_from_string!()
   end
 
   defp captures?(stream, stream_name, subject) do

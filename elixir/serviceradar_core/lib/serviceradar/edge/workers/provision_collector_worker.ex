@@ -191,8 +191,9 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorker do
   def collector_permissions(:netflow), do: publisher(["flows.raw.netflow"], ["flows", "events"])
   def collector_permissions(:sflow), do: publisher(["flows.raw.sflow"], ["flows", "events"])
 
-  # Falcosidekick publishes plain NATS messages on its subject template.
-  def collector_permissions(:falcosidekick), do: publisher(["falco.>"], [])
+  # Falcosidekick publishes plain NATS messages, so it needs no stream call. The
+  # events stream captures only falco.logs (EventWriter FALCO entry).
+  def collector_permissions(:falcosidekick), do: publisher(["falco.logs"], [])
 
   defp publisher(subjects, streams) do
     %{

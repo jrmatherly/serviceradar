@@ -10,7 +10,7 @@ defmodule ServiceRadar.Edge.Workers.CollectorPermissionsTest do
     otel: ["otel.traces.>", "otel.metrics.>", "logs.otel", "$JS.API.STREAM.INFO.events"],
     netflow: ["flows.raw.netflow", "$JS.API.STREAM.INFO.flows", "$JS.API.STREAM.INFO.events"],
     sflow: ["flows.raw.sflow", "$JS.API.STREAM.INFO.flows", "$JS.API.STREAM.INFO.events"],
-    falcosidekick: ["falco.>"]
+    falcosidekick: ["falco.logs"]
   }
 
   test "every collector type gets exactly its subjects and stream calls" do
