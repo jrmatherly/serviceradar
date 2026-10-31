@@ -4,7 +4,7 @@
 
 **Goal:** An edge collector package of every type (flowgger, trapd, otel, netflow, sflow, falcosidekick) provisions on Compose, gets a bundle its binary accepts, and publishes into the right central stream, either direct to the hub or through an edge leaf server.
 
-**Architecture:** Core mints collector-type NATS users through datasvc (`ServiceRadar.NATS.AccountClient` → datasvc gRPC `GenerateUserCredentials` → `go/pkg/nats/accounts`). Edge credentials hold only their data subjects and make no stream API call; the trusted stream owner (otel log-collector, or core's EventWriter) creates each stream and captures the subjects. This plan wires the missing account configuration, brings the stale netflow/sflow and falcosidekick bundles in line with their binaries, and gives the leaf server local authorization matching hub-side scoping.
+**Architecture:** Core mints collector-type NATS users through datasvc (`ServiceRadar.NATS.AccountClient` -> datasvc gRPC `GenerateUserCredentials` -> `go/pkg/nats/accounts`). Edge credentials hold only their data subjects and make no stream API call; the trusted stream owner (otel log-collector, or core's EventWriter) creates each stream and captures the subjects. This plan wires the missing account configuration, brings the stale netflow/sflow and falcosidekick bundles in line with their binaries, and gives the leaf server local authorization matching hub-side scoping.
 
 **Tech Stack:** Elixir/Ash (serviceradar_core, web-ng), Go (`go/pkg/cli`, `go/pkg/nats/accounts`), Rust (`rust/flow-collector`), NATS 2.14 (JWT operator mode in Compose, static mTLS users in Helm and on leaf servers).
 
