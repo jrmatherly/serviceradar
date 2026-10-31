@@ -1,0 +1,30 @@
+suite: Collector NATS permissions
+templates:
+  - templates/nats.yaml
+release:
+  namespace: serviceradar-test
+tests:
+  - it: limits each collector to its subjects, its stream APIs and reply inboxes
+    template: templates/nats.yaml
+    documentSelector:
+      path: kind
+      value: StatefulSet
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: '(?s)user: "CN=serviceradar-log\-collector,[^"]+"\s+permissions: \{\s+publish: \{\s+allow: \["logs\.syslog", "otel\.>", "logs\.otel", "\\\$JS\.API\.STREAM\.INFO\.events", "\\\$JS\.API\.STREAM\.CREATE\.events", "\\\$JS\.API\.STREAM\.UPDATE\.events"\]\s+\}\s+subscribe: \{\s+allow: \["_INBOX\.>"\]'
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: '(?s)user: "CN=serviceradar-flowgger,[^"]+"\s+permissions: \{\s+publish: \{\s+allow: \["logs\.syslog", "\\\$JS\.API\.STREAM\.INFO\.events", "\\\$JS\.API\.STREAM\.UPDATE\.events"\]\s+\}\s+subscribe: \{\s+allow: \["_INBOX\.>"\]'
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: '(?s)user: "CN=serviceradar-otel,[^"]+"\s+permissions: \{\s+publish: \{\s+allow: \["otel\.>", "logs\.otel", "\\\$JS\.API\.STREAM\.INFO\.events", "\\\$JS\.API\.STREAM\.CREATE\.events", "\\\$JS\.API\.STREAM\.UPDATE\.events"\]\s+\}\s+subscribe: \{\s+allow: \["_INBOX\.>"\]'
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: '(?s)user: "CN=serviceradar-trapd,[^"]+"\s+permissions: \{\s+publish: \{\s+allow: \["logs\.snmp", "\\\$JS\.API\.STREAM\.INFO\.events", "\\\$JS\.API\.STREAM\.UPDATE\.events"\]\s+\}\s+subscribe: \{\s+allow: \["_INBOX\.>"\]'
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: '(?s)user: "CN=serviceradar-bmp\-collector,[^"]+"\s+permissions: \{\s+publish: \{\s+allow: \["arancini\.updates", "arancini\.updates\.>", "\\\$JS\.API\.STREAM\.INFO\.ARANCINI_CAUSAL", "\\\$JS\.API\.STREAM\.CREATE\.ARANCINI_CAUSAL", "\\\$JS\.API\.STREAM\.UPDATE\.ARANCINI_CAUSAL"\]\s+\}\s+subscribe: \{\s+allow: \["_INBOX\.>"\]'
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: '(?s)user: "CN=serviceradar-falcosidekick,[^"]+"\s+permissions: \{\s+publish: \{\s+allow: \["falco\.>"\]\s+\}\s+subscribe: \{\s+allow: \["_INBOX\.>"\]'
