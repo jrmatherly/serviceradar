@@ -136,9 +136,9 @@ func TestGenerateAgentFlowCollectorCreds_ScopedToAgentSubject(t *testing.T) {
 func TestGenerateFlowCollectorCreds_ScopesSharedCollector(t *testing.T) {
 	seed := bootstrapTestAccount(t)
 
-	creds, err := generateFlowCollectorCreds("platform", seed)
+	creds, err := serviceIdentityNamed(t, "flow-collector").generateCreds("platform", seed)
 	if err != nil {
-		t.Fatalf("generateFlowCollectorCreds: %v", err)
+		t.Fatalf("generate flow-collector creds: %v", err)
 	}
 
 	claims := decodeUserClaims(t, creds.CredsFileContent)
@@ -395,4 +395,17 @@ func containsString(haystack []string, needle string) bool {
 		}
 	}
 	return false
+}
+
+func serviceIdentityNamed(t *testing.T, user string) serviceIdentity {
+	t.Helper()
+
+	for _, id := range serviceIdentities() {
+		if id.user == user {
+			return id
+		}
+	}
+	t.Fatalf("no service identity %q", user)
+
+	return serviceIdentity{}
 }

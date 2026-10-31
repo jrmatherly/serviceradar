@@ -1,7 +1,7 @@
 {
   "listen_addr": "0.0.0.0:162",
   "nats_url": "tls://nats:4222",
-  "nats_creds_file": "/etc/serviceradar/creds/platform.creds",
+  "nats_creds_file": "/etc/serviceradar/creds/trapd.creds",
   "stream_name": "events",
   "subject": "logs.snmp",
   "nats_security": {

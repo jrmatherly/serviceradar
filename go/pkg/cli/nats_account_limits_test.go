@@ -355,22 +355,28 @@ jetstream { store_dir: %q, max_memory_store: 1G, max_file_store: 30G }
 		t.Fatal("embedded nats server started without JetStream")
 	}
 
-	nc, err := nats.Connect(srv.ClientURL(), nats.UserCredentials(filepath.Join(credsDir, credsFile)))
-	if err != nil {
-		t.Fatalf("connect with %s: %v", credsFile, err)
-	}
-	defer nc.Close()
+	connect := func(file string) nats.JetStreamContext {
+		nc, err := nats.Connect(srv.ClientURL(), nats.UserCredentials(filepath.Join(credsDir, file)))
+		if err != nil {
+			t.Fatalf("connect with %s: %v", file, err)
+		}
+		t.Cleanup(nc.Close)
 
-	js, err := nc.JetStream()
-	if err != nil {
-		t.Fatal(err)
+		js, err := nc.JetStream()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		return js
 	}
 
-	// The account's JetStream is enabled once the resolver has loaded it.
+	// The account's JetStream is enabled once the resolver has loaded it. Probe
+	// with platform.creds: scoped identities may not call $JS.API.INFO.
+	platform := connect("platform.creds")
 	deadline := time.Now().Add(10 * time.Second)
 
 	for {
-		_, err := js.AccountInfo()
+		_, err := platform.AccountInfo()
 		if err == nil {
 			break
 		}
@@ -380,6 +386,11 @@ jetstream { store_dir: %q, max_memory_store: 1G, max_file_store: 30G }
 		}
 
 		time.Sleep(50 * time.Millisecond)
+	}
+
+	js := platform
+	if credsFile != "platform.creds" {
+		js = connect(credsFile)
 	}
 
 	fn(js)

@@ -19,7 +19,7 @@ logs_subject = "logs.otel"
 # JetStream stream name (default: events)
 stream = "events"
 
-creds_file = "/etc/serviceradar/creds/platform.creds"
+creds_file = "/etc/serviceradar/creds/log-collector.creds"
 
 # Timeout for NATS operations in seconds (default: 30)
 timeout_secs = 30

@@ -4,15 +4,17 @@ set -euo pipefail
 creds_dir="/etc/serviceradar/creds"
 seed_dir="/seed/creds"
 
+required_artifacts=(
+  operator.jwt system.jwt system_account.pub nats.conf
+  system.creds platform.creds flow-collector.creds datasvc.creds
+  log-collector.creds trapd.creds bmp-collector.creds
+)
+
 bootstrap_complete() {
-  [ -f "${creds_dir}/operator.jwt" ] &&
-  [ -f "${creds_dir}/system.jwt" ] &&
-  [ -f "${creds_dir}/system_account.pub" ] &&
-  [ -f "${creds_dir}/system.creds" ] &&
-  [ -f "${creds_dir}/platform.creds" ] &&
-  [ -f "${creds_dir}/flow-collector.creds" ] &&
-  [ -f "${creds_dir}/datasvc.creds" ] &&
-  [ -f "${creds_dir}/nats.conf" ]
+  local artifact
+  for artifact in "${required_artifacts[@]}"; do
+    [ -f "${creds_dir}/${artifact}" ] || return 1
+  done
 }
 
 fix_runtime_perms() {
@@ -48,7 +50,7 @@ if bootstrap_complete; then
 fi
 
 partial_bootstrap=false
-for artifact in operator.jwt system.jwt system_account.pub system.creds platform.creds flow-collector.creds datasvc.creds nats.conf; do
+for artifact in "${required_artifacts[@]}"; do
   if [[ -e "${creds_dir}/${artifact}" ]]; then
     partial_bootstrap=true
     break
@@ -76,7 +78,7 @@ if [[ -f "${seed_dir}/operator.jwt" ]]; then
   fi
   fix_runtime_perms
   if ! bootstrap_complete; then
-    echo "Seed NATS credentials are incomplete; operator, system, platform, flow-collector, datasvc, and server config artifacts are all required." >&2
+    echo "Seed NATS credentials are incomplete; required: ${required_artifacts[*]}" >&2
     exit 1
   fi
   exit 0

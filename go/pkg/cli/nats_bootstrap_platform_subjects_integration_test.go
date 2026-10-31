@@ -17,6 +17,7 @@
 package cli
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -24,8 +25,9 @@ import (
 )
 
 const (
-	datasvcBucket = "serviceradar-datasvc"
-	datasvcKey    = "$KV." + datasvcBucket + ".agents/default-agent/config.json"
+	agentConfigSubject = "config.agents.default"
+	datasvcBucket      = "serviceradar-datasvc"
+	datasvcKey         = "$KV." + datasvcBucket + ".agents/default-agent/config.json"
 )
 
 // Account subject mappings rewrite a subject before the publish ACL check, so
@@ -73,4 +75,53 @@ func TestBootstrapCredsReachTheirOwnSubjects(t *testing.T) {
 			t.Errorf("datasvc kv put: %v", err)
 		}
 	})
+}
+
+// Each collector gets its own subjects and its one stream, and nothing that
+// would let it damage another service's data.
+func TestCollectorCredsAreScopedToTheirStream(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	credsDir := bootstrapLocalCreds(t)
+
+	for _, tc := range []struct {
+		creds    string
+		stream   string
+		subjects []string
+	}{
+		{"log-collector.creds", "events", []string{"logs.syslog", "logs.otel", "otel.traces", "otel.metrics"}},
+		{"trapd.creds", "events", []string{"logs.snmp"}},
+		{"bmp-collector.creds", "ARANCINI_CAUSAL", []string{"arancini.updates", "arancini.updates.peer"}},
+	} {
+		t.Run(tc.creds, func(t *testing.T) {
+			withJetStreamAs(t, credsDir, t.TempDir(), tc.creds, func(js nats.JetStreamContext) {
+				if _, err := js.AddStream(&nats.StreamConfig{
+					Name: tc.stream,
+					// The config subject is captured too, so a permitted publish would be acked.
+					Subjects: append([]string{agentConfigSubject}, tc.subjects...),
+					MaxBytes: 1 << 20,
+				}); err != nil {
+					t.Fatalf("create own stream %s: %v", tc.stream, err)
+				}
+
+				for _, subject := range tc.subjects {
+					if _, err := js.Publish(subject, []byte(`{}`), nats.AckWait(2*time.Second)); err != nil {
+						t.Errorf("publish %s: %v", subject, err)
+					}
+				}
+
+				ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+				defer cancel()
+				if err := js.DeleteStream(tc.stream, nats.Context(ctx)); err == nil {
+					t.Errorf("%s deleted stream %s", tc.creds, tc.stream)
+				}
+
+				if _, err := js.Publish(agentConfigSubject, []byte(`{}`), nats.AckWait(500*time.Millisecond)); err == nil {
+					t.Errorf("%s published agent config", tc.creds)
+				}
+			})
+		})
+	}
 }
