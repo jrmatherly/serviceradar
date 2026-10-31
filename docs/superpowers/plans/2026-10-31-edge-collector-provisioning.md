@@ -30,7 +30,7 @@
 
 ## Review Focus
 
-1. An edge collector starting before the owner has created its stream: it must wait or retry, not crash or create. Edge bundles make no lookup (`stream_owner = false`, and trapd with `nats_domain` set), so a missing stream shows as no responders on the publish, which retries.
+1. An edge collector starting before the owner has created its stream: it must wait or retry, not crash or create. Edge bundles make no lookup (`stream_owner = false`, and trapd with `nats_domain` set), so a missing stream shows as no responders on the publish. flow-collector, flowgger and otel's exporter retry it; trapd logs and drops the trap, because a retry would block its receive loop.
 2. A collector whose bundle subject is not captured by the owner's stream: publishes are acked by nobody; the bundle test must assert every bundle subject is covered by a stream the owner creates.
 3. Account seed exposure: core holding the seed can mint any user in the platform account. Who can read it (file mode, mounts) must be asserted.
 4. A leaf server with zero direct identities: must still deny everything except the collectors' scoped subjects (no missing `authorization` block).
@@ -53,7 +53,7 @@
 - [x] Step 2: Run `go test ./go/pkg/cli/ -run TestBootstrapWritesPlatformAccountSeedFile`; expect FAIL (file missing).
 - [x] Step 3: Write `platformResult.AccountSeed` to `<outputDir>/platform_account.seed` (0600) in `writePlatformAccountFiles`; add to `required_artifacts`; mount it **only** into the service the decision names (core-elx or datasvc) as a volume subpath, like the collectors' mounts.
 - [x] Step 4: Set `:nats_account_name` = `platform` in runtime config. Per the decision above, core gets no seed. The existing `provision_collector_worker_test.exs` runs only in the CI DB lane.
-- [ ] Step 5: Compose check: create a trapd package through the API; expect status `:ready` and a `NatsCredential` row. Commit.
+- [x] Step 5: Compose check: create a trapd package through the API; expect status `:ready` and a `NatsCredential` row. Commit.
 
 ### Task 2: Netflow/sflow bundles match the current flow-collector
 
