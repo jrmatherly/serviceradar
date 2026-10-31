@@ -24,6 +24,7 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorker do
     unique: [period: :infinity, keys: [:package_id]]
 
   alias ServiceRadar.Actors.SystemActor
+  alias ServiceRadar.Analytics.StarRocks.Readers
   alias ServiceRadar.Edge.CollectorPackage
   alias ServiceRadar.Edge.NatsCredential
   alias ServiceRadar.NATS.AccountClient
@@ -67,6 +68,7 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorker do
     with {:ok, package} <- get_package(package_id),
          :ok <- validate_package_status(package),
          {:ok, package} <- mark_provisioning(package),
+         :ok <- require_flow_storage(package.collector_type),
          {:ok, account_name} <- get_account_name(),
          {:ok, user_creds} <- generate_user_credentials(account_name, package),
          {:ok, _package} <- persist_credentials(package, user_creds) do
@@ -80,6 +82,16 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorker do
       {:error, :package_not_pending} ->
         Logger.info("Collector package #{package_id} not in pending state, skipping")
         :ok
+
+      {:error, :starrocks_required} ->
+        Logger.error("StarRocks not enabled for flow collector package #{package_id}")
+
+        mark_failed(
+          package_id,
+          "NetFlow and sFlow data is stored only in StarRocks, which is not enabled for this deployment"
+        )
+
+        {:discard, :starrocks_required}
 
       {:error, :nats_not_configured} ->
         Logger.error("NATS not configured for package #{package_id}")
@@ -111,6 +123,19 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorker do
         error
     end
   end
+
+  @doc false
+  # Without StarRocks, EventWriter acknowledges flow batches without storing them,
+  # so a flow collector would look healthy while its data is dropped.
+  @spec require_flow_storage(atom()) :: :ok | {:error, :starrocks_required}
+  def require_flow_storage(type) when type in [:netflow, :sflow] do
+    case Readers.backend(:flows) do
+      {:error, _reason} = error -> error
+      _backend -> :ok
+    end
+  end
+
+  def require_flow_storage(_type), do: :ok
 
   # Private helpers
 

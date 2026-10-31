@@ -1,6 +1,7 @@
 defmodule ServiceRadar.Edge.Workers.CollectorPermissionsTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
+  alias ServiceRadar.Analytics.StarRocks
   alias ServiceRadar.Edge.Workers.ProvisionCollectorWorker
 
   # The subject each collector binary publishes, matching its bundle config.
@@ -27,6 +28,40 @@ defmodule ServiceRadar.Edge.Workers.CollectorPermissionsTest do
         subject <- ProvisionCollectorWorker.collector_permissions(type).publish_allow,
         String.starts_with?(subject, "$") do
       assert subject =~ ~r/^\$JS\.API\.STREAM\.INFO\.[A-Za-z0-9_-]+$/
+    end
+  end
+
+  describe "require_flow_storage/1" do
+    setup do
+      prior = Application.get_env(:serviceradar_core, StarRocks)
+      on_exit(fn -> Application.put_env(:serviceradar_core, StarRocks, prior) end)
+      :ok
+    end
+
+    test "flow collectors need StarRocks, which holds all flow data" do
+      Application.put_env(:serviceradar_core, StarRocks, enabled: false, cutover_datasets: [])
+
+      assert ProvisionCollectorWorker.require_flow_storage(:netflow) ==
+               {:error, :starrocks_required}
+
+      assert ProvisionCollectorWorker.require_flow_storage(:sflow) ==
+               {:error, :starrocks_required}
+
+      Application.put_env(:serviceradar_core, StarRocks,
+        enabled: true,
+        cutover_datasets: [:flows]
+      )
+
+      assert ProvisionCollectorWorker.require_flow_storage(:netflow) == :ok
+      assert ProvisionCollectorWorker.require_flow_storage(:sflow) == :ok
+    end
+
+    test "other collectors store through CNPG and do not need it" do
+      Application.put_env(:serviceradar_core, StarRocks, enabled: false, cutover_datasets: [])
+
+      for type <- [:flowgger, :trapd, :otel, :falcosidekick] do
+        assert ProvisionCollectorWorker.require_flow_storage(type) == :ok
+      end
     end
   end
 

@@ -15,6 +15,7 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorkerTest do
 
   alias GRPC.Client.Stream
   alias ServiceRadar.Actors.SystemActor
+  alias ServiceRadar.Analytics.StarRocks
   alias ServiceRadar.DataService.Client
   alias ServiceRadar.Edge.CollectorPackage
   alias ServiceRadar.Edge.NatsCredential
@@ -180,6 +181,49 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorkerTest do
     end
   end
 
+  describe "perform/1 for a flow package" do
+    test "without StarRocks fails the package and mints nothing", %{actor: actor, unique_id: u} do
+      prior = Application.get_env(:serviceradar_core, StarRocks)
+      on_exit(fn -> Application.put_env(:serviceradar_core, StarRocks, prior) end)
+      Application.put_env(:serviceradar_core, StarRocks, enabled: false, cutover_datasets: [])
+
+      package = create_package!(actor, u, :netflow)
+
+      assert {:discard, :starrocks_required} =
+               ProvisionCollectorWorker.perform(build_job(package.id))
+
+      failed = Ash.get!(CollectorPackage, package.id, actor: actor)
+      assert failed.status == :failed
+      assert failed.error_message =~ "StarRocks"
+      refute_received {:datasvc_generate_user_credentials, _, _}
+      assert count_credentials(actor) == 0
+    end
+
+    test "with StarRocks provisions like any collector", %{actor: actor, unique_id: u} do
+      prior = Application.get_env(:serviceradar_core, StarRocks)
+      on_exit(fn -> Application.put_env(:serviceradar_core, StarRocks, prior) end)
+
+      Application.put_env(:serviceradar_core, StarRocks,
+        enabled: true,
+        cutover_datasets: [:flows]
+      )
+
+      package = create_package!(actor, u, :sflow)
+      task = start_perform_task(package.id)
+
+      assert_receive {:datasvc_generate_user_credentials, adapter_pid, request}, 10_000
+      assert request.permissions.publish_allow == ["flows.raw.sflow"]
+
+      send(
+        adapter_pid,
+        {:datasvc_release, {:respond, credential_response("U9TESTCOLLECTOR#{u}", u)}}
+      )
+
+      assert :ok = Task.await(task, 30_000)
+      assert Ash.get!(CollectorPackage, package.id, actor: actor).status == :ready
+    end
+  end
+
   describe "perform/1 revoke during generation" do
     test "leaves a terminal package without any new credential or private contents", %{
       actor: actor,
@@ -270,12 +314,12 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorkerTest do
     }
   end
 
-  defp create_package!(actor, unique_id) do
+  defp create_package!(actor, unique_id, collector_type \\ :flowgger) do
     CollectorPackage
     |> Ash.Changeset.for_create(
       :create,
       %{
-        collector_type: :flowgger,
+        collector_type: collector_type,
         site: "collector-race-#{unique_id}",
         hostname: "collector-#{unique_id}.example.com"
       },
