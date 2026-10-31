@@ -52,7 +52,7 @@
 - [x] Step 1: Write failing test `TestBootstrapWritesPlatformAccountSeedFile` asserting `platform_account.seed` exists with mode `0600` after `bootstrapLocalCreds`, starts with `SA`, and that `platform.creds` and the seed belong to the same account public key.
 - [x] Step 2: Run `go test ./go/pkg/cli/ -run TestBootstrapWritesPlatformAccountSeedFile`; expect FAIL (file missing).
 - [x] Step 3: Write `platformResult.AccountSeed` to `<outputDir>/platform_account.seed` (0600) in `writePlatformAccountFiles`; add to `required_artifacts`; mount it **only** into the service the decision names (core-elx or datasvc) as a volume subpath, like the collectors' mounts.
-- [x] Step 4: Set `:nats_account_name` = `platform` in runtime config. Per the decision above, core gets no seed. The existing `provision_collector_worker_test.exs` runs only in the CI DB lane.
+- [x] Step 4: Set `:nats_account_name` = `platform` in runtime config. Per the decision above, core gets no seed. The existing `provision_collector_worker_test.exs` needs a database, and the fork's CI runs no database lane (`docs/fork-ci.md`), so run it with `make test-core-db`.
 - [x] Step 5: Compose check: mint trapd credentials over the datasvc RPC the worker calls, not through the package API. Commit.
 
 ### Task 2: Netflow/sflow bundles match the current flow-collector
