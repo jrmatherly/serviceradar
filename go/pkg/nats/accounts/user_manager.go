@@ -43,6 +43,17 @@ type UserPermissions struct {
 	MaxResponses   int32    `json:"max_responses"`
 }
 
+// SystemResolverPermissions is the system account grant datasvc uses to talk to
+// the resolver. LOOKUP exists because revoking a user re-issues the JWT it holds.
+func SystemResolverPermissions() *UserPermissions {
+	return &UserPermissions{
+		PublishAllow:   []string{"$SYS.REQ.ACCOUNT.*.CLAIMS.UPDATE", "$SYS.REQ.ACCOUNT.*.CLAIMS.LOOKUP"},
+		SubscribeAllow: []string{"_INBOX.>"},
+		AllowResponses: true,
+		MaxResponses:   10,
+	}
+}
+
 // UserCredentials contains the generated NATS user credentials.
 type UserCredentials struct {
 	UserPublicKey    string    `json:"user_public_key"`

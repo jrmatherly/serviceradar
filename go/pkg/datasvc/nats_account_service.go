@@ -286,7 +286,7 @@ func (s *NATSAccountServer) getResolverConn() (*nats.Conn, error) {
 }
 
 func buildResolverOptions(security *models.SecurityConfig, credsFile string) ([]nats.Option, error) {
-	opts := []nats.Option{}
+	opts := []nats.Option{nats.ErrorHandler(logResolverError)}
 
 	if natsSecurityEnabled(security) {
 		tlsConfig, err := getTLSConfig(security)
@@ -883,6 +883,27 @@ func natsAccountSigningStatus(prefix string, err error) error {
 	}
 }
 
+func logResolverError(_ *nats.Conn, sub *nats.Subscription, err error) {
+	subject := ""
+	if sub != nil {
+		subject = sub.Subject
+	}
+	log.Printf("NATS resolver connection error (subscription %q): %v", subject, err)
+}
+
+// resolverRequest asks the resolver. The server answers a publish it denies with
+// an asynchronous error and no reply, which Request alone reports as a timeout.
+func resolverRequest(conn *nats.Conn, subject string, data []byte) (*nats.Msg, error) {
+	resp, err := conn.Request(subject, data, resolverRequestTimeout)
+	if errors.Is(err, nats.ErrTimeout) {
+		if last := conn.LastError(); errors.Is(last, nats.ErrPermissionViolation) && strings.Contains(last.Error(), subject) {
+			return nil, fmt.Errorf("%w: %w", errResolverDenied, last)
+		}
+	}
+
+	return resp, err
+}
+
 // PushAccountJWT pushes an account JWT to the NATS resolver via $SYS.
 // This makes the account immediately available without NATS restart.
 func (s *NATSAccountServer) PushAccountJWT(
@@ -922,7 +943,7 @@ func (s *NATSAccountServer) pushAccountJWT(accountPublicKey, accountJWT string) 
 	}
 
 	subject := fmt.Sprintf("$SYS.REQ.ACCOUNT.%s.CLAIMS.UPDATE", accountPublicKey)
-	resp, err := conn.Request(subject, []byte(accountJWT), resolverRequestTimeout)
+	resp, err := resolverRequest(conn, subject, []byte(accountJWT))
 	if err != nil {
 		return "", fmt.Errorf("failed to push JWT to resolver: %w", err)
 	}
@@ -955,7 +976,7 @@ func (s *NATSAccountServer) lookupAccountJWT(accountPublicKey string) (string, e
 	}
 
 	subject := fmt.Sprintf("$SYS.REQ.ACCOUNT.%s.CLAIMS.LOOKUP", accountPublicKey)
-	resp, err := conn.Request(subject, nil, resolverRequestTimeout)
+	resp, err := resolverRequest(conn, subject, nil)
 	if err != nil {
 		return "", err
 	}

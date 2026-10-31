@@ -1,6 +1,7 @@
 package datasvc
 
 import (
+	"crypto/x509/pkix"
 	"errors"
 	"os"
 	"path/filepath"
@@ -33,6 +34,7 @@ type revokeFixture struct {
 	service     *NATSAccountServer
 	accountKey  string
 	accountSeed string
+	systemSeed  string
 	dir         string
 }
 
@@ -76,30 +78,43 @@ func newRevokeFixture(t *testing.T) *revokeFixture {
 	t.Cleanup(srv.Shutdown)
 	require.True(t, srv.ReadyForConnections(10*time.Second))
 
-	// The same grant nats-bootstrap writes to system.creds.
-	systemCreds, err := accounts.GenerateUserCredentials("SYS", boot.SystemAccountSeed, "system-resolver",
-		accounts.CredentialTypeService, &accounts.UserPermissions{
-			PublishAllow:   []string{"$SYS.REQ.ACCOUNT.*.CLAIMS.UPDATE", "$SYS.REQ.ACCOUNT.*.CLAIMS.LOOKUP"},
-			SubscribeAllow: []string{revokeTestInbox},
-			AllowResponses: true,
-			MaxResponses:   10,
-		}, 0)
-	require.NoError(t, err)
-	systemCredsFile := filepath.Join(t.TempDir(), "system.creds")
-	require.NoError(t, os.WriteFile(systemCredsFile, []byte(systemCreds.CredsFileContent), 0o600))
-
 	service := NewNATSAccountServer(operator)
 	service.SetAllowedClientIdentities([]string{revokeTestIdentity})
 	service.SetPlatformAccount(revokeTestAccount, account.AccountSeed)
-	service.SetResolverClient(srv.ClientURL(), nil, systemCredsFile)
 
-	return &revokeFixture{
+	f := &revokeFixture{
 		srv:         srv,
 		service:     service,
 		accountKey:  account.AccountPublicKey,
 		accountSeed: account.AccountSeed,
+		systemSeed:  boot.SystemAccountSeed,
 		dir:         dir,
 	}
+	service.SetResolverClient(srv.ClientURL(), nil, f.systemCredsFile(t, accounts.SystemResolverPermissions()))
+
+	return f
+}
+
+func (f *revokeFixture) systemCredsFile(t *testing.T, permissions *accounts.UserPermissions) string {
+	t.Helper()
+
+	creds, err := accounts.GenerateUserCredentials("SYS", f.systemSeed, "system-resolver",
+		accounts.CredentialTypeService, permissions, 0)
+	require.NoError(t, err)
+	file := filepath.Join(t.TempDir(), "system.creds")
+	require.NoError(t, os.WriteFile(file, []byte(creds.CredsFileContent), 0o600))
+
+	return file
+}
+
+// assertHubRefused keeps a broken fixture, which also fails to connect, from
+// passing as a refusal.
+func assertHubRefused(t *testing.T, err error) {
+	t.Helper()
+
+	require.Error(t, err, "the hub accepted a revoked credential")
+	assert.True(t, errors.Is(err, nats.ErrAuthorization) || errors.Is(err, nats.ErrAuthRevoked),
+		"expected an authorization refusal, got: %v", err)
 }
 
 func (f *revokeFixture) mint(t *testing.T, user string) (publicKey, credsFile string) {
@@ -165,9 +180,7 @@ func TestRevokeUsersRefusesTheUserAndNoOtherOnTheHub(t *testing.T) {
 	}
 
 	_, err = f.connect(revokedCreds)
-	require.Error(t, err, "the hub accepted a revoked credential")
-	assert.True(t, errors.Is(err, nats.ErrAuthorization) || errors.Is(err, nats.ErrAuthRevoked),
-		"expected an authorization refusal, got: %v", err)
+	assertHubRefused(t, err)
 
 	other, err := f.connect(otherCreds)
 	require.NoError(t, err, "revoking one user refused another")
@@ -194,7 +207,7 @@ func TestRevokeUsersKeepsTheOtherClaims(t *testing.T) {
 	assert.Contains(t, after.Revocations, secondKey)
 
 	_, err := f.connect(firstCreds)
-	assert.Error(t, err, "a second revocation un-revoked the first")
+	assertHubRefused(t, err)
 }
 
 func TestRevokeUsersRefusals(t *testing.T) {
@@ -232,4 +245,82 @@ func TestRevokeUsersRefusals(t *testing.T) {
 		_, err := s.RevokeUsers(ctx, &proto.RevokeUsersRequest{AccountName: revokeTestAccount, UserPublicKeys: []string{key}})
 		assert.Equal(t, codes.Unavailable, status.Code(err), "%v", err)
 	})
+}
+
+func TestRevokeUsersRefusesAnUnlistedCaller(t *testing.T) {
+	f := newRevokeFixture(t)
+	key, _ := f.mint(t, "edge-trapd-a")
+	before := f.accountClaims(t)
+
+	_, err := f.service.RevokeUsers(authorizedContextWithSubject(pkix.Name{
+		CommonName:   "agent.serviceradar",
+		Organization: []string{"ServiceRadar"},
+	}), &proto.RevokeUsersRequest{AccountName: revokeTestAccount, UserPublicKeys: []string{key}})
+
+	assert.Equal(t, codes.PermissionDenied, status.Code(err), "%v", err)
+	assert.Equal(t, before.Revocations, f.accountClaims(t).Revocations)
+}
+
+// A system.creds issued before the LOOKUP grant must not read as a slow hub.
+func TestRevokeUsersNamesAMissingResolverGrant(t *testing.T) {
+	f := newRevokeFixture(t)
+	key, _ := f.mint(t, "edge-trapd-a")
+
+	s := NewNATSAccountServer(f.service.operator)
+	s.SetAllowedClientIdentities([]string{revokeTestIdentity})
+	s.SetPlatformAccount(revokeTestAccount, f.accountSeed)
+	s.SetResolverClient(f.srv.ClientURL(), nil, f.systemCredsFile(t, &accounts.UserPermissions{
+		PublishAllow:   []string{"$SYS.REQ.ACCOUNT.*.CLAIMS.UPDATE"},
+		SubscribeAllow: []string{revokeTestInbox},
+		AllowResponses: true,
+		MaxResponses:   10,
+	}))
+
+	_, err := s.RevokeUsers(authorizedContext(), &proto.RevokeUsersRequest{
+		AccountName: revokeTestAccount, UserPublicKeys: []string{key},
+	})
+
+	assert.Equal(t, codes.Unavailable, status.Code(err), "%v", err)
+	assert.Contains(t, err.Error(), "permission")
+	assert.Contains(t, err.Error(), "CLAIMS.LOOKUP")
+	assert.NotContains(t, err.Error(), "timeout")
+}
+
+// A live resolver only rejects a JWT it cannot store, so a stand-in answers here.
+func TestRevokeUsersReportsAResolverRejection(t *testing.T) {
+	f := newRevokeFixture(t)
+	key, _ := f.mint(t, "edge-trapd-a")
+	accountJWT, err := f.service.lookupAccountJWT(f.accountKey)
+	require.NoError(t, err)
+
+	standIn, err := natsserver.NewServer(&natsserver.Options{Host: revokeTestHost, Port: -1, NoLog: true, NoSigs: true})
+	require.NoError(t, err)
+	go standIn.Start()
+	t.Cleanup(standIn.Shutdown)
+	require.True(t, standIn.ReadyForConnections(10*time.Second))
+
+	responder, err := nats.Connect(standIn.ClientURL())
+	require.NoError(t, err)
+	t.Cleanup(responder.Close)
+	_, err = responder.Subscribe("$SYS.REQ.ACCOUNT.*.CLAIMS.LOOKUP", func(m *nats.Msg) {
+		_ = m.Respond([]byte(accountJWT))
+	})
+	require.NoError(t, err)
+	_, err = responder.Subscribe("$SYS.REQ.ACCOUNT.*.CLAIMS.UPDATE", func(m *nats.Msg) {
+		_ = m.Respond([]byte(`{"error":{"code":500,"description":"invented rejection"}}`))
+	})
+	require.NoError(t, err)
+	require.NoError(t, responder.Flush())
+
+	s := NewNATSAccountServer(f.service.operator)
+	s.SetAllowedClientIdentities([]string{revokeTestIdentity})
+	s.SetPlatformAccount(revokeTestAccount, f.accountSeed)
+	s.SetResolverClient(standIn.ClientURL(), nil, "")
+
+	_, err = s.RevokeUsers(authorizedContext(), &proto.RevokeUsersRequest{
+		AccountName: revokeTestAccount, UserPublicKeys: []string{key},
+	})
+
+	assert.Equal(t, codes.Unavailable, status.Code(err), "%v", err)
+	assert.Contains(t, err.Error(), "invented rejection")
 }

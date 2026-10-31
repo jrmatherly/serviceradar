@@ -49,6 +49,7 @@ var (
 	errResolverPathNotSet       = errors.New("resolver path not configured")
 	errResolverEmptyResponse    = errors.New("resolver response was empty")
 	errResolverRejectedJWT      = errors.New("resolver rejected account JWT")
+	errResolverDenied           = errors.New("resolver request denied by NATS permissions")
 	errAccountKeyJWTRequired    = errors.New("account public key and JWT are required")
 	errObjectTooLarge           = errors.New("object exceeds configured maximum size")
 	errObjectStoreFull          = errors.New("object store bucket is full")

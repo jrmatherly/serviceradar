@@ -584,20 +584,12 @@ func generateSystemCreds(systemAccountSeed string, userName string) (string, err
 		userName = defaultSystemUser
 	}
 
-	permissions := &accounts.UserPermissions{
-		// LOOKUP: revoking a user re-issues the JWT the resolver holds.
-		PublishAllow:   []string{"$SYS.REQ.ACCOUNT.*.CLAIMS.UPDATE", "$SYS.REQ.ACCOUNT.*.CLAIMS.LOOKUP"},
-		SubscribeAllow: []string{"_INBOX.>"},
-		AllowResponses: true,
-		MaxResponses:   10,
-	}
-
 	creds, err := accounts.GenerateUserCredentials(
 		"SYS",
 		systemAccountSeed,
 		userName,
 		accounts.CredentialTypeService,
-		permissions,
+		accounts.SystemResolverPermissions(),
 		0,
 	)
 	if err != nil {
