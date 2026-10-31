@@ -1,0 +1,82 @@
+suite: Collector NATS permissions
+templates:
+  - templates/nats.yaml
+release:
+  namespace: serviceradar-test
+tests:
+  - it: limits each collector to its subjects, its stream APIs and reply inboxes
+    template: templates/nats.yaml
+    documentSelector:
+      path: kind
+      value: StatefulSet
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: '(?s)user: "CN=serviceradar-log\-collector,[^"]+"\s+permissions: \{\s+publish: \{\s+allow: \["logs\.syslog", "otel\.>", "logs\.otel", "\\\$JS\.API\.STREAM\.INFO\.events", "\\\$JS\.API\.STREAM\.CREATE\.events", "\\\$JS\.API\.STREAM\.UPDATE\.events"\]\s+\}\s+subscribe: \{\s+allow: \["_INBOX\.>"\]'
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: '(?s)user: "CN=serviceradar-flowgger,[^"]+"\s+permissions: \{\s+publish: \{\s+allow: \["logs\.syslog", "\\\$JS\.API\.STREAM\.INFO\.events", "\\\$JS\.API\.STREAM\.UPDATE\.events"\]\s+\}\s+subscribe: \{\s+allow: \["_INBOX\.>"\]'
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: '(?s)user: "CN=serviceradar-otel,[^"]+"\s+permissions: \{\s+publish: \{\s+allow: \["otel\.>", "logs\.otel", "\\\$JS\.API\.STREAM\.INFO\.events", "\\\$JS\.API\.STREAM\.CREATE\.events", "\\\$JS\.API\.STREAM\.UPDATE\.events"\]\s+\}\s+subscribe: \{\s+allow: \["_INBOX\.>"\]'
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: '(?s)user: "CN=serviceradar-trapd,[^"]+"\s+permissions: \{\s+publish: \{\s+allow: \["logs\.snmp", "\\\$JS\.API\.STREAM\.INFO\.events", "\\\$JS\.API\.STREAM\.UPDATE\.events"\]\s+\}\s+subscribe: \{\s+allow: \["_INBOX\.>"\]'
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: '(?s)user: "CN=serviceradar-bmp\-collector,[^"]+"\s+permissions: \{\s+publish: \{\s+allow: \["arancini\.updates", "arancini\.updates\.>", "\\\$JS\.API\.STREAM\.INFO\.ARANCINI_CAUSAL", "\\\$JS\.API\.STREAM\.CREATE\.ARANCINI_CAUSAL", "\\\$JS\.API\.STREAM\.UPDATE\.ARANCINI_CAUSAL"\]\s+\}\s+subscribe: \{\s+allow: \["_INBOX\.>"\]'
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: '(?s)user: "CN=serviceradar-falcosidekick,[^"]+"\s+permissions: \{\s+publish: \{\s+allow: \["falco\.>"\]\s+\}\s+subscribe: \{\s+allow: \["_INBOX\.>"\]'
+
+  - it: limits agent-gateway to its publish subjects and reply inboxes
+    template: templates/nats.yaml
+    documentSelector:
+      path: kind
+      value: StatefulSet
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: '(?s)user: "CN=serviceradar-agent-gateway,[^"]+"\s+permissions: \{\s+publish: \{\s+allow: \["metrics\.sysmon\.>", "metrics\.snmp\.>", "metrics\.icmp\.>", "metrics\.mtr\.>", "metrics\.rperf\.>", "metrics\.sweep\.>", "metrics\.timeseries\.>", "metrics\.agent_gateway", "otel\.traces\.raw", "otel\.metrics\.raw", "otel\.metrics\.derived", "logs\.otel", "inventory\.k8s\.public_endpoints"\]\s+deny: \[[^\]]*\]\s+\}\s+subscribe: \{\s+allow: \["_INBOX\.>"\]'
+
+  # nats-server reads an empty allow list as no restriction, and a catch-all
+  # O=ServiceRadar user granted every subject. Only the tools pod keeps ">".
+  - it: never grants everything by accident
+    template: templates/nats.yaml
+    documentSelector:
+      path: kind
+      value: StatefulSet
+    asserts:
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: 'allow: \[\]'
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: 'user: "O=ServiceRadar"'
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: 'user: "CN=serviceradar-agent,'
+
+
+  - it: limits datasvc to its own KV and object-store streams
+    template: templates/nats.yaml
+    documentSelector:
+      path: kind
+      value: StatefulSet
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: '(?s)user: "CN=serviceradar-datasvc,[^"]+"\s+permissions: \{\s+publish: \{\s+allow: \[[^\]]*"\\\$JS\.API\.STREAM\.INFO\.KV_serviceradar-datasvc"[^\]]*"_INBOX\.>"\s+\]\s+deny: \["\\\$SYS\.>"\]\s+\}\s+subscribe: \{\s+allow: \["_INBOX\.>"\]'
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: '(?s)user: "CN=serviceradar-datasvc,[^"]+"\s+permissions: \{\s+publish: \{\s+allow: \[[^\]]*("\\\$JS\.API\.>"|"events\.>"|"config\.>"|"\\\$JS\.API\.\*)'
+
+  - it: denies core destructive operations on datasvc's streams
+    template: templates/nats.yaml
+    documentSelector:
+      path: kind
+      value: StatefulSet
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: '(?s)user: "CN=serviceradar-core,[^"]+".*?deny: \["\\\$SYS\.>", "\\\$JS\.API\.STREAM\.CREATE\.KV_serviceradar-datasvc", "\\\$JS\.API\.STREAM\.UPDATE\.KV_serviceradar-datasvc", "\\\$JS\.API\.STREAM\.DELETE\.KV_serviceradar-datasvc", "\\\$JS\.API\.STREAM\.PURGE\.KV_serviceradar-datasvc", "\\\$JS\.API\.STREAM\.MSG\.DELETE\.KV_serviceradar-datasvc", "\\\$JS\.API\.STREAM\.CREATE\.OBJ_serviceradar-objects"'

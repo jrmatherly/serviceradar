@@ -1,7 +1,7 @@
 {
   "listen_addr": ":50057",
   "nats_url": "tls://nats:4222",
-  "nats_creds_file": "/etc/serviceradar/creds/platform.creds",
+  "nats_creds_file": "/etc/serviceradar/creds/datasvc.creds",
   "nats_operator": {
     "name": "serviceradar-dev",
     "operator_seed_env": "NATS_OPERATOR_SEED",

@@ -158,7 +158,8 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorkerTest do
       assert request.account_seed == "SEED_PLACEHOLDER"
       assert request.user_name == package.user_name
       assert request.credential_type == :USER_CREDENTIAL_TYPE_COLLECTOR
-      assert request.permissions.publish_allow == ["logs.syslog.>"]
+
+      assert request.permissions.publish_allow == ["logs.syslog", "$JS.API.STREAM.INFO.events"]
 
       send(adapter_pid, {:datasvc_release, {:respond, credential_response(public_key, u)}})
       assert :ok = Task.await(task, 30_000)

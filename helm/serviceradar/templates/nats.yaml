@@ -349,7 +349,8 @@ spec:
                       "\$JS.ACK.>",
                       "_INBOX.>"
                     ]
-                    deny: ["\$SYS.>"]
+                    # Core manages streams but must not delete or rewrite datasvc's.
+                    deny: ["\$SYS.>", "\$JS.API.STREAM.CREATE.KV_{{ $kvBucket }}", "\$JS.API.STREAM.UPDATE.KV_{{ $kvBucket }}", "\$JS.API.STREAM.DELETE.KV_{{ $kvBucket }}", "\$JS.API.STREAM.PURGE.KV_{{ $kvBucket }}", "\$JS.API.STREAM.MSG.DELETE.KV_{{ $kvBucket }}", "\$JS.API.STREAM.CREATE.OBJ_{{ $objectBucket }}", "\$JS.API.STREAM.UPDATE.OBJ_{{ $objectBucket }}", "\$JS.API.STREAM.DELETE.OBJ_{{ $objectBucket }}", "\$JS.API.STREAM.PURGE.OBJ_{{ $objectBucket }}", "\$JS.API.STREAM.MSG.DELETE.OBJ_{{ $objectBucket }}"]
                   }
                   subscribe: {
                     allow: [
@@ -388,75 +389,64 @@ spec:
                 user: "CN=serviceradar-agent-gateway,OU=Kubernetes,O=ServiceRadar,L=San Francisco,ST=CA,C=US"
                 permissions: {
                   publish: {
-                    allow: ["metrics.sysmon.>", "metrics.snmp.>", "metrics.icmp.>", "metrics.mtr.>", "metrics.rperf.>", "metrics.sweep.>", "metrics.timeseries.>", "metrics.agent_gateway", "otel.traces.raw", "otel.metrics.raw", "otel.metrics.derived", "logs.otel", "\$JS.API.>"]
+                    allow: ["metrics.sysmon.>", "metrics.snmp.>", "metrics.icmp.>", "metrics.mtr.>", "metrics.rperf.>", "metrics.sweep.>", "metrics.timeseries.>", "metrics.agent_gateway", "otel.traces.raw", "otel.metrics.raw", "otel.metrics.derived", "logs.otel", "inventory.k8s.public_endpoints"]
                     deny: ["\$SYS.>", "flow.attributed.>", "events.>", "logs.syslog", "logs.syslog.>", "logs.snmp", "logs.snmp.>"]
                   }
                   subscribe: {
-                    allow: []
+                    allow: ["_INBOX.>"]
                     deny: ["\$SYS.>", "flow.attributed.>", "flow.host-slice.>"]
                   }
                 }
               },
-              # Datasvc query-side service: reads catalog events/config and
-              # object/KV state. Attributed flows are queried from CNPG, not a
-              # flow.attributed.* NATS read-back stream.
+              # Datasvc owns the KV bucket holding agent configuration and the
+              # object store, and may call JetStream only on those two streams.
               {
                 user: "CN=serviceradar-datasvc,OU=Kubernetes,O=ServiceRadar,L=San Francisco,ST=CA,C=US"
                 permissions: {
                   publish: {
                     allow: [
-                      "events.>",
-                      "config.>",
                       "\$KV.{{ $kvBucket }}.>",
                       "\$O.{{ $objectBucket }}.>",
+                      "\$JS.FC.KV_{{ $kvBucket }}.>",
                       "\$JS.FC.OBJ_{{ $objectBucket }}.>",
-                      "\$JS.API.>",
-                      "\$JS.ACK.>",
+                      "\$JS.ACK.KV_{{ $kvBucket }}.>",
+                      "\$JS.ACK.OBJ_{{ $objectBucket }}.>",
+                      "\$JS.API.INFO",
+                      "\$JS.API.DIRECT.GET.KV_{{ $kvBucket }}.>",
+                      "\$JS.API.CONSUMER.CREATE.KV_{{ $kvBucket }}.>",
+                      "\$JS.API.STREAM.INFO.KV_{{ $kvBucket }}",
+                      "\$JS.API.STREAM.CREATE.KV_{{ $kvBucket }}",
+                      "\$JS.API.STREAM.UPDATE.KV_{{ $kvBucket }}",
+                      "\$JS.API.STREAM.PURGE.KV_{{ $kvBucket }}",
+                      "\$JS.API.STREAM.MSG.GET.KV_{{ $kvBucket }}",
+                      "\$JS.API.STREAM.MSG.DELETE.KV_{{ $kvBucket }}",
+                      "\$JS.API.DIRECT.GET.KV_{{ $kvBucket }}",
+                      "\$JS.API.CONSUMER.CREATE.KV_{{ $kvBucket }}",
+                      "\$JS.API.CONSUMER.DURABLE.CREATE.KV_{{ $kvBucket }}.*",
+                      "\$JS.API.CONSUMER.INFO.KV_{{ $kvBucket }}.*",
+                      "\$JS.API.CONSUMER.DELETE.KV_{{ $kvBucket }}.*",
+                      "\$JS.API.CONSUMER.MSG.NEXT.KV_{{ $kvBucket }}.*",
+                      "\$JS.API.DIRECT.GET.OBJ_{{ $objectBucket }}.>",
+                      "\$JS.API.CONSUMER.CREATE.OBJ_{{ $objectBucket }}.>",
+                      "\$JS.API.STREAM.INFO.OBJ_{{ $objectBucket }}",
+                      "\$JS.API.STREAM.CREATE.OBJ_{{ $objectBucket }}",
+                      "\$JS.API.STREAM.UPDATE.OBJ_{{ $objectBucket }}",
+                      "\$JS.API.STREAM.PURGE.OBJ_{{ $objectBucket }}",
+                      "\$JS.API.STREAM.MSG.GET.OBJ_{{ $objectBucket }}",
+                      "\$JS.API.STREAM.MSG.DELETE.OBJ_{{ $objectBucket }}",
+                      "\$JS.API.DIRECT.GET.OBJ_{{ $objectBucket }}",
+                      "\$JS.API.CONSUMER.CREATE.OBJ_{{ $objectBucket }}",
+                      "\$JS.API.CONSUMER.DURABLE.CREATE.OBJ_{{ $objectBucket }}.*",
+                      "\$JS.API.CONSUMER.INFO.OBJ_{{ $objectBucket }}.*",
+                      "\$JS.API.CONSUMER.DELETE.OBJ_{{ $objectBucket }}.*",
+                      "\$JS.API.CONSUMER.MSG.NEXT.OBJ_{{ $objectBucket }}.*",
                       "_INBOX.>"
                     ]
                     deny: ["\$SYS.>"]
                   }
                   subscribe: {
-                    allow: [
-                      "events.>",
-                      "config.>",
-                      "\$KV.{{ $kvBucket }}.>",
-                      "\$O.{{ $objectBucket }}.>",
-                      "\$JS.FC.OBJ_{{ $objectBucket }}.>",
-                      "\$JS.API.>",
-                      "\$JS.ACK.>",
-                      "_INBOX.>"
-                    ]
+                    allow: ["_INBOX.>"]
                     deny: ["\$SYS.>"]
-                  }
-                }
-              },
-              # Agent (B-5 subject-scoping): emits sweep/discovery events
-              # and consumes config for its partition. Denied from
-              # flow.attributed.> (attribution is core's responsibility)
-              # and $SYS.>.
-              {
-                user: "CN=serviceradar-agent,OU=Kubernetes,O=ServiceRadar,L=San Francisco,ST=CA,C=US"
-                permissions: {
-                  publish: {
-                    allow: [
-                      "events.>",
-                      "logs.>",
-                      "\$JS.API.>",
-                      "\$JS.ACK.>",
-                      "_INBOX.>"
-                    ]
-                    deny: ["\$SYS.>", "flow.attributed.>"]
-                  }
-                  subscribe: {
-                    allow: [
-                      "config.agent.>",
-                      "config.{{ $partitionId }}.>",
-                      "\$JS.API.>",
-                      "\$JS.ACK.>",
-                      "_INBOX.>"
-                    ]
-                    deny: ["\$SYS.>", "flow.attributed.>", "flow.host-slice.>"]
                   }
                 }
               },
@@ -464,10 +454,10 @@ spec:
                 user: "CN=serviceradar-log-collector,OU=Kubernetes,O=ServiceRadar,L=San Francisco,ST=CA,C=US"
                 permissions: {
                   publish: {
-                    allow: ["logs.syslog", "otel.>", "logs.otel", "\$JS.API.STREAM.INFO.events", "\$JS.API.STREAM.CREATE.events", "\$JS.API.>"]
+                    allow: ["logs.syslog", "otel.>", "logs.otel", "\$JS.API.STREAM.INFO.events", "\$JS.API.STREAM.CREATE.events", "\$JS.API.STREAM.UPDATE.events"]
                   }
                   subscribe: {
-                    allow: ["\$JS.API.>", "_INBOX.>"]
+                    allow: ["_INBOX.>"]
                   }
                 }
               },
@@ -475,10 +465,10 @@ spec:
                 user: "CN=serviceradar-flowgger,OU=Kubernetes,O=ServiceRadar,L=San Francisco,ST=CA,C=US"
                 permissions: {
                   publish: {
-                    allow: ["logs.syslog", "\$JS.API.STREAM.INFO.events", "\$JS.API.STREAM.CREATE.events", "\$JS.API.>"]
+                    allow: ["logs.syslog", "\$JS.API.STREAM.INFO.events", "\$JS.API.STREAM.UPDATE.events"]
                   }
                   subscribe: {
-                    allow: ["\$JS.API.>", "_INBOX.>"]
+                    allow: ["_INBOX.>"]
                   }
                 }
               },
@@ -486,10 +476,10 @@ spec:
                 user: "CN=serviceradar-otel,OU=Kubernetes,O=ServiceRadar,L=San Francisco,ST=CA,C=US"
                 permissions: {
                   publish: {
-                    allow: ["otel.>", "logs.otel", "\$JS.API.>"]
+                    allow: ["otel.>", "logs.otel", "\$JS.API.STREAM.INFO.events", "\$JS.API.STREAM.CREATE.events", "\$JS.API.STREAM.UPDATE.events"]
                   }
                   subscribe: {
-                    allow: ["\$JS.API.>", "_INBOX.>"]
+                    allow: ["_INBOX.>"]
                   }
                 }
               },
@@ -497,10 +487,10 @@ spec:
                 user: "CN=serviceradar-trapd,OU=Kubernetes,O=ServiceRadar,L=San Francisco,ST=CA,C=US"
                 permissions: {
                   publish: {
-                    allow: ["logs.snmp", "\$JS.API.STREAM.INFO.events", "\$JS.API.STREAM.CREATE.events", "\$JS.API.>"]
+                    allow: ["logs.snmp", "\$JS.API.STREAM.INFO.events", "\$JS.API.STREAM.UPDATE.events"]
                   }
                   subscribe: {
-                    allow: ["\$JS.API.>", "_INBOX.>"]
+                    allow: ["_INBOX.>"]
                   }
                 }
               },
@@ -511,14 +501,14 @@ spec:
                     {{- if $flowCollectorEnabled }}
                     allow: ["flows.raw.>", "flow.host-slice.>", {{ printf "\"\\$JS.API.STREAM.INFO.%s\"" $flowCollectorStream }}, {{ printf "\"\\$JS.API.STREAM.CREATE.%s\"" $flowCollectorStream }}, {{ printf "\"\\$JS.API.STREAM.UPDATE.%s\"" $flowCollectorStream }}, "\$JS.API.STREAM.INFO.events", "\$JS.API.STREAM.UPDATE.events"]
                     {{- else }}
-                    allow: []
+                    deny: [">"]
                     {{- end }}
                   }
                   subscribe: {
                     {{- if $flowCollectorEnabled }}
                     allow: ["_INBOX.>"]
                     {{- else }}
-                    allow: []
+                    deny: [">"]
                     {{- end }}
                   }
                 }
@@ -530,14 +520,14 @@ spec:
                     {{- if $flowCollectorEnabled }}
                     allow: ["flows.raw.>", {{ printf "\"\\$JS.API.STREAM.INFO.%s\"" $flowCollectorStream }}, {{ printf "\"\\$JS.API.STREAM.CREATE.%s\"" $flowCollectorStream }}, {{ printf "\"\\$JS.API.STREAM.UPDATE.%s\"" $flowCollectorStream }}, "\$JS.API.STREAM.INFO.events", "\$JS.API.STREAM.UPDATE.events"]
                     {{- else }}
-                    allow: []
+                    deny: [">"]
                     {{- end }}
                   }
                   subscribe: {
                     {{- if $flowCollectorEnabled }}
                     allow: ["_INBOX.>"]
                     {{- else }}
-                    allow: []
+                    deny: [">"]
                     {{- end }}
                   }
                 }
@@ -546,10 +536,10 @@ spec:
                 user: "CN=serviceradar-bmp-collector,OU=Kubernetes,O=ServiceRadar,L=San Francisco,ST=CA,C=US"
                 permissions: {
                   publish: {
-                    allow: ["arancini.updates", "arancini.updates.>", "\$JS.API.STREAM.INFO.ARANCINI_CAUSAL", "\$JS.API.STREAM.CREATE.ARANCINI_CAUSAL", "\$JS.API.>"]
+                    allow: ["arancini.updates", "arancini.updates.>", "\$JS.API.STREAM.INFO.ARANCINI_CAUSAL", "\$JS.API.STREAM.CREATE.ARANCINI_CAUSAL", "\$JS.API.STREAM.UPDATE.ARANCINI_CAUSAL"]
                   }
                   subscribe: {
-                    allow: ["\$JS.API.>", "_INBOX.>"]
+                    allow: ["_INBOX.>"]
                   }
                 }
               },
@@ -557,10 +547,10 @@ spec:
                 user: "CN=serviceradar-falcosidekick,OU=Kubernetes,O=ServiceRadar,L=San Francisco,ST=CA,C=US"
                 permissions: {
                   publish: {
-                    allow: ["falco.>", "\$JS.API.STREAM.INFO.falco_events", "\$JS.API.STREAM.CREATE.falco_events", "\$JS.API.>"]
+                    allow: ["falco.>"]
                   }
                   subscribe: {
-                    allow: ["\$JS.API.>", "_INBOX.>"]
+                    allow: ["_INBOX.>"]
                   }
                 }
               },
@@ -582,26 +572,15 @@ spec:
                     {{- if $k8sInventoryNatsEnabled }}
                     allow: [{{ $k8sInventorySubject | quote }}{{ if $k8sInventoryNodesEnabled }}, "inventory.k8s.nodes"{{ end }}, {{ printf "\"\\$JS.API.STREAM.INFO.%s\"" $k8sInventoryStream }}, {{ printf "\"\\$JS.API.STREAM.CREATE.%s\"" $k8sInventoryStream }}, {{ printf "\"\\$JS.API.STREAM.UPDATE.%s\"" $k8sInventoryStream }}]
                     {{- else }}
-                    allow: []
+                    deny: [">"]
                     {{- end }}
                   }
                   subscribe: {
                     {{- if $k8sInventoryNatsEnabled }}
                     allow: ["_INBOX.>"]
                     {{- else }}
-                    allow: []
+                    deny: [">"]
                     {{- end }}
-                  }
-                }
-              },
-              {
-                user: "O=ServiceRadar"
-                permissions: {
-                  publish: {
-                    allow: [">"]
-                  }
-                  subscribe: {
-                    allow: [">"]
                   }
                 }
               }

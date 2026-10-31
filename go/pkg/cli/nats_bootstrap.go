@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -278,7 +279,7 @@ type natsBootstrapPaths struct {
 	systemAccountPublicKeyPath string
 	systemCredsPath            string
 	platformCredsPath          string
-	flowCollectorCredsPath     string
+	identityCredsPaths         map[string]string
 	platformAccountPublicKey   string
 }
 
@@ -437,13 +438,17 @@ func writePlatformAccountFiles(cfg *CmdConfig, paths *natsBootstrapPaths, result
 		return fmt.Errorf("write platform.creds: %w", err)
 	}
 
-	flowCollectorCreds, err := generateFlowCollectorCreds(platformAccount, platformResult.AccountSeed)
-	if err != nil {
-		return fmt.Errorf("generate flow collector creds: %w", err)
-	}
-	paths.flowCollectorCredsPath = filepath.Join(paths.outputDir, "flow-collector.creds")
-	if err := os.WriteFile(paths.flowCollectorCredsPath, []byte(flowCollectorCreds.CredsFileContent), 0600); err != nil {
-		return fmt.Errorf("write flow-collector.creds: %w", err)
+	paths.identityCredsPaths = make(map[string]string)
+	for _, id := range serviceIdentities() {
+		creds, err := id.generateCreds(platformAccount, platformResult.AccountSeed)
+		if err != nil {
+			return fmt.Errorf("generate %s creds: %w", id.user, err)
+		}
+		path := filepath.Join(paths.outputDir, id.user+".creds")
+		if err := os.WriteFile(path, []byte(creds.CredsFileContent), 0600); err != nil {
+			return fmt.Errorf("write %s.creds: %w", id.user, err)
+		}
+		paths.identityCredsPaths[id.user] = path
 	}
 
 	platformJWTPath := filepath.Join(paths.jwtDir, platformResult.AccountPublicKey+".jwt")
@@ -505,8 +510,10 @@ func outputNATSBootstrapJSON(result *natsBootstrapAPIResponse, paths *natsBootst
 		"system_account_public_key_path": paths.systemAccountPublicKeyPath,
 		"system_creds_path":              paths.systemCredsPath,
 		"platform_creds_path":            paths.platformCredsPath,
-		"flow_collector_creds_path":      paths.flowCollectorCredsPath,
 		"platform_account_public_key":    paths.platformAccountPublicKey,
+	}
+	for user, path := range paths.identityCredsPaths {
+		output[strings.ReplaceAll(user, "-", "_")+"_creds_path"] = path
 	}
 	if result.OperatorSeed != "" {
 		output["operator_seed"] = result.OperatorSeed
@@ -632,48 +639,7 @@ func generatePlatformAccount(
 	// Per-agent credentials (per-host flow-collector JWTs) should be issued
 	// with GenerateAgentFlowCollectorCreds, which scopes publish to a
 	// single flow.host-slice.<agent_id> subject.
-	permissions := &accounts.UserPermissions{
-		PublishAllow: []string{
-			"flow.attributed.>",
-			"flow.raw.>",
-			"flows.raw.>",
-			"logs.>",
-			"live.logs.>",
-			"events.>",
-			"config.>",
-			"$JS.API.>",
-			"$JS.ACK.>",
-			// Object-store writes for the serviceradar_plugins bucket
-			// (native add-on bundles, plugin WASM blobs, dashboard
-			// artifacts). web-ng's Plugins.Storage publishes chunks to
-			// $O.<bucket>.C.<nuid> and metadata to $O.<bucket>.M.<key>;
-			// large-object PUTs also require replying to JetStream
-			// flow-control on $JS.FC.OBJ_<bucket>.>. Without these the
-			// platform-services credential hits "Permissions Violation for
-			// Publish to $O.serviceradar_plugins.C.<id>".
-			"$O.serviceradar_plugins.>",
-			"$JS.FC.OBJ_serviceradar_plugins.>",
-			"_INBOX.>",
-		},
-		PublishDeny: []string{"$SYS.>"},
-		SubscribeAllow: []string{
-			"flow.host-slice.>",
-			"flow.attributed.>",
-			"flow.raw.>",
-			"flows.raw.>",
-			"logs.>",
-			"events.>",
-			"config.>",
-			"$JS.API.>",
-			"$JS.ACK.>",
-			// Object-store reads (GET) for the serviceradar_plugins bucket.
-			"$O.serviceradar_plugins.>",
-			"_INBOX.>",
-		},
-		SubscribeDeny:  []string{"$SYS.>"},
-		AllowResponses: true,
-		MaxResponses:   1000,
-	}
+	permissions := platformPermissions()
 
 	if userName == "" {
 		userName = defaultPlatformUser
@@ -684,7 +650,7 @@ func generatePlatformAccount(
 		account.AccountSeed,
 		userName,
 		accounts.CredentialTypeService,
-		permissions,
+		&permissions,
 		0,
 	)
 	if err != nil {
@@ -745,28 +711,203 @@ func GenerateAgentFlowCollectorCreds(
 	)
 }
 
-func generateFlowCollectorCreds(accountName string, accountSeed string) (*accounts.UserCredentials, error) {
-	permissions := &accounts.UserPermissions{
-		PublishAllow: append([]string{
-			"flow.host-slice.>",
+// platformPermissions is the shared platform-services identity. Helm still
+// hands platform.creds to several components, so it stays at this set; core
+// adds its own subjects through the core service identity.
+func platformPermissions() accounts.UserPermissions {
+	return accounts.UserPermissions{
+		PublishAllow: []string{
+			"flow.attributed.>",
 			"flow.raw.>",
 			"flows.raw.>",
-		}, flowCollectorStreamPermissions()...),
-		PublishDeny:    []string{"$SYS.>", "flow.attributed.>"},
-		SubscribeAllow: []string{"_INBOX.>", "config.flow-collector.>"},
-		SubscribeDeny:  []string{"$SYS.>", "flow.host-slice.>", "flow.attributed.>"},
+			"logs.>",
+			"live.logs.>",
+			"events.>",
+			"metrics.>",
+			"config.>",
+			"$JS.API.>",
+			"$JS.ACK.>",
+			// Object-store writes for the serviceradar_plugins bucket
+			// (native add-on bundles, plugin WASM blobs, dashboard
+			// artifacts). web-ng's Plugins.Storage publishes chunks to
+			// $O.<bucket>.C.<nuid> and metadata to $O.<bucket>.M.<key>;
+			// large-object PUTs also require replying to JetStream
+			// flow-control on $JS.FC.OBJ_<bucket>.>. Without these the
+			// platform-services credential hits "Permissions Violation for
+			// Publish to $O.serviceradar_plugins.C.<id>".
+			"$O.serviceradar_plugins.>",
+			"$JS.FC.OBJ_serviceradar_plugins.>",
+			"_INBOX.>",
+		},
+		PublishDeny: append([]string{"$SYS.>"}, datasvcStreamAdminDenies()...),
+		SubscribeAllow: []string{
+			"flow.host-slice.>",
+			"flow.attributed.>",
+			"flow.raw.>",
+			"flows.raw.>",
+			"logs.>",
+			"events.>",
+			"metrics.>",
+			"config.>",
+			"$JS.API.>",
+			"$JS.ACK.>",
+			// Object-store reads (GET) for the serviceradar_plugins bucket.
+			"$O.serviceradar_plugins.>",
+			"_INBOX.>",
+		},
+		SubscribeDeny:  []string{"$SYS.>"},
 		AllowResponses: true,
-		MaxResponses:   16,
+		MaxResponses:   1000,
 	}
+}
 
+// serviceIdentity is a service that authenticates with its own <user>.creds
+// instead of platform.creds, scoped like its Helm CN=serviceradar-<user> user.
+// Collectors also drop that user's blanket $JS.API.>, which could delete any
+// stream; datasvc keeps it to administer its KV bucket and object store.
+type serviceIdentity struct {
+	user        string
+	permissions accounts.UserPermissions
+}
+
+func (id serviceIdentity) generateCreds(accountName, accountSeed string) (*accounts.UserCredentials, error) {
 	return accounts.GenerateUserCredentials(
 		accountName,
 		accountSeed,
-		"flow-collector",
+		id.user,
 		accounts.CredentialTypeService,
-		permissions,
+		&id.permissions,
 		0,
 	)
+}
+
+func serviceIdentities() []serviceIdentity {
+	datasvcPublish := append([]string{
+		"$KV." + datasvcKVBucket + ".>",
+		"$O." + datasvcObjectBucket + ".>",
+		"$JS.FC.KV_" + datasvcKVBucket + ".>",
+		"$JS.FC.OBJ_" + datasvcObjectBucket + ".>",
+		"$JS.ACK.KV_" + datasvcKVBucket + ".>",
+		"$JS.ACK.OBJ_" + datasvcObjectBucket + ".>",
+		// Read-only account usage; the KV client checks it before creating a bucket.
+		"$JS.API.INFO",
+		"_INBOX.>",
+	}, slices.Concat(jsAPIForStream("KV_"+datasvcKVBucket), jsAPIForStream("OBJ_"+datasvcObjectBucket))...)
+
+	core := platformPermissions()
+	// The rest of the Helm CN=serviceradar-core set, which core-elx needs in
+	// Compose.
+	core.PublishAllow = append(core.PublishAllow,
+		"flows.*.processed", "flows.attribution.observations", "pdns.ocsf", "pdns.ocsf.>",
+		"signals.analytics.>", "notifications.>", "scans.results.>", "mtr.results.>",
+		"vulnerability.assessment.transitions.>", "exposure.dimensions.cve", "exposure.dimensions.package",
+	)
+	core.SubscribeAllow = append(core.SubscribeAllow,
+		"flows.*.processed", "pdns.ocsf", "pdns.ocsf.>", "signals.analytics.>", "inventory.k8s.>",
+		"trivy.report.>", "vulnerability.assessment.transitions.>", "exposure.dimensions.cve",
+		"exposure.dimensions.package", "falco.>",
+	)
+
+	return []serviceIdentity{
+		{user: "core", permissions: core},
+		{user: "flow-collector", permissions: accounts.UserPermissions{
+			PublishAllow: append([]string{
+				"flow.host-slice.>",
+				"flow.raw.>",
+				"flows.raw.>",
+			}, flowCollectorStreamPermissions()...),
+			PublishDeny:    []string{"$SYS.>", "flow.attributed.>"},
+			SubscribeAllow: []string{"_INBOX.>", "config.flow-collector.>"},
+			SubscribeDeny:  []string{"$SYS.>", "flow.host-slice.>", "flow.attributed.>"},
+			AllowResponses: true,
+			MaxResponses:   16,
+		}},
+		// Datasvc owns the KV bucket holding agent configuration and may touch
+		// only its own two streams.
+		{user: "datasvc", permissions: accounts.UserPermissions{
+			PublishAllow:   datasvcPublish,
+			PublishDeny:    []string{"$SYS.>"},
+			SubscribeAllow: []string{"_INBOX.>"},
+			SubscribeDeny:  []string{"$SYS.>"},
+			AllowResponses: true,
+			MaxResponses:   1000,
+		}},
+		// Runs flowgger and the OTel collector in one container.
+		{user: "log-collector", permissions: streamPublisherPermissions("events", "logs.syslog", "logs.otel", "otel.>")},
+		{user: "trapd", permissions: streamAppenderPermissions("events", "logs.snmp")},
+		{user: "bmp-collector", permissions: streamPublisherPermissions("ARANCINI_CAUSAL", "arancini.updates", "arancini.updates.>")},
+	}
+}
+
+const (
+	datasvcKVBucket     = "serviceradar-datasvc"
+	datasvcObjectBucket = "serviceradar-objects"
+)
+
+// jsAPIForStream lists the JetStream API requests a KV or object store client
+// sends for one stream, with the stream always in the stream position: a
+// wildcard there would also match a consumer named after the stream on any
+// other stream. Stream DELETE is left out; datasvc never deletes its buckets.
+func jsAPIForStream(stream string) []string {
+	streamOps := []string{"STREAM.INFO", "STREAM.CREATE", "STREAM.UPDATE", "STREAM.PURGE", "STREAM.MSG.GET", "STREAM.MSG.DELETE", "DIRECT.GET", "CONSUMER.CREATE"}
+	consumerOps := []string{"CONSUMER.DURABLE.CREATE", "CONSUMER.INFO", "CONSUMER.DELETE", "CONSUMER.MSG.NEXT"}
+
+	apis := make([]string, 0, 2+len(streamOps)+len(consumerOps))
+	apis = append(apis,
+		"$JS.API.DIRECT.GET."+stream+".>",
+		"$JS.API.CONSUMER.CREATE."+stream+".>",
+	)
+	for _, op := range streamOps {
+		apis = append(apis, "$JS.API."+op+"."+stream)
+	}
+	for _, op := range consumerOps {
+		apis = append(apis, "$JS.API."+op+"."+stream+".*")
+	}
+
+	return apis
+}
+
+// datasvcStreamAdminDenies stops the broad platform credential from deleting,
+// purging, recreating or rewriting the streams behind datasvc's buckets.
+func datasvcStreamAdminDenies() []string {
+	streams := []string{"KV_" + datasvcKVBucket, "OBJ_" + datasvcObjectBucket}
+	ops := []string{"CREATE", "UPDATE", "DELETE", "PURGE", "MSG.DELETE"}
+
+	denies := make([]string, 0, len(streams)*len(ops))
+	for _, stream := range streams {
+		for _, op := range ops {
+			denies = append(denies, "$JS.API.STREAM."+op+"."+stream)
+		}
+	}
+
+	return denies
+}
+
+// streamPublisherPermissions is for a collector that owns its stream: it
+// publishes its subjects and looks up, creates or reconciles that one stream,
+// which is every JetStream call it makes.
+func streamPublisherPermissions(stream string, subjects ...string) accounts.UserPermissions {
+	return streamPermissions(stream, subjects, "INFO", "CREATE", "UPDATE")
+}
+
+// streamAppenderPermissions is for a collector that only adds its subjects to a
+// stream another component creates and sizes.
+func streamAppenderPermissions(stream string, subjects ...string) accounts.UserPermissions {
+	return streamPermissions(stream, subjects, "INFO", "UPDATE")
+}
+
+func streamPermissions(stream string, subjects []string, ops ...string) accounts.UserPermissions {
+	apis := make([]string, len(ops))
+	for i, op := range ops {
+		apis[i] = "$JS.API.STREAM." + op + "." + stream
+	}
+
+	return accounts.UserPermissions{
+		PublishAllow:   slices.Concat(subjects, apis),
+		PublishDeny:    []string{"$SYS.>"},
+		SubscribeAllow: []string{"_INBOX.>"},
+		SubscribeDeny:  []string{"$SYS.>"},
+	}
 }
 
 func flowCollectorStreamPermissions() []string {

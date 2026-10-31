@@ -7,7 +7,7 @@
   "publish_bytes_per_second": 4194304,
   "stream_discard_policy": "new",
   "nats_url": "tls://nats:4222",
-  "nats_creds_file": "/etc/serviceradar/creds/platform.creds",
+  "nats_creds_file": "/etc/serviceradar/creds/bmp-collector.creds",
   "nats_tls_required": true,
   "nats_tls_ca_cert_path": "/etc/serviceradar/certs/root.pem",
   "nats_tls_client_cert_path": "/etc/serviceradar/certs/bmp-collector.pem",
