@@ -4,6 +4,9 @@ defmodule ServiceRadarWebNGWeb.Api.EdgeSiteControllerTest do
   import ServiceRadarWebNG.AshTestHelpers,
     only: [admin_user_fixture: 0, viewer_user_fixture: 0, system_actor: 0]
 
+  alias ServiceRadar.Actors.SystemActor
+  alias ServiceRadar.Edge.CollectorCertificateIssuer
+  alias ServiceRadar.Edge.CollectorPackage
   alias ServiceRadar.Edge.NatsLeafServer
   alias ServiceRadar.Edge.Workers.ProvisionLeafWorker
   alias ServiceRadarWebNG.Auth.Guardian
@@ -102,6 +105,35 @@ defmodule ServiceRadarWebNGWeb.Api.EdgeSiteControllerTest do
     refute files[prefix <> "nats/nats-leaf.conf"] =~ "credentials:"
   end
 
+  test "the bundle's leaf config has a user for each collector package on the site", %{conn: conn} do
+    site = create_site(conn)
+    provision!(site["id"])
+    other_site = create_site(conn)
+
+    actor = SystemActor.system(:test)
+    assigned = create_collector_package!(actor, :trapd, site["id"])
+    revoked = create_collector_package!(actor, :flowgger, site["id"])
+    elsewhere = create_collector_package!(actor, :otel, other_site["id"])
+    create_collector_package!(actor, :falcosidekick, site["id"])
+
+    revoked
+    |> Ash.Changeset.new()
+    |> Ash.Changeset.set_argument(:reason, "invented")
+    |> Ash.Changeset.for_update(:revoke, %{}, actor: actor)
+    |> Ash.update!()
+
+    conn = post(conn, ~p"/api/admin/edge-sites/#{site["id"]}/bundle")
+    {:ok, files} = conn |> response(200) |> then(&:erl_tar.extract({:binary, &1}, [:compressed, :memory]))
+    files = Map.new(files, fn {name, content} -> {to_string(name), IO.iodata_to_binary(content)} end)
+    config = files["edge-site-#{site["slug"]}/nats/nats-leaf.conf"]
+
+    assert config =~ "CN=#{CollectorCertificateIssuer.component_id(assigned)}."
+    assert config =~ ~s(allow: ["logs.snmp"])
+    refute config =~ CollectorCertificateIssuer.component_id(revoked)
+    refute config =~ CollectorCertificateIssuer.component_id(elsewhere)
+    refute config =~ "falcosidekick"
+  end
+
   test "requires settings.edge.manage" do
     conn = authed(build_conn(), viewer_user_fixture())
 
@@ -153,6 +185,12 @@ defmodule ServiceRadarWebNGWeb.Api.EdgeSiteControllerTest do
   defp create_site(conn) do
     u = System.unique_integer([:positive])
     conn |> post(~p"/api/admin/edge-sites", %{"name" => "Site #{u}"}) |> json_response(201) |> Map.fetch!("data")
+  end
+
+  defp create_collector_package!(actor, type, site_id) do
+    CollectorPackage
+    |> Ash.Changeset.for_create(:create, %{collector_type: type, edge_site_id: site_id}, actor: actor)
+    |> Ash.create!()
   end
 
   defp provision!(site_id) do

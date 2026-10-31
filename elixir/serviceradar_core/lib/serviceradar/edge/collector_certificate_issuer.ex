@@ -10,6 +10,7 @@ defmodule ServiceRadar.Edge.CollectorCertificateIssuer do
 
   alias ServiceRadar.Edge.GatewayCertificates
   alias ServiceRadar.Edge.NatsLeafCertificateIssuer
+  alias ServiceRadar.Edge.Workers.ProvisionCollectorWorker
 
   @type material :: %{tls_cert_pem: String.t(), tls_key_pem: String.t(), ca_chain_pem: String.t()}
 
@@ -46,6 +47,23 @@ defmodule ServiceRadar.Edge.CollectorCertificateIssuer do
       {:error, {:issue_failed, reason}} -> {:error, {:collector_certificate_issue_failed, reason}}
       {:error, _reason} = error -> error
     end
+  end
+
+  @doc """
+  The user a leaf server maps this package's certificate to, for
+  `ServiceRadar.Edge.NatsLeafConfigGenerator`. Its subjects are the package's
+  NATS credential's, because static leaf users ignore that credential.
+  """
+  @spec leaf_identity(map(), keyword()) :: map()
+  def leaf_identity(package, opts \\ []) do
+    permissions = ProvisionCollectorWorker.collector_permissions(package.collector_type)
+
+    %{
+      component_id: component_id(package),
+      partition_id:
+        Keyword.get_lazy(opts, :partition_id, &NatsLeafCertificateIssuer.partition_id/0),
+      scope: %{publish: permissions.publish_allow, subscribe: permissions.subscribe_allow}
+    }
   end
 
   @doc "The certificate's component id. Derived from the package so it needs no storage."

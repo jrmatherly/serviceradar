@@ -5,11 +5,17 @@ defmodule ServiceRadarWebNG.Edge.EdgeSiteBundles do
   Shared by the edge-site LiveView and `Api.EdgeSiteController` so both
   produce the same tarball: the leaf config pointing at the leaf server's
   stored upstream URL, the provisioned certificates and decrypted keys, the
-  assignment-scoped direct leaf identities, and (only when a NATS account is
-  configured) freshly minted leaf credentials.
+  assignment-scoped direct leaf identities and the site's collector packages as
+  local users, and (only when a NATS account is configured) freshly minted leaf
+  credentials.
+
+  The config is rendered at download and nothing updates it on the leaf afterwards,
+  so a collector package assigned later is refused until the bundle is re-installed.
   """
 
   alias ServiceRadar.Actors.SystemActor
+  alias ServiceRadar.Edge.CollectorCertificateIssuer
+  alias ServiceRadar.Edge.CollectorPackage
   alias ServiceRadar.Edge.NatsLeafCredentials
   alias ServiceRadar.Plugins.AddonAssignment
   alias ServiceRadarWebNg.Edge.EdgeSiteBundleGenerator
@@ -29,12 +35,13 @@ defmodule ServiceRadarWebNG.Edge.EdgeSiteBundles do
   def build(site, %{status: status} = leaf_server, opts) when status in [:provisioned, :connected, :disconnected] do
     with {:ok, leaf_key_pem, server_key_pem} <- decrypted_keys(leaf_server),
          {:ok, direct_leaf_identities} <- direct_leaf_identities(site.id),
+         {:ok, collector_identities} <- collector_identities(site.id),
          {:ok, nats_creds} <- NatsLeafCredentials.mint(site, Keyword.take(opts, [:account_client])),
          {:ok, tarball} <-
            EdgeSiteBundleGenerator.create_tarball(site, leaf_server, nats_creds,
              leaf_key_pem: leaf_key_pem,
              server_key_pem: server_key_pem,
-             direct_leaf_identities: direct_leaf_identities
+             direct_leaf_identities: direct_leaf_identities ++ collector_identities
            ) do
       {:ok, tarball, EdgeSiteBundleGenerator.bundle_filename(site)}
     end
@@ -63,6 +70,20 @@ defmodule ServiceRadarWebNG.Edge.EdgeSiteBundles do
 
       {:error, reason} ->
         {:error, {:leaf_key_decrypt_failed, reason}}
+    end
+  end
+
+  # Falcosidekick has no user here: it presents the cluster's runtime certificate,
+  # whose subject is not a package identity.
+  defp collector_identities(site_id) do
+    query =
+      CollectorPackage
+      |> Ash.Query.for_read(:active)
+      |> Ash.Query.filter(edge_site_id == ^site_id and collector_type != :falcosidekick)
+
+    case Ash.read(query, actor: SystemActor.system(:edge_site_bundle_generator)) do
+      {:ok, packages} -> {:ok, Enum.map(packages, &CollectorCertificateIssuer.leaf_identity/1)}
+      {:error, reason} -> {:error, {:collector_identity_read_failed, reason}}
     end
   end
 

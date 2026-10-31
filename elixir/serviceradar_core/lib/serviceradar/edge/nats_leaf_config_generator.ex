@@ -38,8 +38,8 @@ defmodule ServiceRadar.Edge.NatsLeafConfigGenerator do
   - `:debug` - Enable debug logging (default: false)
   - `:with_credentials` - reference `/etc/nats/creds/account.creds` in the
     leaf remote (default: false; set only when the bundle ships minted creds)
-  - `:direct_leaf_identities` - assignment-scoped identities and their derived
-    subject scopes to render as local NATS authorization users
+  - `:direct_leaf_identities` - assignment-scoped and collector identities with
+    their subject scopes, rendered as the local NATS authorization users
 
   ## Returns
 
@@ -121,47 +121,34 @@ defmodule ServiceRadar.Edge.NatsLeafConfigGenerator do
 
   @doc false
   @spec render_direct_leaf_authorization(list()) :: String.t()
-  def render_direct_leaf_authorization([]), do: ""
-
   def render_direct_leaf_authorization(identities) when is_list(identities) do
     users =
       identities
       |> Enum.map(&render_direct_leaf_user/1)
       |> Enum.reject(&is_nil/1)
+      |> then(fn
+        # An empty user list turns authentication off (TestLeafWithNoCollectorsRefusesEveryClient),
+        # leaving every client with a CA-signed certificate unrestricted. CertIssuer
+        # cannot issue this name, and it holds only the deny-all defaults.
+        [] -> [~s(        { user: "CN=no-identity-assigned.invalid" })]
+        rendered -> rendered
+      end)
 
-    if users == [] do
-      ""
-    else
-      String.trim("""
-      # Assignment-scoped direct OTEL identities. This block is rendered from
-      # server-owned identity records; no account seed or broad platform user
-      # is installed on the leaf.
-      authorization {
-          # Preserve the existing local collector behavior when an ACL block
-          # is introduced. Every direct identity below has explicit
-          # permissions and therefore does not inherit these defaults.
-          default_permissions: {
-              publish: {
-                  allow: ["logs.>", "logs.otel", "otel.traces.>",
-                          "otel.metrics.>", "events.netflow.>",
-                          "events.falco.>", "netflow.>", "flow.host-slice.>",
-                          "flow.raw.>", "$JS.API.>", "$JS.ACK.>", "_INBOX.>"]
-                  deny: ["$SYS.>"]
-              }
-              subscribe: {
-                  allow: ["$JS.API.>", "$JS.ACK.>", "_INBOX.>"]
-                  deny: ["$SYS.>"]
-              }
-          }
-          users: [
-      #{Enum.join(users, ",\n")}
-          ]
-      }
-      """)
-    end
+    String.trim("""
+    # Local clients are known by their certificate alone. This block is rendered
+    # from server-owned records; no account seed or broad platform user is
+    # installed on the leaf, and a client with no user here is refused.
+    authorization {
+        default_permissions: {
+            publish: { deny: [">"] }
+            subscribe: { deny: [">"] }
+        }
+        users: [
+    #{Enum.join(users, ",\n")}
+        ]
+    }
+    """)
   end
-
-  def render_direct_leaf_authorization(_identities), do: ""
 
   defp render_direct_leaf_user(identity) when is_map(identity) do
     component_id = map_value(identity, :component_id)
@@ -175,20 +162,18 @@ defmodule ServiceRadar.Edge.NatsLeafConfigGenerator do
          subscribe when is_list(subscribe) <- map_value(scope, :subscribe) do
       cn = "CN=#{component_id}.#{partition_id}.serviceradar"
 
-      String.trim("""
-          {
-              user: #{nats_string(cn)}
-              permissions: {
-                  publish: {
-                      allow: #{nats_strings(publish)}
-                      deny: ["$SYS.>", "_INBOX.>"]
-                  }
-                  subscribe: {
-                      allow: #{nats_strings(subscribe)}
-                      deny: ["$SYS.>"]
+      String.trim_trailing("""
+              {
+                  user: #{nats_string(cn)}
+                  permissions: {
+                      publish: {
+                          #{render_grant(publish, ["$SYS.>", "_INBOX.>"])}
+                      }
+                      subscribe: {
+                          #{render_grant(subscribe, ["$SYS.>"])}
+                      }
                   }
               }
-          }
       """)
     else
       _ -> nil
@@ -196,6 +181,10 @@ defmodule ServiceRadar.Edge.NatsLeafConfigGenerator do
   end
 
   defp render_direct_leaf_user(_identity), do: nil
+
+  # nats-server reads `allow: []` as unrestricted.
+  defp render_grant([], _deny), do: ~s(deny: [">"])
+  defp render_grant(allow, deny), do: "allow: #{nats_strings(allow)}, deny: #{nats_strings(deny)}"
 
   defp nats_strings(values), do: values |> Enum.map_join(", ", &nats_string/1) |> then(&"[#{&1}]")
   defp nats_string(value), do: Jason.encode!(to_string(value))
@@ -426,7 +415,9 @@ defmodule ServiceRadar.Edge.NatsLeafConfigGenerator do
     ```
 
     The local listener requires TLS with a client certificate from the
-    ServiceRadar CA.
+    ServiceRadar CA, and accepts only the collectors assigned to this site when
+    this bundle was downloaded. After assigning a new collector package, download
+    this bundle again and run `setup.sh`; until then the leaf refuses that collector.
 
     ## Troubleshooting
 
