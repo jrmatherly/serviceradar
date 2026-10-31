@@ -32,13 +32,10 @@ defmodule ServiceRadarWebNGWeb.Api.EdgeSiteControllerTest do
 
   setup %{conn: conn} do
     prior_name = Application.get_env(:serviceradar, :nats_account_name)
-    prior_seed = Application.get_env(:serviceradar, :nats_account_seed)
     Application.delete_env(:serviceradar, :nats_account_name)
-    Application.delete_env(:serviceradar, :nats_account_seed)
 
     on_exit(fn ->
       restore(:nats_account_name, prior_name)
-      restore(:nats_account_seed, prior_seed)
     end)
 
     %{conn: authed(conn, admin_user_fixture())}

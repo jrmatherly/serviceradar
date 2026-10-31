@@ -24,6 +24,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/nats-io/jwt/v2"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
@@ -230,11 +231,11 @@ func TestNATSAccountServer_GenerateUserCredentials(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create test account: %v", err)
 	}
+	server.SetPlatformAccount("test-ns", createResp.AccountSeed)
 
 	t.Run("success with collector type", func(t *testing.T) {
 		req := &proto.GenerateUserCredentialsRequest{
 			AccountName:    "test-ns",
-			AccountSeed:    createResp.AccountSeed,
 			UserName:       "collector-1",
 			CredentialType: proto.UserCredentialType_USER_CREDENTIAL_TYPE_COLLECTOR,
 		}
@@ -266,7 +267,6 @@ func TestNATSAccountServer_GenerateUserCredentials(t *testing.T) {
 	t.Run("with expiration", func(t *testing.T) {
 		req := &proto.GenerateUserCredentialsRequest{
 			AccountName:       "test-ns",
-			AccountSeed:       createResp.AccountSeed,
 			UserName:          "expiring-user",
 			CredentialType:    proto.UserCredentialType_USER_CREDENTIAL_TYPE_SERVICE,
 			ExpirationSeconds: 3600, // 1 hour
@@ -285,7 +285,6 @@ func TestNATSAccountServer_GenerateUserCredentials(t *testing.T) {
 	t.Run("rejects out of scope custom permissions", func(t *testing.T) {
 		req := &proto.GenerateUserCredentialsRequest{
 			AccountName: "test-ns",
-			AccountSeed: createResp.AccountSeed,
 			UserName:    "bad-user",
 			Permissions: &proto.UserPermissions{
 				PublishAllow: []string{"$SYS.REQ.CLAIMS.UPDATE"},
@@ -306,7 +305,6 @@ func TestNATSAccountServer_GenerateUserCredentials(t *testing.T) {
 	t.Run("empty account name", func(t *testing.T) {
 		req := &proto.GenerateUserCredentialsRequest{
 			AccountName: "",
-			AccountSeed: createResp.AccountSeed,
 			UserName:    "test-user",
 		}
 
@@ -321,28 +319,47 @@ func TestNATSAccountServer_GenerateUserCredentials(t *testing.T) {
 		}
 	})
 
-	t.Run("empty account seed", func(t *testing.T) {
-		req := &proto.GenerateUserCredentialsRequest{
+	t.Run("signs with the platform account seed", func(t *testing.T) {
+		resp, err := server.GenerateUserCredentials(ctx, &proto.GenerateUserCredentialsRequest{
 			AccountName: "test-ns",
-			AccountSeed: "",
+			UserName:    "trapd-edge",
+		})
+		if err != nil {
+			t.Fatalf("GenerateUserCredentials failed: %v", err)
+		}
+
+		claims, err := jwt.DecodeUserClaims(resp.UserJwt)
+		if err != nil {
+			t.Fatalf("decode user JWT: %v", err)
+		}
+		if claims.IssuerAccount != createResp.AccountPublicKey {
+			t.Errorf("issuer account = %s, want %s", claims.IssuerAccount, createResp.AccountPublicKey)
+		}
+	})
+
+	t.Run("refuses an account other than the platform account", func(t *testing.T) {
+		_, err := server.GenerateUserCredentials(ctx, &proto.GenerateUserCredentialsRequest{
+			AccountName: "other-account",
 			UserName:    "test-user",
+		})
+		if got := status.Code(err); got != codes.InvalidArgument {
+			t.Errorf("code = %v, want InvalidArgument (err %v)", got, err)
 		}
+	})
 
-		_, err := server.GenerateUserCredentials(ctx, req)
-		if err == nil {
-			t.Fatal("Expected error for empty account seed")
-		}
-
-		st, _ := status.FromError(err)
-		if st.Code() != codes.InvalidArgument {
-			t.Errorf("Expected InvalidArgument, got: %v", st.Code())
+	t.Run("refuses when no seed is configured", func(t *testing.T) {
+		_, err := newTestNATSAccountServer(t).GenerateUserCredentials(ctx, &proto.GenerateUserCredentialsRequest{
+			AccountName: "test-ns",
+			UserName:    "test-user",
+		})
+		if got := status.Code(err); got != codes.FailedPrecondition {
+			t.Errorf("code = %v, want FailedPrecondition (err %v)", got, err)
 		}
 	})
 
 	t.Run("empty user name", func(t *testing.T) {
 		req := &proto.GenerateUserCredentialsRequest{
 			AccountName: "test-ns",
-			AccountSeed: createResp.AccountSeed,
 			UserName:    "",
 		}
 
@@ -393,9 +410,9 @@ func TestNATSAccountServer_SignAccountJWT(t *testing.T) {
 
 	t.Run("with revocations", func(t *testing.T) {
 		// First generate a user to revoke
+		server.SetPlatformAccount("resign-account", createResp.AccountSeed)
 		userResp, err := server.GenerateUserCredentials(ctx, &proto.GenerateUserCredentialsRequest{
 			AccountName: "resign-account",
-			AccountSeed: createResp.AccountSeed,
 			UserName:    "revoke-me",
 		})
 		if err != nil {

@@ -47,7 +47,7 @@
 - Modify: core runtime config that reads env (`elixir/serviceradar_core_elx/config/runtime.exs` or wherever `:serviceradar` env is set; find with `grep -rn 'config :serviceradar,' elixir/*/config/runtime.exs`)
 - Test: `go/pkg/cli/nats_bootstrap_acl_test.go`
 
-**Decision first (owner):** core holding the account seed lets it mint any user in the platform account. Alternative: datasvc keeps the seed and core asks datasvc to mint by name (datasvc already holds `operator.seed`). Recommend the alternative: add `account_seed_file` to datasvc config and let `GenerateUserCredentials` take an account name only. Record the choice in this task before coding.
+**Decision (owner):** datasvc holds the platform account seed. Core never sees it and asks datasvc to mint by account name: `GenerateUserCredentialsRequest` drops `account_seed`, and datasvc signs with `platform_account_seed_file` from its operator config. datasvc already mounts `operator.seed`, so it gains no power, and a compromised core gets only credentials that pass the datasvc validator rather than the key that signs any user in the account.
 
 - [ ] Step 1: Write failing test `TestBootstrapWritesPlatformAccountSeedFile` asserting `platform_account.seed` exists with mode `0600` after `bootstrapLocalCreds`, starts with `SA`, and that `platform.creds` and the seed belong to the same account public key.
 - [ ] Step 2: Run `go test ./go/pkg/cli/ -run TestBootstrapWritesPlatformAccountSeedFile`; expect FAIL (file missing).

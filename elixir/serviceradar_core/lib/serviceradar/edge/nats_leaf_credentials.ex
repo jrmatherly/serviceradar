@@ -4,9 +4,8 @@ defmodule ServiceRadar.Edge.NatsLeafCredentials do
 
   The hub authenticates leaf servers by mTLS (see
   `ServiceRadar.Edge.NatsLeafCertificateIssuer`), so credentials are optional.
-  When this deployment has a NATS account configured (`:nats_account_name` and
-  `:nats_account_seed`, the same settings `ProvisionCollectorWorker` uses), a
-  leaf-scoped user is minted through `ServiceRadar.NATS.AccountClient` and
+  When this deployment has a NATS account configured (`:nats_account_name`, the
+  same setting `ProvisionCollectorWorker` uses), a leaf-scoped user is minted through `ServiceRadar.NATS.AccountClient` and
   recorded as a `NatsCredential`. Without that configuration this returns
   `{:ok, nil}` and the bundle ships without a creds file. Placeholder
   credentials are never produced.
@@ -38,17 +37,13 @@ defmodule ServiceRadar.Edge.NatsLeafCredentials do
   def mint(edge_site, opts \\ []) do
     account_client = Keyword.get(opts, :account_client, ServiceRadar.NATS.AccountClient)
 
-    case account_config() do
-      nil ->
-        {:ok, nil}
-
-      %{account_name: account_name, account_seed: account_seed} ->
+    case Application.get_env(:serviceradar, :nats_account_name) do
+      account_name when is_binary(account_name) and account_name != "" ->
         user_name = "leaf-#{edge_site.slug}"
 
         with {:ok, creds} <-
                account_client.generate_user_credentials(
                  account_name,
-                 account_seed,
                  user_name,
                  :service,
                  permissions: @leaf_permissions
@@ -56,20 +51,14 @@ defmodule ServiceRadar.Edge.NatsLeafCredentials do
              {:ok, _credential} <- record_credential(edge_site, user_name, creds) do
           {:ok, creds.creds_file_content}
         end
+
+      _ ->
+        {:ok, nil}
     end
   end
 
   @doc false
   def leaf_permissions, do: @leaf_permissions
-
-  defp account_config do
-    name = Application.get_env(:serviceradar, :nats_account_name)
-    seed = Application.get_env(:serviceradar, :nats_account_seed)
-
-    if is_binary(name) and name != "" and is_binary(seed) and seed != "" do
-      %{account_name: name, account_seed: seed}
-    end
-  end
 
   defp record_credential(edge_site, user_name, creds) do
     NatsCredential

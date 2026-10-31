@@ -153,7 +153,6 @@ defmodule ServiceRadar.NATS.AccountClientTest do
     test "builds request with all fields" do
       request = %Proto.GenerateUserCredentialsRequest{
         account_name: "edge-account",
-        account_seed: "SATEST123",
         user_name: "collector-1",
         credential_type: :USER_CREDENTIAL_TYPE_COLLECTOR,
         permissions: nil,
@@ -161,7 +160,7 @@ defmodule ServiceRadar.NATS.AccountClientTest do
       }
 
       assert request.account_name == "edge-account"
-      assert request.account_seed == "SATEST123"
+      refute Map.has_key?(request, :account_seed)
       assert request.user_name == "collector-1"
       assert request.credential_type == :USER_CREDENTIAL_TYPE_COLLECTOR
       assert request.expiration_seconds == 86_400

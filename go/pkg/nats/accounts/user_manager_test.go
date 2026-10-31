@@ -17,6 +17,7 @@
 package accounts
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -234,6 +235,39 @@ func TestGenerateUserCredentials_AdminType(t *testing.T) {
 	subAllow := claims.Sub.Allow
 	if !contains(subAllow, "test-ns.>") {
 		t.Error("Admin should have 'test-ns.>' subscribe permission")
+	}
+}
+
+// Edge collector credentials depend on this: the :collector type's defaults
+// (logs.>, telemetry.>, ...) must not survive next to the scoped subjects.
+func TestGenerateUserCredentials_CollectorCustomPermissionsReplaceDefaults(t *testing.T) {
+	creds, err := GenerateUserCredentials(
+		"platform",
+		createTestAccount(t),
+		"trapd-edge",
+		CredentialTypeCollector,
+		&UserPermissions{
+			PublishAllow:   []string{"logs.snmp", "$JS.API.STREAM.INFO.events"},
+			SubscribeAllow: []string{"_INBOX.trapd-edge.>"},
+		},
+		0,
+	)
+	if err != nil {
+		t.Fatalf("GenerateUserCredentials() error = %v", err)
+	}
+
+	claims, err := jwt.DecodeUserClaims(creds.UserJWT)
+	if err != nil {
+		t.Fatalf("jwt.DecodeUserClaims() error = %v", err)
+	}
+
+	wantPub := []string{"logs.snmp", "$JS.API.STREAM.INFO.events"}
+	if !slices.Equal(claims.Pub.Allow, wantPub) {
+		t.Errorf("publish allow = %v, want %v", claims.Pub.Allow, wantPub)
+	}
+	wantSub := []string{"_INBOX.trapd-edge.>"}
+	if !slices.Equal(claims.Sub.Allow, wantSub) {
+		t.Errorf("subscribe allow = %v, want %v", claims.Sub.Allow, wantSub)
 	}
 }
 

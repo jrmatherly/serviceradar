@@ -39,8 +39,9 @@ import (
 )
 
 // NATSAccountServer implements the NATSAccountService gRPC interface.
-// This is a stateless service that performs NATS JWT/NKeys cryptographic operations.
-// Account state (seeds, JWTs) is stored by the caller (Elixir/CNPG with AshCloak).
+// It performs NATS JWT/NKeys cryptographic operations with the keys it holds: the
+// operator key and the platform account seed. Callers never see the platform seed;
+// they ask for credentials by account name.
 type NATSAccountServer struct {
 	proto.UnimplementedNATSAccountServiceServer
 
@@ -50,6 +51,11 @@ type NATSAccountServer struct {
 
 	// natsStore provides NATS connection for pushing JWTs to resolver
 	natsStore *NATSStore
+
+	// platformAccountName and platformAccountSeed sign GenerateUserCredentials.
+	// Both are empty when the deployment has no platform account seed.
+	platformAccountName string
+	platformAccountSeed string
 
 	// systemAccountSeed is stored after bootstrap for JWT push operations
 	systemAccountSeed string
@@ -72,7 +78,6 @@ type NATSAccountServer struct {
 }
 
 // NewNATSAccountServer creates a new NATSAccountServer with the given operator.
-// The server is stateless - it only holds the operator key for signing operations.
 // If operator is nil, the server will start in uninitialized state and require bootstrap.
 func NewNATSAccountServer(operator *accounts.Operator) *NATSAccountServer {
 	server := &NATSAccountServer{
@@ -82,6 +87,14 @@ func NewNATSAccountServer(operator *accounts.Operator) *NATSAccountServer {
 		server.signer = accounts.NewAccountSigner(operator)
 	}
 	return server
+}
+
+// SetPlatformAccount configures the account GenerateUserCredentials mints for.
+func (s *NATSAccountServer) SetPlatformAccount(name, seed string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.platformAccountName = name
+	s.platformAccountSeed = seed
 }
 
 // SetNATSStore sets the NATS store for JWT push operations.
@@ -644,7 +657,8 @@ func (s *NATSAccountServer) CreateAccount(
 }
 
 // GenerateUserCredentials creates NATS user credentials for an account.
-// Requires the account_seed (from Elixir storage) to sign the user JWT.
+// It signs with the platform account seed held by this server, so a caller gets
+// only credentials that pass validateUserPermissions.
 func (s *NATSAccountServer) GenerateUserCredentials(
 	ctx context.Context,
 	req *proto.GenerateUserCredentialsRequest,
@@ -656,11 +670,19 @@ func (s *NATSAccountServer) GenerateUserCredentials(
 	if req.GetAccountName() == "" {
 		return nil, status.Error(codes.InvalidArgument, "account_name is required")
 	}
-	if req.GetAccountSeed() == "" {
-		return nil, status.Error(codes.InvalidArgument, "account_seed is required")
-	}
 	if req.GetUserName() == "" {
 		return nil, status.Error(codes.InvalidArgument, "user_name is required")
+	}
+
+	s.mu.RLock()
+	platformName, platformSeed := s.platformAccountName, s.platformAccountSeed
+	s.mu.RUnlock()
+
+	if platformSeed == "" {
+		return nil, status.Error(codes.FailedPrecondition, "platform account seed is not configured")
+	}
+	if req.GetAccountName() != platformName {
+		return nil, status.Errorf(codes.InvalidArgument, "account_name %q is not the platform account", req.GetAccountName())
 	}
 
 	// Convert proto credential type to domain model
@@ -673,8 +695,8 @@ func (s *NATSAccountServer) GenerateUserCredentials(
 	}
 
 	creds, err := accounts.GenerateUserCredentials(
-		req.GetAccountName(),
-		req.GetAccountSeed(),
+		platformName,
+		platformSeed,
 		req.GetUserName(),
 		credType,
 		permissions,

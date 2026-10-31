@@ -52,7 +52,7 @@ type UserCredentials struct {
 }
 
 // GenerateUserCredentials creates NATS credentials for a user in an account.
-// The accountSeed is the account private key (passed from Elixir storage).
+// The accountSeed is the account private key.
 func GenerateUserCredentials(
 	namespace string,
 	accountSeed string,

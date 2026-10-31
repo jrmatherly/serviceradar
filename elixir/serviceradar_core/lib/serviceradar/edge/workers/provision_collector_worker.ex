@@ -64,12 +64,11 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorker do
       "Provisioning credentials for collector package #{package_id} (attempt #{attempt}/#{max})"
     )
 
-    # In single-deployment mode, NATS config comes from environment
     with {:ok, package} <- get_package(package_id),
          :ok <- validate_package_status(package),
          {:ok, package} <- mark_provisioning(package),
-         {:ok, nats_config} <- get_nats_config(),
-         {:ok, user_creds} <- generate_user_credentials(nats_config, package),
+         {:ok, account_name} <- get_account_name(),
+         {:ok, user_creds} <- generate_user_credentials(account_name, package),
          {:ok, _package} <- persist_credentials(package, user_creds) do
       Logger.info("Successfully provisioned credentials for collector package #{package_id}")
       :ok
@@ -86,11 +85,6 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorker do
         Logger.error("NATS not configured for package #{package_id}")
         mark_failed(package_id, "NATS account not configured for this deployment")
         {:discard, :nats_not_configured}
-
-      {:error, :account_seed_not_found} ->
-        Logger.error("NATS account seed not found for package #{package_id}")
-        mark_failed(package_id, "NATS account seed not configured")
-        {:discard, :account_seed_not_found}
 
       {:error, {:grpc_error, message}} = error ->
         Logger.error("gRPC error provisioning credentials for package #{package_id}: #{message}")
@@ -160,30 +154,19 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorker do
     end
   end
 
-  defp get_nats_config do
-    # In single-deployment mode, NATS configuration comes from environment
-    account_name = Application.get_env(:serviceradar, :nats_account_name)
-    account_seed = Application.get_env(:serviceradar, :nats_account_seed)
-
-    cond do
-      is_nil(account_name) or account_name == "" ->
-        {:error, :nats_not_configured}
-
-      is_nil(account_seed) or account_seed == "" ->
-        {:error, :account_seed_not_found}
-
-      true ->
-        {:ok, %{account_name: account_name, account_seed: account_seed}}
+  defp get_account_name do
+    case Application.get_env(:serviceradar, :nats_account_name) do
+      name when is_binary(name) and name != "" -> {:ok, name}
+      _ -> {:error, :nats_not_configured}
     end
   end
 
-  defp generate_user_credentials(nats_config, package) do
+  defp generate_user_credentials(account_name, package) do
     # Build permissions based on collector type
     permissions = collector_permissions(package.collector_type)
 
     AccountClient.generate_user_credentials(
-      nats_config.account_name,
-      nats_config.account_seed,
+      account_name,
       package.user_name,
       :collector,
       permissions: permissions

@@ -84,18 +84,15 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorkerTest do
 
   setup do
     prior_account_name = Application.get_env(:serviceradar, :nats_account_name)
-    prior_account_seed = Application.get_env(:serviceradar, :nats_account_seed)
 
     prior_coordinator =
       Application.get_env(:serviceradar_core, :provision_collector_worker_test_coordinator)
 
     Application.put_env(:serviceradar, :nats_account_name, "TEST_ACCOUNT")
-    Application.put_env(:serviceradar, :nats_account_seed, "SEED_PLACEHOLDER")
     Application.put_env(:serviceradar_core, :provision_collector_worker_test_coordinator, self())
 
     on_exit(fn ->
       restore_env(:serviceradar, :nats_account_name, prior_account_name)
-      restore_env(:serviceradar, :nats_account_seed, prior_account_seed)
 
       restore_env(
         :serviceradar_core,
@@ -155,7 +152,7 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorkerTest do
       assert_receive {:datasvc_generate_user_credentials, adapter_pid, request}, 10_000
 
       assert request.account_name == "TEST_ACCOUNT"
-      assert request.account_seed == "SEED_PLACEHOLDER"
+      refute Map.has_key?(request, :account_seed)
       assert request.user_name == package.user_name
       assert request.credential_type == :USER_CREDENTIAL_TYPE_COLLECTOR
 

@@ -11,11 +11,11 @@ defmodule ServiceRadar.Edge.Workers.ProvisionAgentWorker do
 
   ## Why mint server-side?
 
-  The platform account seed is held only on core/Elixir (see
-  `Application.get_env(:serviceradar, :nats_account_seed)`). Self-minting
-  on the agent would require shipping the seed in the bundle, which
-  inverts the current trust boundary and would let any compromised agent
-  forge subjects for any other agent. Shipping a pre-signed `*.creds`
+  The platform account seed is held only by datasvc; core asks datasvc to
+  mint by account name (`Application.get_env(:serviceradar, :nats_account_name)`).
+  Self-minting on the agent would require shipping the seed in the bundle,
+  which inverts the current trust boundary and would let any compromised
+  agent forge subjects for any other agent. Shipping a pre-signed `*.creds`
   file scoped to `flow.host-slice.<agent_id>` matches the established
   collector pattern and keeps the seed off the wire.
 
@@ -94,8 +94,9 @@ defmodule ServiceRadar.Edge.Workers.ProvisionAgentWorker do
          :ok <- validate_agent_package(package),
          {:ok, agent_id} <- resolve_agent_id(package),
          {:ok, permissions} <- build_permissions(agent_id),
-         {:ok, nats_config} <- get_nats_config(),
-         {:ok, user_creds} <- mint_credentials(nats_config, agent_id, permissions, account_client),
+         {:ok, account_name} <- get_account_name(),
+         {:ok, user_creds} <-
+           mint_credentials(account_name, agent_id, permissions, account_client),
          {:ok, credential} <- create_credential_record(package, agent_id, user_creds),
          {:ok, _package} <- attach_creds(package, credential.id, user_creds.creds_file_content) do
       Logger.info(
@@ -122,10 +123,6 @@ defmodule ServiceRadar.Edge.Workers.ProvisionAgentWorker do
       {:error, :nats_not_configured} ->
         Logger.error("NATS account not configured for agent package #{package_id}")
         {:discard, :nats_not_configured}
-
-      {:error, :account_seed_not_found} ->
-        Logger.error("NATS account seed not configured for agent package #{package_id}")
-        {:discard, :account_seed_not_found}
 
       {:error, {:grpc_error, message}} = error ->
         Logger.error(
@@ -183,21 +180,16 @@ defmodule ServiceRadar.Edge.Workers.ProvisionAgentWorker do
 
   defp resolve_agent_id(_), do: {:error, :invalid_agent_id}
 
-  defp get_nats_config do
-    account_name = Application.get_env(:serviceradar, :nats_account_name)
-    account_seed = Application.get_env(:serviceradar, :nats_account_seed)
-
-    cond do
-      is_nil(account_name) or account_name == "" -> {:error, :nats_not_configured}
-      is_nil(account_seed) or account_seed == "" -> {:error, :account_seed_not_found}
-      true -> {:ok, %{account_name: account_name, account_seed: account_seed}}
+  defp get_account_name do
+    case Application.get_env(:serviceradar, :nats_account_name) do
+      name when is_binary(name) and name != "" -> {:ok, name}
+      _ -> {:error, :nats_not_configured}
     end
   end
 
-  defp mint_credentials(nats_config, agent_id, permissions, account_client) do
+  defp mint_credentials(account_name, agent_id, permissions, account_client) do
     account_client.generate_user_credentials(
-      nats_config.account_name,
-      nats_config.account_seed,
+      account_name,
       AgentFlowCollectorPermissions.user_name(agent_id),
       :service,
       permissions: permissions,

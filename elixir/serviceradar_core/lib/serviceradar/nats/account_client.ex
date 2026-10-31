@@ -3,8 +3,8 @@ defmodule ServiceRadar.NATS.AccountClient do
   gRPC client for the datasvc NATSAccountService.
 
   This client is used to create and manage NATS accounts for account isolation.
-  The datasvc is stateless - it only holds the operator key for signing JWTs.
-  Account state (seeds, JWTs) is stored by Elixir in CNPG with AshCloak encryption.
+  datasvc holds the operator key and the platform account seed. Core never sees
+  that seed; it asks datasvc to mint user credentials by account name.
 
   ## Configuration
 
@@ -24,10 +24,9 @@ defmodule ServiceRadar.NATS.AccountClient do
       {:ok, result} = AccountClient.create_account("edge-account")
       # result.account_seed should be encrypted and stored securely
 
-      # Generate user credentials (requires decrypted account seed)
+      # Generate user credentials, signed by datasvc with the platform account seed
       {:ok, creds} = AccountClient.generate_user_credentials(
-        "edge-account",
-        account_seed,
+        "platform",
         "collector-1",
         :collector
       )
@@ -122,9 +121,11 @@ defmodule ServiceRadar.NATS.AccountClient do
   end
 
   @doc """
-  Generate NATS user credentials for an account.
+  Generate NATS user credentials for the platform account.
 
-  The `account_seed` must be the decrypted seed from stored configuration.
+  datasvc signs with the platform account seed it holds. It answers
+  `FAILED_PRECONDITION` when it has no seed and `INVALID_ARGUMENT` when
+  `account_name` is not the platform account.
 
   ## Credential Types
 
@@ -141,40 +142,25 @@ defmodule ServiceRadar.NATS.AccountClient do
   ## Examples
 
       {:ok, creds} = AccountClient.generate_user_credentials(
-        "edge-account",
-        account_seed,
+        "platform",
         "flowgger-collector-1",
         :collector
       )
 
       {:ok, creds} = AccountClient.generate_user_credentials(
-        "edge-account",
-        account_seed,
+        "platform",
         "event-writer",
         :service,
         expiration_seconds: 86_400  # 24 hours
       )
   """
-  @spec generate_user_credentials(
-          String.t(),
-          String.t(),
-          String.t(),
-          credential_type(),
-          keyword()
-        ) ::
+  @spec generate_user_credentials(String.t(), String.t(), credential_type(), keyword()) ::
           {:ok, user_credentials()} | {:error, term()}
-  def generate_user_credentials(
-        account_name,
-        account_seed,
-        user_name,
-        credential_type,
-        opts \\ []
-      ) do
+  def generate_user_credentials(account_name, user_name, credential_type, opts \\ []) do
     timeout = opts[:timeout] || @default_timeout
 
     request = %Proto.GenerateUserCredentialsRequest{
       account_name: account_name,
-      account_seed: account_seed,
       user_name: user_name,
       credential_type: credential_type_to_proto(credential_type),
       permissions: build_permissions(opts[:permissions]),
