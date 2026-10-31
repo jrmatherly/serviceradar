@@ -164,6 +164,25 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
       assert mode(Path.join(installed, "creds/flowgger.creds")) == 0o600
     end
 
+    test "update.sh reports success only when the unit stays up" do
+      package = %{sample_flowgger_package() | tls_cert_pem: "cert-pem\n", ca_chain_pem: "ca-pem\n"}
+
+      {:ok, tarball} =
+        CollectorBundleGenerator.create_tarball(package, sample_nats_creds(), sample_tls_key(),
+          nats_url: "tls://host01.example.com:4222"
+        )
+
+      script = tarball |> extract_files() |> find_file("update.sh")
+      assert {_, 0} = System.cmd("bash", ["-n", "-c", script], stderr_to_stdout: true)
+
+      assert {:ok, _installed} = install_bundle(tarball)
+
+      assert {:error, {status, output}} = install_bundle(tarball, nil, false)
+      assert status != 0
+      assert output =~ "journalctl -u serviceradar-log-collector"
+      refute output =~ "Update complete"
+    end
+
     test "extracts with a runnable script and private secrets" do
       package = %{sample_flowgger_package() | tls_cert_pem: "cert-pem\n", ca_chain_pem: "ca-pem\n"}
 
@@ -651,7 +670,7 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
     end
   end
 
-  defp install_bundle(tarball, config \\ nil) do
+  defp install_bundle(tarball, config \\ nil, unit_active? \\ true) do
     root = Path.join(System.tmp_dir!(), "collector-update-#{System.unique_integer([:positive])}")
     bundle = Path.join(root, "bundle")
     config = config || Path.join(root, "etc")
@@ -681,10 +700,12 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
       |> String.replace(~s(CONFIG_DIR="/etc/serviceradar"), ~s(CONFIG_DIR="#{config}"))
 
     File.write!(script_path, script)
-    File.write!(Path.join(bin, "systemctl"), stub_systemctl(log))
+    File.write!(Path.join(bin, "systemctl"), stub_systemctl(log, unit_active?))
     File.write!(Path.join(bin, "id"), "#!/bin/bash\nexit 1\n")
+    File.write!(Path.join(bin, "sleep"), "#!/bin/bash\nexit 0\n")
     File.chmod!(Path.join(bin, "systemctl"), 0o755)
     File.chmod!(Path.join(bin, "id"), 0o755)
+    File.chmod!(Path.join(bin, "sleep"), 0o755)
 
     env =
       System.get_env()
@@ -701,10 +722,13 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
     end
   end
 
-  defp stub_systemctl(log) do
+  defp stub_systemctl(log, unit_active?) do
     """
     #!/bin/bash
     printf '%s\\n' "$*" >> "#{log}"
+    if [ "$1" = "is-active" ]; then
+      exit #{if unit_active?, do: 0, else: 3}
+    fi
     if [ "$1" = "list-unit-files" ]; then
       echo "serviceradar-log-collector.service enabled"
       echo "serviceradar-trapd.service enabled"

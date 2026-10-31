@@ -591,6 +591,15 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
     echo "Starting $SERVICE_NAME..."
     systemctl start "$SERVICE_NAME"
 
+    # The unit is Type=simple, so `systemctl start` succeeds even if the binary exits at once.
+    sleep 2
+    if ! systemctl is-active --quiet "$SERVICE_NAME"; then
+        echo "" >&2
+        echo "ERROR: $SERVICE_NAME failed to start" >&2
+        echo "Check logs: journalctl -u $SERVICE_NAME -n 50" >&2
+        exit 1
+    fi
+
     echo ""
     echo "Update complete!"
     echo ""
