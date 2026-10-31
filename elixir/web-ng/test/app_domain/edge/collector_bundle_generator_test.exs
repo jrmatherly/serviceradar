@@ -32,6 +32,18 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
       refute Enum.any?(file_names, &String.contains?(&1, "/certs/"))
     end
 
+    test "extracts with a runnable deploy script" do
+      {:ok, tarball} =
+        CollectorBundleGenerator.create_tarball(sample_falcosidekick_package(), sample_nats_creds(), nil,
+          nats_url: "nats://serviceradar-nats:4222"
+        )
+
+      modes = tar_modes(tarball)
+
+      assert modes["deploy.sh"] == 0o755
+      assert modes["creds/nats.creds"] == 0o600
+    end
+
     test "publishes on the one subject the events stream captures by default" do
       values = falcosidekick_values(sample_falcosidekick_package())
 
@@ -150,6 +162,22 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
       assert mode(Path.join(installed, "certs/ca-chain.pem")) == 0o644
       assert mode(Path.join(installed, "certs/flowgger-key.pem")) == 0o600
       assert mode(Path.join(installed, "creds/flowgger.creds")) == 0o600
+    end
+
+    test "extracts with a runnable script and private secrets" do
+      package = %{sample_flowgger_package() | tls_cert_pem: "cert-pem\n", ca_chain_pem: "ca-pem\n"}
+
+      {:ok, tarball} =
+        CollectorBundleGenerator.create_tarball(package, sample_nats_creds(), sample_tls_key(),
+          nats_url: "tls://host01.example.com:4222"
+        )
+
+      modes = tar_modes(tarball)
+
+      assert modes["update.sh"] == 0o755
+      assert modes["creds/nats.creds"] == 0o600
+      assert modes["certs/collector-key.pem"] == 0o600
+      assert modes["certs/collector.pem"] == 0o644
     end
 
     test "defaults syslog input to auto detection and UTC" do
@@ -621,6 +649,15 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
 
     Map.new(files, fn {name, content} ->
       {to_string(name), IO.iodata_to_binary(content)}
+    end)
+  end
+
+  defp tar_modes(tarball) do
+    {:ok, table} = :erl_tar.table({:binary, tarball}, [:compressed, :verbose])
+
+    Map.new(table, fn {name, :regular, _size, _mtime, mode, _uid, _gid} ->
+      relative = name |> to_string() |> String.split("/", parts: 2) |> List.last()
+      {relative, Bitwise.band(mode, 0o7777)}
     end)
   end
 
