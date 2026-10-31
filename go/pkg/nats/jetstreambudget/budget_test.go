@@ -908,9 +908,9 @@ func TestComposeAccountLimitsNeverBlocksNATS(t *testing.T) {
 		body     string
 		wantArgs string
 	}{
-		"succeeds":         {"exit 0", "nats-account-limits --creds-dir /etc/serviceradar/creds"},
-		"fails":            {"echo boom >&2; exit 1", "nats-account-limits --creds-dir /etc/serviceradar/creds"},
-		"predates command": {"echo 'unknown command' >&2; exit 2", "nats-account-limits --creds-dir /etc/serviceradar/creds"},
+		"succeeds":         {"exit 0", "nats-account-limits --creds-dir /etc/serviceradar/creds --resolver-data-dir /data"},
+		"fails":            {"echo boom >&2; exit 1", "nats-account-limits --creds-dir /etc/serviceradar/creds --resolver-data-dir /data"},
+		"predates command": {"echo 'unknown command' >&2; exit 2", "nats-account-limits --creds-dir /etc/serviceradar/creds --resolver-data-dir /data"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			dir := t.TempDir()
