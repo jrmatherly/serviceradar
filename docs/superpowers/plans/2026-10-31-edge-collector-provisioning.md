@@ -1,0 +1,103 @@
+# Edge Collector Provisioning End-to-End Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** An edge collector package of every type (flowgger, trapd, otel, netflow, sflow, falcosidekick) provisions on Compose, gets a bundle its binary accepts, and publishes into the right central stream, either direct to the hub or through an edge leaf server.
+
+**Architecture:** Core mints collector-type NATS users through datasvc (`ServiceRadar.NATS.AccountClient` → datasvc gRPC `GenerateUserCredentials` → `go/pkg/nats/accounts`). Edge credentials hold only their data subjects plus read-only `$JS.API.STREAM.INFO.<stream>` (commit ca7eb0505a); the trusted stream owner (otel log-collector, or core's EventWriter) creates each stream and captures the subjects. This plan wires the missing account configuration, brings the stale netflow/sflow and falcosidekick bundles in line with their binaries, and gives the leaf server local authorization matching hub-side scoping.
+
+**Tech Stack:** Elixir/Ash (serviceradar_core, web-ng), Go (`go/pkg/cli`, `go/pkg/nats/accounts`), Rust (`rust/flow-collector`), NATS 2.14 (JWT operator mode in Compose, static mTLS users in Helm and on leaf servers).
+
+**Spec:** this plan's Findings section, from the 2026-10-31 session on branch `fix/nats-platform-account-subjects` (commits 540d60f92c..ca7eb0505a). No separate design doc exists.
+
+## Findings (the spec)
+
+1. `ProvisionCollectorWorker` and `NatsLeafCredentials` read `Application.get_env(:serviceradar, :nats_account_name | :nats_account_seed)`. Nothing sets them (checked: `grep -rn 'nats_account_seed' elixir/*/config docker-compose*.yml helm/` is empty), so every package fails with `:nats_not_configured`.
+2. `go/pkg/cli/nats_bootstrap.go` `writePlatformAccountFiles` writes `platform.creds` and the account JWT but never the platform **account seed**, so core has nothing to mint with.
+3. `collector_bundle_generator.ex` `generate_netflow_config/2` and `generate_sflow_config/2` write `{listen_addr, stream_name: "events", subject: "events.netflow" | "flows.raw.sflow"}`. The current `rust/flow-collector` config needs `listeners: [{protocol, listen_addr, subject}]` and `stream_name: "flows"` (see `docker/compose/flow-collector.docker.json`).
+4. flow-collector acts as owner of the `flows` stream (`ensure_owned_stream`, `ensure_flows_stream`, `detach_subjects_from_stream` in `rust/flow-collector/src/publisher.rs` call STREAM.CREATE/UPDATE). Edge credentials allow only STREAM.INFO, by design.
+5. falcosidekick bundle default `subject_template` is `falco.<priority>.<rule>`; the EventWriter `events` stream captures only `falco.logs` (`event_writer/config.ex` FALCO entry; `docs/docs/falco.md` says falcosidekick publishes `falco.logs`).
+6. Leaf servers (`nats_leaf_config_generator.ex`) run in static mode with `verify_and_map`; JWT permissions are ignored there. With no direct identities there is no `authorization` block at all (every local client unrestricted); with one, `default_permissions` grants `$JS.API.>`.
+7. nats-server parses `allow: []` as **unrestricted** in both directions (verified on 2.14.0). Use `deny: [">"]` to grant nothing.
+
+## Global Constraints
+
+- Greenfield: no installs or data; no migration paths.
+- Never write a captured value into fixtures; use `host01.example.com`, `192.0.2.0/24`, invented IDs (CLAUDE.md).
+- Collector credentials must never hold STREAM.CREATE/UPDATE/DELETE/PURGE or `$JS.API.>` (validator: `allowedSystemSubject` in `go/pkg/nats/accounts/account_manager.go`).
+- Every negative ACL test asserts a **timeout** (`deniedJS` in `go/pkg/cli/nats_bootstrap_platform_subjects_integration_test.go`), and is proven to fail when the grant is widened.
+- Push only `git push origin <local>:refs/heads/<branch>`; never to staging.
+
+## Review Focus
+
+1. An edge collector starting before the owner has created its stream: it must wait or retry, not crash or create (trapd: waits on 10059 only; flowgger: retries; otel: logs and continues).
+2. A collector whose bundle subject is not captured by the owner's stream: publishes are acked by nobody; the bundle test must assert every bundle subject is covered by a stream the owner creates.
+3. Account seed exposure: core holding the seed can mint any user in the platform account. Who can read it (file mode, mounts) must be asserted.
+4. A leaf server with zero direct identities: must still deny everything except the collectors' scoped subjects (no missing `authorization` block).
+5. Re-provisioning a package after the seed rotates: the old credential must stop working (revocation path in `NatsCredential`).
+
+---
+
+### Task 1: Give core the platform account to mint from (decision + wiring)
+
+**Files:**
+- Modify: `go/pkg/cli/nats_bootstrap.go` (`writePlatformAccountFiles`, `natsBootstrapPaths`)
+- Modify: `docker/compose/init-nats-creds.sh` (`required_artifacts`)
+- Modify: `docker-compose.yml` (core-elx env + mount)
+- Modify: core runtime config that reads env (`elixir/serviceradar_core_elx/config/runtime.exs` or wherever `:serviceradar` env is set; find with `grep -rn 'config :serviceradar,' elixir/*/config/runtime.exs`)
+- Test: `go/pkg/cli/nats_bootstrap_acl_test.go`
+
+**Decision first (owner):** core holding the account seed lets it mint any user in the platform account. Alternative: datasvc keeps the seed and core asks datasvc to mint by name (datasvc already holds `operator.seed`). Recommend the alternative: add `account_seed_file` to datasvc config and let `GenerateUserCredentials` take an account name only. Record the choice in this task before coding.
+
+- [ ] Step 1: Write failing test `TestBootstrapWritesPlatformAccountSeedFile` asserting `platform_account.seed` exists with mode `0600` after `bootstrapLocalCreds`, starts with `SA`, and that `platform.creds` and the seed belong to the same account public key.
+- [ ] Step 2: Run `go test ./go/pkg/cli/ -run TestBootstrapWritesPlatformAccountSeedFile`; expect FAIL (file missing).
+- [ ] Step 3: Write `platformResult.AccountSeed` to `<outputDir>/platform_account.seed` (0600) in `writePlatformAccountFiles`; add to `required_artifacts`; mount it **only** into the service the decision names (core-elx or datasvc) as a volume subpath, like the collectors' mounts.
+- [ ] Step 4: Set `:nats_account_name` = `platform` and `:nats_account_seed` from the file in runtime config; run the existing `provision_collector_worker_test.exs` in the CI DB lane.
+- [ ] Step 5: Compose check: create a trapd package through the API; expect status `:ready` and a `NatsCredential` row. Commit.
+
+### Task 2: Netflow/sflow bundles match the current flow-collector
+
+**Files:**
+- Modify: `elixir/web-ng/lib/serviceradar_web_ng/edge/collector_bundle_generator.ex` (`generate_netflow_config/2`, `generate_sflow_config/2`)
+- Test: `elixir/web-ng/test/serviceradar_web_ng/edge/collector_bundle_generator_test.exs`
+
+- [ ] Step 1: Failing test `netflow bundle uses flow-collector listeners`: decoded JSON has `"stream_name" => "flows"` and `"listeners" => [%{"protocol" => "netflow", "listen_addr" => "0.0.0.0:2055", "subject" => "flows.raw.netflow"}]`; sflow likewise with `6343`/`flows.raw.sflow`; no top-level `subject` key.
+- [ ] Step 2: Run it; expect FAIL.
+- [ ] Step 3: Emit the flow-collector schema (copy key names from `rust/flow-collector/src/config.rs` `Config`/`ListenerConfig`); keep `config_overrides["listen_addr"]` mapping to the listener's `listen_addr`.
+- [ ] Step 4: Add a Rust test in `rust/flow-collector` that parses a fixture produced by the generator (store the fixture under `rust/flow-collector/testdata/edge-netflow.json`, invented values).
+- [ ] Step 5: Run both; commit.
+
+### Task 3: flow-collector non-owner mode for edge use
+
+**Files:**
+- Modify: `rust/flow-collector/src/config.rs` (new `stream_owner: bool`, default `true`)
+- Modify: `rust/flow-collector/src/publisher.rs` (`ensure_owned_stream` path)
+- Modify: `collector_bundle_generator.ex` (set `"stream_owner" => false` for edge bundles)
+- Test: `rust/flow-collector/src/publisher.rs` tests
+
+- [ ] Step 1: Failing test `non_owner_never_creates_or_updates_streams`: with `stream_owner = false` and a stream lookup returning not-found, the publisher returns `Waiting` (retry) rather than calling create; with the stream present it only checks subject coverage.
+- [ ] Step 2: Implement: when `!stream_owner`, skip create/update/detach; wait on 10059 like trapd (`is_stream_not_found`).
+- [ ] Step 3: Confirm core's EventWriter creates `flows` with `flows.raw.>` captured (`event_writer/config.ex`); if not, add it there with a test.
+- [ ] Step 4: `cargo fmt`, `cargo clippy -D warnings`, Bazel `//rust/flow-collector/...`; commit.
+
+### Task 4: Falcosidekick subject alignment
+
+**Files:**
+- Modify: `collector_bundle_generator.ex` (`generate_falcosidekick_config/2` default `subject_template`)
+- Modify: `elixir/serviceradar_core/lib/serviceradar/edge/workers/provision_collector_worker.ex` (`collector_permissions(:falcosidekick)`) and its test
+- Test: bundle generator test
+
+- [ ] Step 1: Failing test: default bundle `subject_template` is `"falco.logs"` and `collector_permissions(:falcosidekick).publish_allow == ["falco.logs"]`.
+- [ ] Step 2: Implement both; update `collector_permissions_test.exs` expectation.
+- [ ] Step 3: Run the core edge unit shard (`bazel test --config=remote -c opt //elixir/serviceradar_core:unit_tests_serviceradar_edge`); commit.
+
+### Task 5: Leaf server local authorization for collectors
+
+**Files:**
+- Modify: `elixir/serviceradar_core/lib/serviceradar/edge/nats_leaf_config_generator.ex` (`render_direct_leaf_authorization/1`, `generate_config/3`)
+- Test: `elixir/serviceradar_core/test/serviceradar/edge/nats_leaf_config_generator_test.exs`
+
+- [ ] Step 1: Failing tests: (a) with zero direct identities the config still contains an `authorization` block; (b) `default_permissions` contains no `$JS.API.>` and no `allow: []`; (c) collector users get exactly `ProvisionCollectorWorker.collector_permissions/1` subjects (single source).
+- [ ] Step 2: Render per-collector users from the edge site's assigned packages (CN `<component>.<partition>.serviceradar`), and `default_permissions: { publish: { deny: [">"] }, subscribe: { deny: [">"] } }`.
+- [ ] Step 3: Run a leaf config through `nats-server -t` (config test) in the test, or a standalone `nats:2.14.0` container in a manual check, to prove it parses.
+- [ ] Step 4: Commit.
