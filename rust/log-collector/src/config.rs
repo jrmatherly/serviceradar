@@ -1,6 +1,6 @@
 use log::warn;
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::io::ErrorKind;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
@@ -17,7 +17,9 @@ pub struct Config {
 impl Config {
     /// The package ships neither native config; each collector bundle adds its
     /// own. An input with no file on this host is one that was not installed.
-    pub fn without_unconfigured_inputs(mut self) -> Self {
+    /// Any other stat failure means this service cannot read a file that may exist,
+    /// so startup fails rather than silently running without that input.
+    pub fn without_unconfigured_inputs(mut self) -> anyhow::Result<Self> {
         for (name, enabled, file) in [
             (
                 "flowgger",
@@ -26,12 +28,19 @@ impl Config {
             ),
             ("otel", &mut self.otel.enabled, &self.otel.config_file),
         ] {
-            if *enabled && !Path::new(file).exists() {
-                warn!("Skipping {name} input: {file} does not exist");
-                *enabled = false;
+            if !*enabled {
+                continue;
+            }
+            match std::fs::metadata(file) {
+                Ok(_) => {}
+                Err(e) if e.kind() == ErrorKind::NotFound => {
+                    warn!("Skipping {name} input: {file} does not exist");
+                    *enabled = false;
+                }
+                Err(e) => anyhow::bail!("cannot check {name} config {file}: {e}"),
             }
         }
-        self
+        Ok(self)
     }
 }
 
@@ -135,18 +144,40 @@ mod tests {
         let present = present.to_str().unwrap().to_string();
         let absent = format!("{present}.absent");
 
-        let flowgger_only = config_with(&present, &absent).without_unconfigured_inputs();
+        let flowgger_only = config_with(&present, &absent)
+            .without_unconfigured_inputs()
+            .unwrap();
         assert!(flowgger_only.flowgger.enabled);
         assert!(!flowgger_only.otel.enabled);
 
-        let otel_only = config_with(&absent, &present).without_unconfigured_inputs();
+        let otel_only = config_with(&absent, &present)
+            .without_unconfigured_inputs()
+            .unwrap();
         assert!(!otel_only.flowgger.enabled);
         assert!(otel_only.otel.enabled);
 
-        let both = config_with(&present, &present).without_unconfigured_inputs();
+        let both = config_with(&present, &present)
+            .without_unconfigured_inputs()
+            .unwrap();
         assert!(both.flowgger.enabled && both.otel.enabled);
 
         std::fs::remove_file(&present).unwrap();
+    }
+
+    // ENOTDIR, not EACCES: a stat failure the test can cause even when run as root.
+    #[test]
+    fn a_config_file_that_cannot_be_checked_fails_startup() {
+        let parent =
+            std::env::temp_dir().join(format!("log-collector-stat-{}", std::process::id()));
+        std::fs::write(&parent, "").unwrap();
+        let unreadable = parent.join("flowgger.toml");
+        let unreadable = unreadable.to_str().unwrap().to_string();
+
+        let result = config_with(&unreadable, &unreadable).without_unconfigured_inputs();
+
+        std::fs::remove_file(&parent).unwrap();
+        let error = result.unwrap_err().to_string();
+        assert!(error.contains("flowgger"), "{error}");
     }
 
     #[test]
@@ -160,7 +191,7 @@ mod tests {
 
         let mut config = config_with(&present, &present);
         config.otel.enabled = false;
-        assert!(!config.without_unconfigured_inputs().otel.enabled);
+        assert!(!config.without_unconfigured_inputs().unwrap().otel.enabled);
 
         std::fs::remove_file(&present).unwrap();
     }
