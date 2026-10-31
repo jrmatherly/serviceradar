@@ -465,6 +465,10 @@ ex_unit_tests(
         # shared examples pin for the Rust harness and the Elixir port alike.
         "//integration_tests/srql_parity:inventory.json",
         "//integration_tests/srql_parity:shape_examples.json",
+        # CollectorBundleGeneratorTest pins generator output to the fixtures the
+        # flow-collector test parses, so the two cannot drift.
+        "//rust/flow-collector:testdata/edge-netflow.json",
+        "//rust/flow-collector:testdata/edge-sflow.json",
     ],
     # web-ng already defines a database-free tier: with ALLOW_DB_FREE_TESTS set and neither
     # CI nor REQUIRE_DB_TESTS, test_helper.exs skips Application.ensure_all_started and runs

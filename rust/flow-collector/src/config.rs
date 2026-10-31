@@ -821,6 +821,51 @@ mod tests {
         assert_eq!(config.stream_max_bytes, 10 * 1024 * 1024 * 1024);
     }
 
+    /// The fixtures are generator output; CollectorBundleGeneratorTest pins them.
+    #[test]
+    fn edge_bundle_fixtures_load_as_flow_collector_config() {
+        for (raw, protocol, listen_addr, subject) in [
+            (
+                include_str!("../testdata/edge-netflow.json"),
+                "netflow",
+                "0.0.0.0:2055",
+                "flows.raw.netflow",
+            ),
+            (
+                include_str!("../testdata/edge-sflow.json"),
+                "sflow",
+                "0.0.0.0:6343",
+                "flows.raw.sflow",
+            ),
+        ] {
+            let config = Config::from_json_with_env(raw, |_| None).unwrap();
+            assert_eq!(config.stream_name, "flows");
+            assert_eq!(
+                config.nats_creds_file.as_deref(),
+                Some("/etc/serviceradar/creds/nats.creds")
+            );
+            assert_eq!(config.listeners.len(), 1);
+            assert_eq!(config.listeners[0].protocol_name(), protocol);
+            assert_eq!(config.listeners[0].listen_addr(), listen_addr);
+            assert_eq!(config.listeners[0].subject(), subject);
+
+            let security = config.security.expect("bundle configures NATS mTLS");
+            assert_eq!(security.mode, SecurityMode::Mtls);
+            assert_eq!(
+                security.cert_file_path(),
+                Some(PathBuf::from("/etc/serviceradar/certs/collector.pem"))
+            );
+            assert_eq!(
+                security.key_file_path(),
+                Some(PathBuf::from("/etc/serviceradar/certs/collector-key.pem"))
+            );
+            assert_eq!(
+                security.ca_file_path(),
+                Some(PathBuf::from("/etc/serviceradar/certs/ca-chain.pem"))
+            );
+        }
+    }
+
     #[test]
     fn test_rehomeable_flow_subject_is_prefix_safe() {
         use crate::publisher::is_rehomeable_flow_subject;

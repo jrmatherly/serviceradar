@@ -7,6 +7,8 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
 
   @moduletag :db_free
 
+  @repo_root Path.expand("../../../../..", __DIR__)
+
   describe "create_tarball/4 for falcosidekick" do
     test "does not bundle a second certificate set" do
       {:ok, tarball} =
@@ -206,6 +208,84 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
     end
   end
 
+  describe "create_tarball/4 for flow collectors" do
+    test "netflow bundle uses flow-collector listeners" do
+      config = flow_bundle_config(sample_flow_package(:netflow))
+
+      assert config["stream_name"] == "flows"
+
+      assert config["listeners"] == [
+               %{
+                 "protocol" => "netflow",
+                 "listen_addr" => "0.0.0.0:2055",
+                 "subject" => "flows.raw.netflow"
+               }
+             ]
+
+      refute Map.has_key?(config, "subject")
+      refute Map.has_key?(config, "listen_addr")
+    end
+
+    test "sflow bundle uses flow-collector listeners" do
+      config = flow_bundle_config(sample_flow_package(:sflow))
+
+      assert config["stream_name"] == "flows"
+
+      assert config["listeners"] == [
+               %{
+                 "protocol" => "sflow",
+                 "listen_addr" => "0.0.0.0:6343",
+                 "subject" => "flows.raw.sflow"
+               }
+             ]
+
+      refute Map.has_key?(config, "subject")
+      refute Map.has_key?(config, "listen_addr")
+    end
+
+    test "a listen_addr override reaches the listener" do
+      config =
+        flow_bundle_config(sample_flow_package(:netflow, %{"listen_addr" => "192.0.2.10:9995"}))
+
+      assert [%{"listen_addr" => "192.0.2.10:9995"}] = config["listeners"]
+    end
+
+    test "credentials and TLS paths resolve to where update.sh installs them" do
+      package = sample_flow_package(:netflow)
+
+      {:ok, tarball} =
+        CollectorBundleGenerator.create_tarball(package, sample_nats_creds(), sample_tls_key(),
+          nats_url: "tls://host01.example.com:4222"
+        )
+
+      files = extract_files(tarball)
+      config = files |> find_file("netflow.json") |> Jason.decode!()
+      update_script = find_file(files, "update.sh")
+
+      assert config["nats_creds_file"] == "/etc/serviceradar/creds/nats.creds"
+      assert %{"mode" => "mtls", "cert_dir" => "/etc/serviceradar/certs", "tls" => tls} = config["security"]
+
+      assert update_script =~ ~s(CERTS_DIR="$CONFIG_DIR/certs")
+      assert update_script =~ ~s(CREDS_DIR="$CONFIG_DIR/creds")
+
+      for file <- Map.values(tls) do
+        assert update_script =~ ~s(cp "$SCRIPT_DIR/certs/#{file}" "$CERTS_DIR/")
+      end
+    end
+
+    for {type, fixture} <- [netflow: "edge-netflow.json", sflow: "edge-sflow.json"] do
+      test "#{type} output matches the fixture flow-collector parses" do
+        expected =
+          [@repo_root, "rust/flow-collector/testdata", unquote(fixture)]
+          |> Path.join()
+          |> File.read!()
+          |> Jason.decode!()
+
+        assert flow_bundle_config(sample_flow_package(unquote(type))) == expected
+      end
+    end
+  end
+
   describe "get_nats_url/2" do
     @tag :db_free
     test "an edge site with no leaf URL writes to the local leaf" do
@@ -389,6 +469,28 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
         "namespace" => "demo",
         "release_name" => "falcosidekick-nats-auth"
       }
+    }
+  end
+
+  defp flow_bundle_config(package) do
+    {:ok, tarball} =
+      CollectorBundleGenerator.create_tarball(package, sample_nats_creds(), nil,
+        nats_url: "tls://host01.example.com:4222"
+      )
+
+    tarball
+    |> extract_files()
+    |> find_file("#{package.collector_type}.json")
+    |> Jason.decode!()
+  end
+
+  defp sample_flow_package(type, config_overrides \\ %{}) do
+    %CollectorPackage{
+      id: "11111111-2222-4333-8444-555555555555",
+      collector_type: type,
+      site: "site01",
+      inserted_at: ~U[2026-03-08 12:00:00Z],
+      config_overrides: config_overrides
     }
   end
 

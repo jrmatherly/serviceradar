@@ -1,0 +1,22 @@
+{
+  "listeners": [
+    {
+      "listen_addr": "0.0.0.0:6343",
+      "protocol": "sflow",
+      "subject": "flows.raw.sflow"
+    }
+  ],
+  "nats_creds_file": "/etc/serviceradar/creds/nats.creds",
+  "nats_url": "tls://host01.example.com:4222",
+  "partition": "site01",
+  "security": {
+    "cert_dir": "/etc/serviceradar/certs",
+    "mode": "mtls",
+    "tls": {
+      "ca_file": "ca-chain.pem",
+      "cert_file": "collector.pem",
+      "key_file": "collector-key.pem"
+    }
+  },
+  "stream_name": "flows"
+}

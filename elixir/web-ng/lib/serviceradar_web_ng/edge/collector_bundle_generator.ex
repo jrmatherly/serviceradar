@@ -291,54 +291,30 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
   end
 
   defp generate_netflow_config(package, opts) do
-    nats_url = get_nats_url(package, opts)
-    site = package.site || "default"
-
-    # Apply any config overrides
-    listen_addr = get_in(package.config_overrides, ["listen_addr"]) || "0.0.0.0:2055"
-    grpc_port = get_in(package.config_overrides, ["grpc_port"]) || 50_045
-
-    config = %{
-      "listen_addr" => listen_addr,
-      "protocols" => ["netflow-v5", "netflow-v9", "ipfix", "sflow"],
-      "nats_url" => nats_url,
-      "stream_name" => "events",
-      "subject" => "events.netflow",
-      "partition" => site,
-      "nats_creds_file" => "/etc/serviceradar/creds/nats.creds",
-      "nats_security" => %{
-        "mode" => "mtls",
-        "cert_file" => "/etc/serviceradar/certs/collector.pem",
-        "key_file" => "/etc/serviceradar/certs/collector-key.pem",
-        "ca_file" => "/etc/serviceradar/certs/ca-chain.pem"
-      },
-      "grpc_listen_addr" => "0.0.0.0:#{grpc_port}",
-      "grpc_security" => %{
-        "mode" => "mtls",
-        "cert_dir" => "/etc/serviceradar/certs",
-        "cert_file" => "/etc/serviceradar/certs/collector.pem",
-        "key_file" => "/etc/serviceradar/certs/collector-key.pem",
-        "ca_file" => "/etc/serviceradar/certs/ca-chain.pem"
-      }
-    }
-
-    Jason.encode!(config, pretty: true)
+    generate_flow_collector_config(package, opts, "netflow", "0.0.0.0:2055")
   end
 
   defp generate_sflow_config(package, opts) do
-    nats_url = get_nats_url(package, opts)
-    site = package.site || "default"
+    generate_flow_collector_config(package, opts, "sflow", "0.0.0.0:6343")
+  end
 
-    # Apply any config overrides
-    listen_addr = get_in(package.config_overrides, ["listen_addr"]) || "0.0.0.0:6343"
+  # Field names are rust/flow-collector's Config and ListenerConfig; the binary
+  # ignores unknown keys, so a stale name silently disables what it configured.
+  defp generate_flow_collector_config(package, opts, protocol, default_listen_addr) do
+    listen_addr = get_in(package.config_overrides, ["listen_addr"]) || default_listen_addr
 
     config = %{
-      "listen_addr" => listen_addr,
-      "nats_url" => nats_url,
-      "stream_name" => "events",
-      "subject" => "flows.raw.sflow",
-      "partition" => site,
+      "nats_url" => get_nats_url(package, opts),
       "nats_creds_file" => "/etc/serviceradar/creds/nats.creds",
+      "stream_name" => "flows",
+      "partition" => package.site || "default",
+      "listeners" => [
+        %{
+          "protocol" => protocol,
+          "listen_addr" => listen_addr,
+          "subject" => "flows.raw.#{protocol}"
+        }
+      ],
       "security" => %{
         "mode" => "mtls",
         "cert_dir" => "/etc/serviceradar/certs",
