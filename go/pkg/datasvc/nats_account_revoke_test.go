@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -160,6 +161,38 @@ func (f *revokeFixture) accountClaims(t *testing.T) *jwt.AccountClaims {
 	return claims
 }
 
+// pushesSeen counts the account JWTs reaching the hub, so a test can tell "nothing
+// was pushed" from "the same claims were pushed again".
+func (f *revokeFixture) pushesSeen(t *testing.T) *atomic.Int32 {
+	t.Helper()
+
+	conn, err := nats.Connect(f.srv.ClientURL(), nats.UserCredentials(f.systemCredsFile(t, &accounts.UserPermissions{
+		SubscribeAllow: []string{"$SYS.REQ.ACCOUNT.*.CLAIMS.UPDATE"},
+	})))
+	require.NoError(t, err)
+	t.Cleanup(conn.Close)
+
+	var pushes atomic.Int32
+	_, err = conn.Subscribe("$SYS.REQ.ACCOUNT.*.CLAIMS.UPDATE", func(*nats.Msg) { pushes.Add(1) })
+	require.NoError(t, err)
+	require.NoError(t, conn.Flush())
+
+	return &pushes
+}
+
+// setRevocations replaces what the hub holds, standing in for a lost nats-data
+// volume or for revocations made long ago.
+func (f *revokeFixture) setRevocations(t *testing.T, revocations jwt.RevocationList) {
+	t.Helper()
+
+	claims := f.accountClaims(t)
+	claims.Revocations = revocations
+	token, err := f.service.operator.SignAccountClaims(claims)
+	require.NoError(t, err)
+	_, err = f.service.pushAccountJWT(f.accountKey, token)
+	require.NoError(t, err)
+}
+
 func TestRevokeUsersRefusesTheUserAndNoOtherOnTheHub(t *testing.T) {
 	f := newRevokeFixture(t)
 
@@ -208,6 +241,99 @@ func TestRevokeUsersKeepsTheOtherClaims(t *testing.T) {
 
 	_, err := f.connect(firstCreds)
 	assertHubRefused(t, err)
+}
+
+// The replay job asks every five minutes, so an answer that changes nothing must
+// not re-sign the JWT or disturb the hub.
+func TestRevokeUsersSkipsThePushWhenEveryKeyIsAlreadyRevoked(t *testing.T) {
+	f := newRevokeFixture(t)
+	revokedAt := time.Now().Add(-time.Hour)
+	firstKey, _ := f.mint(t, "edge-trapd-a")
+	secondKey, _ := f.mint(t, "edge-trapd-b")
+	f.setRevocations(t, jwt.RevocationList{firstKey: revokedAt.Unix(), secondKey: revokedAt.Unix()})
+
+	before, err := f.service.lookupAccountJWT(f.accountKey)
+	require.NoError(t, err)
+	pushes := f.pushesSeen(t)
+
+	resp, err := f.service.RevokeUsers(authorizedContext(), &proto.RevokeUsersRequest{
+		AccountName:    revokeTestAccount,
+		UserPublicKeys: []string{firstKey, secondKey},
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, f.accountKey, resp.GetAccountPublicKey())
+	assert.Zero(t, resp.GetNewlyRevoked())
+
+	after, err := f.service.lookupAccountJWT(f.accountKey)
+	require.NoError(t, err)
+	assert.Equal(t, before, after, "the resolver's JWT changed")
+
+	// The hub orders pushes, so a skipped push cannot arrive after this one.
+	thirdKey, _ := f.mint(t, "edge-trapd-c")
+	f.revoke(t, thirdKey)
+	require.Eventually(t, func() bool { return pushes.Load() >= 1 }, 5*time.Second, 10*time.Millisecond)
+	assert.Equal(t, int32(1), pushes.Load(), "an all-known request pushed a JWT")
+}
+
+func TestRevokeUsersAddsOnlyTheNewKeyAndKeepsOlderTimestamps(t *testing.T) {
+	f := newRevokeFixture(t)
+	revokedAt := time.Now().Add(-time.Hour).Unix()
+	oldKey, _ := f.mint(t, "edge-trapd-a")
+	newKey, newCreds := f.mint(t, "edge-trapd-b")
+	f.setRevocations(t, jwt.RevocationList{oldKey: revokedAt})
+	pushes := f.pushesSeen(t)
+
+	resp, err := f.service.RevokeUsers(authorizedContext(), &proto.RevokeUsersRequest{
+		AccountName:    revokeTestAccount,
+		UserPublicKeys: []string{oldKey, newKey, newKey},
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, uint32(1), resp.GetNewlyRevoked())
+	require.Eventually(t, func() bool { return pushes.Load() == 1 }, 5*time.Second, 10*time.Millisecond)
+
+	claims := f.accountClaims(t)
+	assert.Equal(t, revokedAt, claims.Revocations[oldKey], "an existing revocation moved")
+	assert.Contains(t, claims.Revocations, newKey)
+
+	_, err = f.connect(newCreds)
+	assertHubRefused(t, err)
+}
+
+// A replacement credential is a new key, so it survives every replay of the old one.
+func TestRevokeUsersReappliesWhatTheHubLostAndSparesOtherKeys(t *testing.T) {
+	f := newRevokeFixture(t)
+	revokedKey, revokedCreds := f.mint(t, "edge-trapd-a")
+	_, otherCreds := f.mint(t, "edge-trapd-b")
+
+	f.revoke(t, revokedKey)
+	f.setRevocations(t, nil)
+
+	revived, err := f.connect(revokedCreds)
+	require.NoError(t, err, "the fixture must reproduce the lost revocation")
+	closed := make(chan struct{})
+	revived.SetClosedHandler(func(*nats.Conn) { close(closed) })
+	t.Cleanup(revived.Close)
+
+	resp, err := f.service.RevokeUsers(authorizedContext(), &proto.RevokeUsersRequest{
+		AccountName:    revokeTestAccount,
+		UserPublicKeys: []string{revokedKey},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, uint32(1), resp.GetNewlyRevoked())
+
+	select {
+	case <-closed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the replay left the revoked user's connection open")
+	}
+	_, err = f.connect(revokedCreds)
+	assertHubRefused(t, err)
+
+	other, err := f.connect(otherCreds)
+	require.NoError(t, err, "the replay refused another user")
+	other.Close()
 }
 
 func TestRevokeUsersRefusals(t *testing.T) {

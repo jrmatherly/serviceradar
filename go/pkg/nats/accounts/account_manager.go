@@ -154,26 +154,42 @@ func (s *AccountSigner) SignAccountJWT(
 	return accountPublicKey, accountJWT, nil
 }
 
-// RevokeUsers re-issues accountJWT with the given users revoked. Every other
-// claim, including earlier revocations, carries over.
-func (s *AccountSigner) RevokeUsers(accountJWT string, userPublicKeys []string) (string, error) {
+// RevokeUsers re-issues accountJWT with the given users revoked and reports how
+// many were not revoked already. Every other claim, including earlier revocations
+// and their timestamps, carries over. With none new it returns accountJWT unsigned.
+func (s *AccountSigner) RevokeUsers(accountJWT string, userPublicKeys []string) (string, int, error) {
 	claims, err := jwt.DecodeAccountClaims(accountJWT)
 	if err != nil {
-		return "", fmt.Errorf("decode account JWT: %w", err)
+		return "", 0, fmt.Errorf("decode account JWT: %w", err)
 	}
 
 	if claims.Issuer != s.operator.PublicKey() {
-		return "", fmt.Errorf("%w: account %s issued by %s", ErrAccountNotIssuedByOperator, claims.Subject, claims.Issuer)
+		return "", 0, fmt.Errorf("%w: account %s issued by %s", ErrAccountNotIssuedByOperator, claims.Subject, claims.Issuer)
 	}
 
+	newlyRevoked := 0
 	for _, key := range userPublicKeys {
 		if !nkeys.IsValidPublicUserKey(key) {
-			return "", fmt.Errorf("%w: %q", ErrInvalidUserKey, key)
+			return "", 0, fmt.Errorf("%w: %q", ErrInvalidUserKey, key)
+		}
+		// Revoke would move an existing entry to now, losing when it really happened.
+		if _, revoked := claims.Revocations[key]; revoked {
+			continue
 		}
 		claims.Revoke(key)
+		newlyRevoked++
 	}
 
-	return s.operator.SignAccountClaims(claims)
+	if newlyRevoked == 0 {
+		return accountJWT, 0, nil
+	}
+
+	token, err := s.operator.SignAccountClaims(claims)
+	if err != nil {
+		return "", 0, err
+	}
+
+	return token, newlyRevoked, nil
 }
 
 // signAccountJWT creates and signs an account JWT with the operator key.
