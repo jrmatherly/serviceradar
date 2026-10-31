@@ -29,6 +29,9 @@ import (
 	"github.com/nats-io/nkeys"
 )
 
+// DefaultPlatformAccount is the account nats-bootstrap creates unless told otherwise.
+const DefaultPlatformAccount = "platform"
+
 var (
 	// ErrOperatorKeyNotFound is returned when the operator key cannot be loaded.
 	ErrOperatorKeyNotFound = errors.New("operator key not found")

@@ -22,6 +22,8 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorkerTest do
   alias ServiceRadar.Edge.Workers.ProvisionCollectorWorker
   alias ServiceRadar.Repo
 
+  require Ash.Query
+
   @moduletag :database
 
   defmodule FakeDatasvcAdapter do
@@ -217,7 +219,7 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorkerTest do
       assert credential.user_public_key == public_key
       assert credential.credential_type == :collector
 
-      assert count_credentials(actor) == 1
+      assert count_credentials(actor, package) == 1
       assert stored_creds_ciphertext(package.id)
 
       assert ready.tls_cert_pem == "invented-cert"
@@ -248,7 +250,7 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorkerTest do
       stalled = Ash.get!(CollectorPackage, package.id, actor: actor)
       assert stalled.status == :provisioning
       assert is_nil(stalled.error_message)
-      assert count_credentials(actor) == 0
+      assert count_credentials(actor, package) == 0
       assert stored_creds_ciphertext(package.id) == nil
     end
 
@@ -320,6 +322,45 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorkerTest do
       failed = Ash.get!(CollectorPackage, package.id, actor: actor)
       assert failed.status == :failed
       assert failed.error_message =~ "datasvc"
+    end
+
+    for {name, status} <- [
+          {"INVALID_ARGUMENT", GRPC.Status.invalid_argument()},
+          {"FAILED_PRECONDITION", GRPC.Status.failed_precondition()}
+        ] do
+      test "#{name} fails the package at once instead of retrying", %{actor: actor, unique_id: u} do
+        package = create_package!(actor, u)
+        task = start_perform_task(package.id)
+        assert_receive {:datasvc_generate_user_credentials, adapter_pid, _request}, 10_000
+
+        send(
+          adapter_pid,
+          {:datasvc_release,
+           {:error, %GRPC.RPCError{status: unquote(status), message: "invented refusal"}}}
+        )
+
+        assert {:discard, {:grpc_error, unquote(status), "invented refusal"}} =
+                 Task.await(task, 30_000)
+
+        failed = Ash.get!(CollectorPackage, package.id, actor: actor)
+        assert failed.status == :failed
+        assert failed.error_message == "invented refusal"
+      end
+    end
+
+    test "UNAVAILABLE is retried", %{actor: actor, unique_id: u} do
+      package = create_package!(actor, u)
+      task = start_perform_task(package.id)
+      assert_receive {:datasvc_generate_user_credentials, adapter_pid, _request}, 10_000
+
+      send(
+        adapter_pid,
+        {:datasvc_release,
+         {:error, %GRPC.RPCError{status: GRPC.Status.unavailable(), message: "invented outage"}}}
+      )
+
+      assert {:error, {:grpc_error, _status, "invented outage"}} = Task.await(task, 30_000)
+      assert Ash.get!(CollectorPackage, package.id, actor: actor).status == :provisioning
     end
 
     test "a crash on the last attempt fails the package and still reaches Oban", %{
@@ -411,7 +452,7 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorkerTest do
       assert failed.status == :failed
       assert failed.error_message =~ "StarRocks"
       refute_received {:datasvc_generate_user_credentials, _, _}
-      assert count_credentials(actor) == 0
+      assert count_credentials(actor, package) == 0
     end
 
     test "with StarRocks provisions like any collector", %{actor: actor, unique_id: u} do
@@ -471,7 +512,7 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorkerTest do
                |> Ash.Query.for_read(:by_user_name, %{user_name: package.user_name})
                |> Ash.read_one(actor: actor)
 
-      assert count_credentials(actor) == 0
+      assert count_credentials(actor, package) == 0
       assert stored_creds_ciphertext(package.id) == nil
     end
   end
@@ -585,7 +626,7 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorkerTest do
                |> Ash.Query.for_read(:by_user_name, %{user_name: package.user_name})
                |> Ash.read_one(actor: actor)
 
-      assert count_credentials(actor) == 0
+      assert count_credentials(actor, package) == 0
       assert stored_creds_ciphertext(package.id) == nil
     end
   end
@@ -641,8 +682,12 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorkerTest do
     }
   end
 
-  defp count_credentials(actor) do
-    NatsCredential |> Ash.Query.for_read(:read) |> Ash.read!(actor: actor) |> length()
+  defp count_credentials(actor, package) do
+    NatsCredential
+    |> Ash.Query.for_read(:read)
+    |> Ash.Query.filter(user_name == ^package.user_name)
+    |> Ash.read!(actor: actor)
+    |> length()
   end
 
   defp stored_creds_ciphertext(package_id) do

@@ -28,7 +28,8 @@ defmodule ServiceRadarWebNGWeb.Api.OpenapiControllerTest do
       assert get_in(body, ["paths", "/api/admin/network-credential-rules", "post"])
       assert get_in(body, ["paths", "/api/admin/network-credential-secrets/{id}/rotate", "post"])
       assert get_in(body, ["paths", "/api/admin/ansible-controllers", "post"])
-      assert get_in(body, ["paths", "/api/admin/collectors/{id}/download", "post"])
+      assert get_in(body, ["paths", "/api/admin/collectors/{id}/revoke", "post"])
+      refute get_in(body, ["paths", "/api/admin/collectors/{id}/download"])
       assert get_in(body, ["components", "schemas", "BmpSettings"])
     end
 

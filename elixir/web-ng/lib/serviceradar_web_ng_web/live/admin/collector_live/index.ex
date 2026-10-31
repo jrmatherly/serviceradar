@@ -145,8 +145,8 @@ defmodule ServiceRadarWebNGWeb.Admin.CollectorLive.Index do
            |> load_packages(actor)
            |> put_flash(:info, "Collector package created")}
 
-        {:error, _reason} ->
-          {:noreply, put_flash(socket, :error, "Failed to create package")}
+        {:error, reason} ->
+          {:noreply, put_flash(socket, :error, create_error_message(reason))}
       end
     else
       {:noreply, put_flash(socket, :error, collectors_disabled_message())}
@@ -569,6 +569,18 @@ defmodule ServiceRadarWebNGWeb.Admin.CollectorLive.Index do
           </div>
 
           <%= if @download_token do %>
+            <div
+              :if={not CollectorBundleGenerator.nats_url_configured?(@created_package)}
+              class={ui_alert_class(variant: "warning", class: "text-xs")}
+            >
+              <.icon name="hero-exclamation-triangle" class="size-4" />
+              <span>
+                The bundle download will fail until web-ng has
+                <code>SERVICERADAR_NATS_COLLECTOR_URL</code>
+                set to a NATS URL this collector's host can reach.
+              </span>
+            </div>
+
             <div class="space-y-3">
               <div class="text-sm font-medium">Enrollment Instructions</div>
 
@@ -588,11 +600,31 @@ defmodule ServiceRadarWebNGWeb.Admin.CollectorLive.Index do
                 <% else %>
                   <code class="text-xs">
                     # Debian/Ubuntu<br />
-                    sudo apt install serviceradar-{@created_package.collector_type}<br /><br />
+                    sudo apt install {CollectorBundleGenerator.service_name(@created_package)}<br /><br />
                     # RHEL/CentOS<br />
-                    sudo dnf install serviceradar-{@created_package.collector_type}
+                    sudo dnf install {CollectorBundleGenerator.service_name(@created_package)}
                   </code>
                 <% end %>
+              </div>
+
+              <div class="bg-sr-subtle rounded-lg p-3">
+                <div class="flex items-center justify-between mb-2">
+                  <div class="text-xs uppercase tracking-wide text-sr-muted">
+                    Download token (the command in the next step asks for it)
+                  </div>
+                  <.ui_button
+                    type="button"
+                    phx-click="copy_token"
+                    phx-value-token={@download_token}
+                    size="xs"
+                    variant="ghost"
+                  >
+                    <.icon name="hero-clipboard-document" class="size-3" /> Copy
+                  </.ui_button>
+                </div>
+                <code class="font-mono text-xs break-all bg-sr-control p-2 rounded block">
+                  {@download_token}
+                </code>
               </div>
 
               <div class="bg-sr-subtle rounded-lg p-3">
@@ -926,51 +958,46 @@ defmodule ServiceRadarWebNGWeb.Admin.CollectorLive.Index do
     secret = EnrollmentToken.generate_secret()
     temp_package_id = "placeholder"
 
-    {:ok, {_temp_token, token_hash, ^secret}} =
-      EnrollmentToken.generate(temp_package_id,
-        secret: secret,
-        base_url: base_url,
-        config_filename: collector_config_filename(collector_type)
-      )
-
-    token_expires_at = EnrollmentToken.expiry_datetime()
-
-    attrs = %{
-      collector_type: type_atom,
-      site: site,
-      hostname: hostname
-    }
-
-    attrs = if edge_site_id, do: Map.put(attrs, :edge_site_id, edge_site_id), else: attrs
-
-    # Arguments go in the params: Ash ignores set_argument/3 once
-    # for_create/3 has validated the changeset.
-    changeset =
-      Ash.Changeset.for_create(
-        CollectorPackage,
-        :create,
-        Map.merge(attrs, %{token_hash: token_hash, token_expires_at: token_expires_at})
-      )
-
-    case Ash.create(changeset, actor: actor) do
-      {:ok, package} ->
-        # Generate the final enrollment token with actual package ID and SAME secret
-        case EnrollmentToken.generate(package.id,
-               secret: secret,
-               base_url: base_url,
-               config_filename: collector_config_filename(collector_type)
-             ) do
-          {:ok, {final_token, ^token_hash, ^secret}} ->
-            {:ok, package, final_token}
-
-          {:error, reason} ->
-            {:error, reason}
-        end
-
-      {:error, error} ->
-        {:error, error}
+    with {:ok, {_temp_token, token_hash, ^secret}} <-
+           EnrollmentToken.generate(temp_package_id,
+             secret: secret,
+             base_url: base_url,
+             config_filename: collector_config_filename(collector_type)
+           ),
+         attrs = if(edge_site_id, do: %{edge_site_id: edge_site_id}, else: %{}),
+         # Arguments go in the params: Ash ignores set_argument/3 once
+         # for_create/3 has validated the changeset.
+         changeset =
+           Ash.Changeset.for_create(
+             CollectorPackage,
+             :create,
+             Map.merge(attrs, %{
+               collector_type: type_atom,
+               site: site,
+               hostname: hostname,
+               token_hash: token_hash,
+               token_expires_at: EnrollmentToken.expiry_datetime()
+             })
+           ),
+         {:ok, package} <- Ash.create(changeset, actor: actor),
+         # The final token carries the real package ID and the SAME secret.
+         {:ok, {final_token, ^token_hash, ^secret}} <-
+           EnrollmentToken.generate(package.id,
+             secret: secret,
+             base_url: base_url,
+             config_filename: collector_config_filename(collector_type)
+           ) do
+      {:ok, package, final_token}
     end
   end
+
+  defp create_error_message(reason) when reason in [:missing_signing_key, :invalid_private_key] do
+    "Collector enrollment tokens cannot be signed: this deployment's signing key is missing or invalid."
+  end
+
+  defp create_error_message(%Ash.Error.Invalid{errors: [%{fields: [:edge_site_id], message: message} | _]}), do: message
+
+  defp create_error_message(_reason), do: "Failed to create package"
 
   defp get_package(id, actor) do
     case CollectorPackage
@@ -991,8 +1018,7 @@ defmodule ServiceRadarWebNGWeb.Admin.CollectorLive.Index do
     case get_package(id, actor) do
       {:ok, package} ->
         package
-        |> Ash.Changeset.for_update(:revoke)
-        |> Ash.Changeset.set_argument(:reason, "Revoked from admin UI")
+        |> Ash.Changeset.for_update(:revoke, %{reason: "Revoked from admin UI"})
         |> Ash.update(actor: actor)
 
       error ->

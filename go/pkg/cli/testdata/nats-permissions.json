@@ -1,0 +1,27 @@
+{
+  "agent_flow_collector": {
+    "allow_responses": true,
+    "max_responses": 16,
+    "publish_allow": [
+      "flow.host-slice.agent-42",
+      "$JS.API.STREAM.INFO.flows",
+      "$JS.API.STREAM.CREATE.flows",
+      "$JS.API.STREAM.UPDATE.flows",
+      "$JS.API.STREAM.INFO.events",
+      "$JS.API.STREAM.UPDATE.events"
+    ],
+    "publish_deny": ["$SYS.>", "flow.attributed.>"],
+    "subscribe_allow": ["_INBOX.>", "config.flow-collector.agent-42.>"],
+    "subscribe_deny": ["$SYS.>", "flow.host-slice.>", "flow.attributed.>"]
+  },
+  "falcosidekick": {"publish_allow": ["falco.logs"], "subscribe_allow": ["_INBOX.>"]},
+  "flowgger": {"publish_allow": ["logs.syslog"], "subscribe_allow": ["_INBOX.>"]},
+  "leaf": {
+    "publish_allow": ["logs.>", "otel.>", "events.>", "netflow.>", "flows.raw.>", "falco.>", "$JS.ACK.>", "_INBOX.>"],
+    "subscribe_allow": ["$JS.ACK.>", "_INBOX.>"]
+  },
+  "netflow": {"publish_allow": ["flows.raw.netflow"], "subscribe_allow": ["_INBOX.>"]},
+  "otel": {"publish_allow": ["otel.traces.>", "otel.metrics.>", "logs.otel"], "subscribe_allow": ["_INBOX.>"]},
+  "sflow": {"publish_allow": ["flows.raw.sflow"], "subscribe_allow": ["_INBOX.>"]},
+  "trapd": {"publish_allow": ["logs.snmp"], "subscribe_allow": ["_INBOX.>"]}
+}

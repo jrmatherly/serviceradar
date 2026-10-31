@@ -336,8 +336,7 @@ async fn stream_duplicate_window(
                 changed = true;
             }
 
-            // An edge credential may only read the stream; its owner already
-            // captures our subject, so a denied update is not fatal.
+            // The stream already captures our subject, so a failed update is not fatal.
             let updated = if changed {
                 js.update_stream(updated_config).await.map(|_| ())
             } else {
@@ -347,8 +346,8 @@ async fn stream_duplicate_window(
                 eprintln!("could not update stream {}: {e}", cfg.stream);
             }
         }
-        // The stream's owner (the otel log-collector, or core's EventWriter when
-        // it is absent) creates and sizes it; the worker's retry waits for it.
+        // Flowgger only reconciles. The otel log-collector, or core's EventWriter when
+        // it is absent, creates the stream; the worker's retry waits for it.
         Err(e) => {
             return Err(format!("stream {} not created by its owner yet: {e}", cfg.stream).into());
         }

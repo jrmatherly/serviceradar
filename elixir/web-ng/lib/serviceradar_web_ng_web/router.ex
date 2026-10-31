@@ -906,7 +906,6 @@ defmodule ServiceRadarWebNGWeb.Router do
     pipe_through(:api_token_auth)
 
     post("/edge-packages/:id/download", EdgeController, :download)
-    post("/collectors/:id/download", CollectorController, :download)
   end
 
   # Edge package bundle download - public endpoint with token in header/body

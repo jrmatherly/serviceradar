@@ -83,6 +83,24 @@ defmodule ServiceRadarWebNGWeb.Admin.CollectorLiveTest do
     end
   end
 
+  describe "host collector creation flow" do
+    test "installs the package the collector ships in and shows the download token", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/admin/collectors")
+
+      lv |> element("button", "New Collector") |> render_click()
+
+      html =
+        lv
+        |> form("form[phx-submit='create_package']", %{"collector_type" => "netflow", "edge_site_id" => ""})
+        |> render_submit()
+
+      assert html =~ "sudo apt install serviceradar-flow-collector"
+      refute html =~ "serviceradar-netflow"
+      assert html =~ "collectorpkg-v2:"
+      assert html =~ "SERVICERADAR_NATS_COLLECTOR_URL"
+    end
+  end
+
   describe "collector capability gating" do
     test "hides collector creation UI when onboarding is disabled", %{conn: conn} do
       previous_capabilities = Application.get_env(:serviceradar_web_ng, :runtime_capabilities)

@@ -7,7 +7,8 @@ defmodule ServiceRadar.Edge.NatsLeafConfigGenerator do
 
   - Server name based on edge site slug
   - Local listener for collector connections (mTLS)
-  - JetStream with "edge" domain for local buffering
+  - JetStream with "edge" domain, which answers `$JS.API` locally and buffers nothing,
+    since nothing creates a stream on the leaf
   - Leaf node connection to SaaS NATS cluster (mTLS)
 
   ## Certificate Paths
@@ -82,7 +83,7 @@ defmodule ServiceRadar.Edge.NatsLeafConfigGenerator do
 
     #{direct_leaf_authorization}
 
-    # Enable JetStream for local buffering during WAN outages
+    # Answers $JS.API locally. Nothing creates a stream here, so nothing is buffered during a WAN outage
     jetstream {
         store_dir: /var/lib/nats/jetstream
         max_memory_store: #{jetstream_max_memory}

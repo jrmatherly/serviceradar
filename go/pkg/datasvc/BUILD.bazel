@@ -53,6 +53,7 @@ go_test(
     data = [
         "//docker/compose:datasvc.docker.json",
         "//docker/compose:datasvc.mtls.json",
+        "//go/pkg/cli:testdata/nats-permissions.json",
         "//:docker-compose.yml",
     ],
     deps = [

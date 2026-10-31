@@ -46,7 +46,8 @@ service NATSAccountService {
 
   // GenerateUserCredentials creates NATS user credentials for an account.
   // datasvc signs with its platform account seed. FAILED_PRECONDITION when it has
-  // no seed, INVALID_ARGUMENT when account_name is not the platform account.
+  // no seed, INVALID_ARGUMENT when account_name is not the platform account or when
+  // permissions are missing or exceed what an edge credential may hold.
   rpc GenerateUserCredentials(GenerateUserCredentialsRequest) returns (GenerateUserCredentialsResponse) {}
 
   // RevokeUsers adds user public keys to the platform account's revocations,
@@ -125,7 +126,7 @@ message GenerateUserCredentialsRequest {
   string account_name = 1;             // Account the user belongs to (the platform account)
   string user_name = 3;                // Human-readable user identifier
   UserCredentialType credential_type = 4; // Type of credentials to generate
-  UserPermissions permissions = 5;     // Optional custom permissions (defaults based on type)
+  UserPermissions permissions = 5;     // Required: there are no defaults by type
   int64 expiration_seconds = 6;        // Credential expiration in seconds (0 = no expiration)
 }
 

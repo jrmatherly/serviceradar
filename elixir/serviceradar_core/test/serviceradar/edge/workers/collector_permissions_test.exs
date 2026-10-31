@@ -2,7 +2,9 @@ defmodule ServiceRadar.Edge.Workers.CollectorPermissionsTest do
   use ExUnit.Case, async: false
 
   alias ServiceRadar.Analytics.StarRocks
+  alias ServiceRadar.Edge.NatsLeafCredentials
   alias ServiceRadar.Edge.Workers.ProvisionCollectorWorker
+  alias ServiceRadar.NATS.AgentFlowCollectorPermissions
 
   # The subject each collector binary publishes, matching its bundle config.
   @expected %{
@@ -23,6 +25,23 @@ defmodule ServiceRadar.Edge.Workers.CollectorPermissionsTest do
     end
   end
 
+  test "matches the fixture the Go tests mint and validate" do
+    {:ok, agent} = AgentFlowCollectorPermissions.permissions("agent-42")
+
+    current =
+      @expected
+      |> Map.new(fn {type, _} -> {type, ProvisionCollectorWorker.collector_permissions(type)} end)
+      |> Map.merge(%{agent_flow_collector: agent, leaf: NatsLeafCredentials.leaf_permissions()})
+
+    fixture =
+      "../../../../../../go/pkg/cli/testdata/nats-permissions.json"
+      |> Path.expand(__DIR__)
+      |> File.read!()
+      |> Jason.decode!()
+
+    assert current |> Jason.encode!() |> Jason.decode!() == fixture
+  end
+
   test "no edge collector holds any stream API" do
     for type <- Map.keys(@expected),
         subject <- ProvisionCollectorWorker.collector_permissions(type).publish_allow do
@@ -41,7 +60,7 @@ defmodule ServiceRadar.Edge.Workers.CollectorPermissionsTest do
     end
 
     test "each retryable error names its cause" do
-      assert ProvisionCollectorWorker.failure_message({:grpc_error, "refused"}) == "refused"
+      assert ProvisionCollectorWorker.failure_message({:grpc_error, 14, "refused"}) == "refused"
 
       assert ProvisionCollectorWorker.failure_message(:gateway_unavailable) =~
                "No agent-gateway is reachable"

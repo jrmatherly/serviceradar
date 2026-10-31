@@ -27,8 +27,9 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
   host keep separate identities. Flowgger and OTel share the `serviceradar-log-collector`
   package and its one service, which runs each input whose config file is present.
 
-  Every host collector config says `mode: mtls` and nothing else puts certificates
-  on the host, so a package without all three PEMs returns
+  Every host collector config points at mTLS certificates (the JSON ones also say
+  `mode: mtls`) and nothing else puts them on the host, so a package without all
+  three PEMs returns
   `{:error, :tls_material_missing}` rather than a bundle that fails at connect.
 
   Falcosidekick is the Kubernetes exception: its bundle ships Helm values and
@@ -46,7 +47,8 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
   configuration uses the local NATS leaf URL instead of the upstream NATS URL. This
   enables:
   - Low-latency local message delivery
-  - WAN resilience (collectors buffer locally when upstream is down)
+  - No WAN buffering: nothing creates a stream on the leaf, so while upstream is down
+    a publish gets no ack and the collector retries or drops it
   - Simplified network topology (only leaf -> upstream connection needed)
   """
 
@@ -68,11 +70,14 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
     * `nats_creds` - Plaintext NATS credentials (AshCloak decrypts the field when it is loaded)
     * `tls_key_pem` - Plaintext TLS private key (falcosidekick does not use it)
     * `opts` - Additional options:
-      * `:nats_url` - NATS server URL (default: from config)
+      * `:nats_url` - NATS server URL (default: `get_nats_url/2`)
 
   ## Returns
 
     * `{:ok, tarball_binary}` - The gzipped tarball as binary
+    * `{:error, :collector_nats_url_missing}` - A hub-direct host collector and no
+      `SERVICERADAR_NATS_COLLECTOR_URL`: web-ng's own `NATS_URL` names a host inside
+      the deployment, which the collector's host cannot resolve
     * `{:error, reason}` - If bundle creation fails
   """
   @spec create_tarball(CollectorPackage.t(), String.t(), String.t() | nil, keyword()) ::
@@ -100,17 +105,38 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
   def create_tarball(package, nats_creds, tls_key_pem, opts) do
     package_dir = "collector-package-#{short_id(package.id)}"
 
-    # Standard collectors: systemd services on bare metal / VMs
-    create_tar_gz([
-      {"#{package_dir}/creds/nats.creds", nats_creds},
-      {"#{package_dir}/certs/collector.pem", package.tls_cert_pem},
-      {"#{package_dir}/certs/collector-key.pem", tls_key_pem},
-      {"#{package_dir}/certs/ca-chain.pem", package.ca_chain_pem},
-      {"#{package_dir}/config/#{config_filename(package)}", generate_config(package, opts)},
-      {"#{package_dir}/update.sh", generate_update_script(package)},
-      {"#{package_dir}/README.md", generate_readme(package)}
-    ])
+    if get_nats_url(package, opts) do
+      # Standard collectors: systemd services on bare metal / VMs
+      create_tar_gz([
+        {"#{package_dir}/creds/nats.creds", nats_creds},
+        {"#{package_dir}/certs/collector.pem", package.tls_cert_pem},
+        {"#{package_dir}/certs/collector-key.pem", tls_key_pem},
+        {"#{package_dir}/certs/ca-chain.pem", package.ca_chain_pem},
+        {"#{package_dir}/config/#{config_filename(package)}", generate_config(package, opts)},
+        {"#{package_dir}/update.sh", generate_update_script(package)},
+        {"#{package_dir}/README.md", generate_readme(package)}
+      ])
+    else
+      {:error, :collector_nats_url_missing}
+    end
   end
+
+  @doc """
+  Returns whether a bundle for this package can name a NATS URL its host can reach.
+  """
+  @spec nats_url_configured?(CollectorPackage.t()) :: boolean()
+  def nats_url_configured?(%{collector_type: :falcosidekick}), do: true
+  def nats_url_configured?(%{edge_site_id: id}) when is_binary(id), do: true
+  def nats_url_configured?(_package), do: collector_nats_url() != nil
+
+  @doc """
+  Returns the system package and systemd unit a host collector installs into.
+  """
+  @spec service_name(CollectorPackage.t()) :: String.t()
+  # NetFlow and sFlow share one binary, whose unit reads flow-collector.json.
+  def service_name(%{collector_type: type}) when type in [:netflow, :sflow], do: "serviceradar-flow-collector"
+  def service_name(%{collector_type: type}) when type in [:flowgger, :otel], do: "serviceradar-log-collector"
+  def service_name(%{collector_type: type}), do: "serviceradar-#{type}"
 
   @doc """
   Returns the bundle filename for a collector package.
@@ -156,10 +182,6 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
 
   # NetFlow and sFlow share one binary: the serviceradar-flow-collector package,
   # whose unit reads /etc/serviceradar/flow-collector.json.
-  defp service_name(%{collector_type: type}) when type in [:netflow, :sflow], do: "serviceradar-flow-collector"
-  defp service_name(%{collector_type: type}) when type in [:flowgger, :otel], do: "serviceradar-log-collector"
-  defp service_name(%{collector_type: type}), do: "serviceradar-#{type}"
-
   defp config_filename(package) do
     case package.collector_type do
       :flowgger -> "flowgger.toml"
@@ -346,8 +368,9 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
     Jason.encode!(config, pretty: true)
   end
 
+  # Runs inside the cluster, so unlike a host collector it dials the cluster's own URL.
   defp generate_falcosidekick_config(package, opts) do
-    nats_url = get_nats_url(package, opts)
+    nats_url = Keyword.get_lazy(opts, :nats_url, &default_nats_url/0)
 
     # Apply any config overrides
     namespace =
@@ -570,6 +593,15 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
     echo "Starting $SERVICE_NAME..."
     systemctl start "$SERVICE_NAME"
 
+    # The unit is Type=simple, so `systemctl start` succeeds even if the binary exits at once.
+    sleep 2
+    if ! systemctl is-active --quiet "$SERVICE_NAME"; then
+        echo "" >&2
+        echo "ERROR: $SERVICE_NAME failed to start" >&2
+        echo "Check logs: journalctl -u $SERVICE_NAME -n 50" >&2
+        exit 1
+    fi
+
     echo ""
     echo "Update complete!"
     echo ""
@@ -708,7 +740,7 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
 
     port_info =
       case package.collector_type do
-        :flowgger -> "514 (TCP/UDP)"
+        :flowgger -> "514 (UDP)"
         :trapd -> "162 (UDP)"
         :netflow -> "2055 (UDP)"
         :sflow -> "6343 (UDP)"
@@ -802,7 +834,7 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
     """
   end
 
-  defp generate_edge_site_section(%{edge_site: %EdgeSite{} = site}) do
+  defp generate_edge_site_section(%{edge_site: %EdgeSite{} = site} = package) do
     """
 
     ## Edge Site Deployment
@@ -810,12 +842,13 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
     This collector connects to a **local NATS leaf server** at your edge site.
 
     **Edge Site:** #{site.name}
-    **NATS Leaf URL:** #{site.nats_leaf_url || "Not configured"}
+    **NATS Leaf URL:** #{get_nats_url(package)}
 
     ### Benefits
 
     - **Low latency**: Messages are delivered locally before forwarding upstream
-    - **WAN resilience**: Local buffering when upstream connection is down
+    - **No WAN buffering**: Nothing creates a stream on the leaf, so while its upstream
+      connection is down a publish gets no ack and the collector retries or drops it
     - **Simplified networking**: Only the leaf server needs outbound connectivity
     """
   end
@@ -842,6 +875,8 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
     Application.get_env(:serviceradar_web_ng, :nats_url, "nats://nats:4222")
   end
 
+  defp collector_nats_url, do: Application.get_env(:serviceradar_web_ng, :collector_nats_url)
+
   @doc """
   Returns the NATS URL for a collector package.
 
@@ -849,13 +884,14 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
   1. Explicit :nats_url in opts
   2. Edge site's nats_leaf_url, when the operator set one
   3. The leaf's local TLS client URL, when the package is assigned to an edge site
-  4. Default NATS URL from config
+  4. `SERVICERADAR_NATS_COLLECTOR_URL`, the hub URL reachable from outside the
+     deployment. `nil` when it is unset.
 
   The edge site relationship must be preloaded on the package for options 2 and 3.
   A collector on the leaf host dials that local URL. `nats_leaf_url` remains the
   override for a collector that is not on the leaf host.
   """
-  @spec get_nats_url(CollectorPackage.t(), keyword()) :: String.t()
+  @spec get_nats_url(CollectorPackage.t(), keyword()) :: String.t() | nil
   def get_nats_url(package, opts \\ []) do
     cond do
       Keyword.has_key?(opts, :nats_url) ->
@@ -868,7 +904,7 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
         NatsLeafConfigGenerator.client_url(edge_site_listen(package))
 
       true ->
-        default_nats_url()
+        collector_nats_url()
     end
   end
 

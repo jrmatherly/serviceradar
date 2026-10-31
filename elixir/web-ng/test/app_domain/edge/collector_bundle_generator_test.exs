@@ -1,5 +1,5 @@
 defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias ServiceRadar.Edge.CollectorPackage
   alias ServiceRadar.Edge.EdgeSite
@@ -30,6 +30,18 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
       assert Enum.any?(file_names, &String.ends_with?(&1, "/README.md"))
 
       refute Enum.any?(file_names, &String.contains?(&1, "/certs/"))
+    end
+
+    test "extracts with a runnable deploy script" do
+      {:ok, tarball} =
+        CollectorBundleGenerator.create_tarball(sample_falcosidekick_package(), sample_nats_creds(), nil,
+          nats_url: "nats://serviceradar-nats:4222"
+        )
+
+      modes = tar_modes(tarball)
+
+      assert modes["deploy.sh"] == 0o755
+      assert modes["creds/nats.creds"] == 0o600
     end
 
     test "publishes on the one subject the events stream captures by default" do
@@ -150,6 +162,41 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
       assert mode(Path.join(installed, "certs/ca-chain.pem")) == 0o644
       assert mode(Path.join(installed, "certs/flowgger-key.pem")) == 0o600
       assert mode(Path.join(installed, "creds/flowgger.creds")) == 0o600
+    end
+
+    test "update.sh reports success only when the unit stays up" do
+      package = %{sample_flowgger_package() | tls_cert_pem: "cert-pem\n", ca_chain_pem: "ca-pem\n"}
+
+      {:ok, tarball} =
+        CollectorBundleGenerator.create_tarball(package, sample_nats_creds(), sample_tls_key(),
+          nats_url: "tls://host01.example.com:4222"
+        )
+
+      script = tarball |> extract_files() |> find_file("update.sh")
+      assert {_, 0} = System.cmd("bash", ["-n", "-c", script], stderr_to_stdout: true)
+
+      assert {:ok, _installed} = install_bundle(tarball)
+
+      assert {:error, {status, output}} = install_bundle(tarball, nil, false)
+      assert status != 0
+      assert output =~ "journalctl -u serviceradar-log-collector"
+      refute output =~ "Update complete"
+    end
+
+    test "extracts with a runnable script and private secrets" do
+      package = %{sample_flowgger_package() | tls_cert_pem: "cert-pem\n", ca_chain_pem: "ca-pem\n"}
+
+      {:ok, tarball} =
+        CollectorBundleGenerator.create_tarball(package, sample_nats_creds(), sample_tls_key(),
+          nats_url: "tls://host01.example.com:4222"
+        )
+
+      modes = tar_modes(tarball)
+
+      assert modes["update.sh"] == 0o755
+      assert modes["creds/nats.creds"] == 0o600
+      assert modes["certs/collector-key.pem"] == 0o600
+      assert modes["certs/collector.pem"] == 0o644
     end
 
     test "defaults syslog input to auto detection and UTC" do
@@ -467,6 +514,19 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
     end
 
     @tag :db_free
+    test "the README names the URL the bundle dials when the site has no leaf URL" do
+      package = %{
+        sample_flow_package(:netflow)
+        | edge_site: %EdgeSite{name: "Edge", nats_leaf_url: nil, nats_leaf_server: %{local_listen: "0.0.0.0:4222"}}
+      }
+
+      readme = bundle_text(package, "README.md")
+
+      assert readme =~ "**NATS Leaf URL:** tls://"
+      refute readme =~ "Not configured"
+      refute readme =~ "buffering when"
+    end
+
     test "an explicit edge site leaf URL overrides the local listen address" do
       package = %CollectorPackage{
         collector_type: :netflow,
@@ -480,13 +540,85 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
     end
 
     @tag :db_free
-    test "a collector with no edge site keeps the platform NATS URL" do
-      previous = Application.get_env(:serviceradar_web_ng, :nats_url)
-      Application.put_env(:serviceradar_web_ng, :nats_url, "tls://nats.example:4222")
-      on_exit(fn -> restore_nats_url(previous) end)
+    test "a collector with no edge site gets the externally reachable hub URL, not the cluster's" do
+      put_web_ng_env(:nats_url, "nats://nats:4222")
+      put_web_ng_env(:collector_nats_url, "tls://nats.example.com:4222")
 
       assert CollectorBundleGenerator.get_nats_url(%CollectorPackage{collector_type: :sflow}) ==
-               "tls://nats.example:4222"
+               "tls://nats.example.com:4222"
+    end
+  end
+
+  describe "create_tarball/4 with no external hub URL" do
+    setup do
+      put_web_ng_env(:nats_url, "nats://nats:4222")
+      Application.delete_env(:serviceradar_web_ng, :collector_nats_url)
+    end
+
+    test "a hub-direct host bundle refuses rather than ship an internal hostname" do
+      package = %{sample_flow_package(:netflow) | edge_site: nil}
+
+      assert {:error, :collector_nats_url_missing} =
+               CollectorBundleGenerator.create_tarball(package, sample_nats_creds(), sample_tls_key())
+
+      refute CollectorBundleGenerator.nats_url_configured?(package)
+    end
+
+    test "a bundle for an edge site still builds, since it dials the leaf" do
+      package = %{sample_flow_package(:netflow) | edge_site: %EdgeSite{name: "Edge", nats_leaf_url: nil}}
+
+      assert {:ok, _tarball} =
+               CollectorBundleGenerator.create_tarball(package, sample_nats_creds(), sample_tls_key())
+
+      assert CollectorBundleGenerator.nats_url_configured?(%{package | edge_site_id: Ecto.UUID.generate()})
+    end
+
+    test "falcosidekick deploys into the cluster and keeps the cluster URL" do
+      package = sample_falcosidekick_package()
+
+      assert {:ok, tarball} = CollectorBundleGenerator.create_tarball(package, sample_nats_creds(), nil)
+
+      values = tarball |> extract_files() |> find_file("falcosidekick.yaml") |> YamlElixir.read_from_string!()
+      assert values["config"]["nats"]["hostport"] == "nats://nats:4222"
+      assert CollectorBundleGenerator.nats_url_configured?(package)
+    end
+  end
+
+  describe "CollectorPackage :create" do
+    test "refuses an edge site for falcosidekick, which has no user on a leaf" do
+      changeset =
+        Ash.Changeset.for_create(CollectorPackage, :create, %{
+          collector_type: :falcosidekick,
+          edge_site_id: Ecto.UUID.generate()
+        })
+
+      refute changeset.valid?
+      assert [%{fields: [:edge_site_id]}] = changeset.errors
+    end
+
+    test "allows an edge site for a host collector" do
+      changeset =
+        Ash.Changeset.for_create(CollectorPackage, :create, %{
+          collector_type: :flowgger,
+          edge_site_id: Ecto.UUID.generate()
+        })
+
+      assert changeset.valid?
+    end
+  end
+
+  describe "service_name/1" do
+    test "names a package build/packaging/components.json ships" do
+      packages =
+        @repo_root
+        |> Path.join("build/packaging/components.json")
+        |> File.read!()
+        |> Jason.decode!()
+        |> Enum.map(& &1["package_name"])
+
+      for type <- [:flowgger, :otel, :trapd, :netflow, :sflow] do
+        assert CollectorBundleGenerator.service_name(%{collector_type: type}) in packages
+      end
     end
   end
 
@@ -551,7 +683,7 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
     end
   end
 
-  defp install_bundle(tarball, config \\ nil) do
+  defp install_bundle(tarball, config \\ nil, unit_active? \\ true) do
     root = Path.join(System.tmp_dir!(), "collector-update-#{System.unique_integer([:positive])}")
     bundle = Path.join(root, "bundle")
     config = config || Path.join(root, "etc")
@@ -581,10 +713,12 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
       |> String.replace(~s(CONFIG_DIR="/etc/serviceradar"), ~s(CONFIG_DIR="#{config}"))
 
     File.write!(script_path, script)
-    File.write!(Path.join(bin, "systemctl"), stub_systemctl(log))
+    File.write!(Path.join(bin, "systemctl"), stub_systemctl(log, unit_active?))
     File.write!(Path.join(bin, "id"), "#!/bin/bash\nexit 1\n")
+    File.write!(Path.join(bin, "sleep"), "#!/bin/bash\nexit 0\n")
     File.chmod!(Path.join(bin, "systemctl"), 0o755)
     File.chmod!(Path.join(bin, "id"), 0o755)
+    File.chmod!(Path.join(bin, "sleep"), 0o755)
 
     env =
       System.get_env()
@@ -601,10 +735,13 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
     end
   end
 
-  defp stub_systemctl(log) do
+  defp stub_systemctl(log, unit_active?) do
     """
     #!/bin/bash
     printf '%s\\n' "$*" >> "#{log}"
+    if [ "$1" = "is-active" ]; then
+      exit #{if unit_active?, do: 0, else: 3}
+    fi
     if [ "$1" = "list-unit-files" ]; then
       echo "serviceradar-log-collector.service enabled"
       echo "serviceradar-trapd.service enabled"
@@ -621,6 +758,15 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
 
     Map.new(files, fn {name, content} ->
       {to_string(name), IO.iodata_to_binary(content)}
+    end)
+  end
+
+  defp tar_modes(tarball) do
+    {:ok, table} = :erl_tar.table({:binary, tarball}, [:compressed, :verbose])
+
+    Map.new(table, fn {name, :regular, _size, _mtime, mode, _uid, _gid} ->
+      relative = name |> to_string() |> String.split("/", parts: 2) |> List.last()
+      {relative, Bitwise.band(mode, 0o7777)}
     end)
   end
 
@@ -737,8 +883,16 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
     }
   end
 
-  defp restore_nats_url(nil), do: Application.delete_env(:serviceradar_web_ng, :nats_url)
-  defp restore_nats_url(value), do: Application.put_env(:serviceradar_web_ng, :nats_url, value)
+  defp put_web_ng_env(key, value) do
+    previous = Application.get_env(:serviceradar_web_ng, key)
+    Application.put_env(:serviceradar_web_ng, key, value)
+
+    on_exit(fn ->
+      if previous,
+        do: Application.put_env(:serviceradar_web_ng, key, previous),
+        else: Application.delete_env(:serviceradar_web_ng, key)
+    end)
+  end
 
   defp sample_nats_creds do
     """

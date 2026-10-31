@@ -71,7 +71,7 @@ async fn run() -> Result<()> {
     .await?;
 
     let cfg: config::Config = bootstrap.load().await?;
-    let cfg = cfg.without_unconfigured_inputs();
+    let cfg = cfg.without_unconfigured_inputs()?;
 
     info!(
         "serviceradar-log-collector v{VERSION} starting (flowgger={}, otel={})",
