@@ -51,15 +51,25 @@ defmodule ServiceRadar.NATS.AccountClientTest do
 
   describe "generate_user_credentials/4" do
     test "an RPC error carries its status" do
-      start_supervised!({DynamicSupervisor, name: GRPC.Client.Supervisor, strategy: :one_for_one})
+      # The grpc application owns this supervisor once core has booted.
+      if !Process.whereis(GRPC.Client.Supervisor) do
+        start_supervised!(
+          {DynamicSupervisor, name: GRPC.Client.Supervisor, strategy: :one_for_one}
+        )
+      end
 
       start_supervised!(
         {Client, host: "127.0.0.1", port: 1, sec_mode: "plaintext", connect_timeout_ms: 10}
       )
 
-      :sys.replace_state(Client, fn state ->
-        %{state | channel: %GRPC.Channel{adapter: RefusingAdapter}, connect_task: nil}
-      end)
+      # A booted core runs Gun, and the client's first connect holds its mailbox while Gun retries.
+      :sys.replace_state(
+        Client,
+        fn state ->
+          %{state | channel: %GRPC.Channel{adapter: RefusingAdapter}, connect_task: nil}
+        end,
+        15_000
+      )
 
       assert AccountClient.generate_user_credentials("invented", "user", :collector) ==
                {:error, {:grpc_error, GRPC.Status.failed_precondition(), "invented refusal"}}
