@@ -29,6 +29,9 @@ import (
 	"github.com/nats-io/nkeys"
 )
 
+// DefaultPlatformAccount is the account nats-bootstrap creates unless told otherwise.
+const DefaultPlatformAccount = "platform"
+
 var (
 	// ErrOperatorKeyNotFound is returned when the operator key cannot be loaded.
 	ErrOperatorKeyNotFound = errors.New("operator key not found")
@@ -40,6 +43,8 @@ var (
 	ErrOperatorAlreadyInitialized = errors.New("operator already initialized")
 	// ErrOperatorNotInitialized is returned when operations require an initialized operator.
 	ErrOperatorNotInitialized = errors.New("operator not initialized")
+	// ErrAccountSeedInvalid is returned when a file does not hold an account seed.
+	ErrAccountSeedInvalid = errors.New("account seed invalid")
 )
 
 // OperatorConfig holds the configuration for the NATS operator.
@@ -80,6 +85,14 @@ type OperatorConfig struct {
 	// Account JWTs are written here for NATS to pick up.
 	// Can also be set via NATS_RESOLVER_PATH environment variable.
 	ResolverPath string `json:"resolver_path,omitempty"`
+
+	// PlatformAccountName is the only account GenerateUserCredentials mints for.
+	PlatformAccountName string `json:"platform_account_name,omitempty"`
+
+	// PlatformAccountSeedFile is the path to the platform account seed (starts with "SA").
+	// Deployments without an operator-mode NATS (Helm) leave it unset, and minting
+	// then returns FailedPrecondition.
+	PlatformAccountSeedFile string `json:"platform_account_seed_file,omitempty"`
 
 	// AllowedClientIdentities restricts NATSAccountService access to the listed mTLS identities.
 	// Entries should match the SPIFFE ID or certificate subject string.
@@ -168,6 +181,30 @@ func loadOperatorSeed(cfg *OperatorConfig) (string, error) {
 	}
 
 	return "", ErrOperatorKeyNotFound
+}
+
+// LoadAccountSeedFile reads an account seed and rejects anything but an account key.
+func LoadAccountSeedFile(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("failed to read account seed file: %w", err)
+	}
+
+	seed := strings.TrimSpace(string(data))
+	kp, err := nkeys.FromSeed([]byte(seed))
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", ErrAccountSeedInvalid, err)
+	}
+
+	publicKey, err := kp.PublicKey()
+	if err != nil {
+		return "", fmt.Errorf("failed to get account public key: %w", err)
+	}
+	if !nkeys.IsValidPublicAccountKey(publicKey) {
+		return "", fmt.Errorf("%w: not an account key", ErrAccountSeedInvalid)
+	}
+
+	return seed, nil
 }
 
 // loadSystemAccountPublicKey loads the system account public key from various sources in order of preference.

@@ -365,6 +365,32 @@ services:
     networks:
       - serviceradar-net
 
+  # The Ed25519 seed that signs collector enrollment tokens. Only web-ng signs them,
+  # so web-ng is the only service that mounts this volume.
+  onboarding-keygen:
+    image: alpine:3.20
+    container_name: serviceradar-onboarding-keygen
+    volumes:
+      - onboarding-key:/etc/serviceradar/onboarding
+    command: >
+      sh -c 'set -e;
+      APP_UID="$${SERVICERADAR_UID:-10001}";
+      APP_GID="$${SERVICERADAR_GID:-10001}";
+      mkdir -p /etc/serviceradar/onboarding;
+      if [ ! -f /etc/serviceradar/onboarding/onboarding.key ]; then
+        umask 077;
+        head -c 32 /dev/urandom | base64 | tr -d "\n" > /etc/serviceradar/onboarding/onboarding.key;
+        echo "Generated onboarding token signing key";
+      else
+        echo "Onboarding token signing key already present";
+      fi;
+      chown -R "$${APP_UID}:$${APP_GID}" /etc/serviceradar/onboarding;
+      chmod 700 /etc/serviceradar/onboarding;
+      chmod 600 /etc/serviceradar/onboarding/onboarding.key'
+    restart: "no"
+    networks:
+      - serviceradar-net
+
   core-elx-migrations:
     image: ${OCI_REGISTRY:-ghcr.io}/${OCI_PROJECT:-jrmatherly}/serviceradar-core-elx:${APP_TAG:-latest}
     container_name: serviceradar-core-elx-migrations
@@ -570,6 +596,8 @@ services:
       - NATS_TLS=true
       - NATS_SERVER_NAME=nats.serviceradar
       - NATS_CREDS_FILE=/etc/serviceradar/creds/core.creds
+      # Matches nats-bootstrap's default --platform-account, which init-nats-creds.sh keeps.
+      - NATS_ACCOUNT_NAME=platform
       # StarRocks warehouse. Default off so Compose without --profile starrocks
       # keeps logs on CNPG. Set STARROCKS_ENABLED=true with that profile.
       - SERVICERADAR_STARROCKS_ENABLED=${STARROCKS_ENABLED:-false}
@@ -611,7 +639,14 @@ services:
       - ./docker/compose/ssl_dist.core.conf:/etc/serviceradar/ssl_dist.conf:ro
       - cloak-key:/etc/serviceradar/cloak:ro
       - cnpg-credentials:/etc/serviceradar/cnpg:ro
-      - ${NATS_CREDS_DIR:-nats-creds}:/etc/serviceradar/creds:ro
+      # Only core's credentials: core and datasvc share a uid, and the whole
+      # volume would expose platform_account.seed.
+      - type: volume
+        source: nats-creds
+        target: /etc/serviceradar/creds/core.creds
+        read_only: true
+        volume:
+          subpath: core.creds
       - migrations-data:/var/lib/serviceradar/migrations
       - serviceradar-advisory-feeds:/var/lib/serviceradar/advisory-feeds
       - ${DEVICE_ENRICHMENT_RULES_DIR_HOST:-./docker/compose/rules/device-enrichment}:/var/lib/serviceradar/rules/device-enrichment:ro
@@ -787,6 +822,12 @@ services:
         read_only: true
         volume:
           subpath: operator.seed
+      - type: volume
+        source: nats-creds
+        target: /etc/serviceradar/creds/platform_account.seed
+        read_only: true
+        volume:
+          subpath: platform_account.seed
       - type: volume
         source: nats-creds
         target: /etc/serviceradar/creds/system_account.pub
@@ -1367,6 +1408,7 @@ services:
       - SERVICERADAR_MCP_REFRESH_TTL_SECONDS=${SERVICERADAR_MCP_REFRESH_TTL_SECONDS:-28800}
       - SERVICERADAR_GATEWAY_ADDR=${SERVICERADAR_GATEWAY_ADDR:-${SERVICERADAR_HOST:-localhost}:50052}
       - NATS_URL=${NATS_URL:-nats://nats:4222}
+      - SERVICERADAR_NATS_COLLECTOR_URL=${SERVICERADAR_NATS_COLLECTOR_URL:-}
       - CORE_ADDRESS=${CORE_ADDRESS:-core-elx:50052}
       - SERVICERADAR_STARROCKS_ENABLED=${STARROCKS_ENABLED:-false}
       - SERVICERADAR_STARROCKS_FE_HTTP=${STARROCKS_FE_HTTP:-http://starrocks:8030}
@@ -1412,6 +1454,7 @@ services:
       - PLUGIN_STORAGE_SIGNING_SECRET_FILE=/etc/serviceradar/admin/plugin-storage-signing-secret
       - DEVICE_ENRICHMENT_RULES_DIR=/var/lib/serviceradar/rules/device-enrichment
       - CLOAK_KEY_FILE=/etc/serviceradar/cloak/cloak.key
+      - SERVICERADAR_ONBOARDING_TOKEN_PRIVATE_KEY_FILE=/etc/serviceradar/onboarding/onboarding.key
       - ADMIN_BASIC_AUTH_USERNAME=${ADMIN_BASIC_AUTH_USERNAME:-}
       - ADMIN_BASIC_AUTH_PASSWORD=${ADMIN_BASIC_AUTH_PASSWORD:-}
       - CNPG_HOST=${CNPG_DOCKER_HOST:-cnpg}
@@ -1452,11 +1495,14 @@ services:
       - admin-creds:/etc/serviceradar/admin:ro
       - ./docker/compose/ssl_dist.web.conf:/etc/serviceradar/ssl_dist.conf:ro
       - cloak-key:/etc/serviceradar/cloak:ro
+      - onboarding-key:/etc/serviceradar/onboarding:ro
       - cnpg-credentials:/etc/serviceradar/cnpg:ro
       - migrations-data:/var/lib/serviceradar/migrations:ro
       - plugin-packages:/var/lib/serviceradar/plugin-packages
       - ${DEVICE_ENRICHMENT_RULES_DIR_HOST:-./docker/compose/rules/device-enrichment}:/var/lib/serviceradar/rules/device-enrichment
     depends_on:
+      onboarding-keygen:
+        condition: service_completed_successfully
       config-updater:
         condition: service_completed_successfully
       plugin-packages-permissions-fixer:
@@ -1526,6 +1572,8 @@ volumes:
     name: "${SERVICERADAR_VOLUME_PREFIX:-serviceradar}_nats-creds"
   cloak-key:
     name: "${SERVICERADAR_VOLUME_PREFIX:-serviceradar}_cloak-key"
+  onboarding-key:
+    name: "${SERVICERADAR_VOLUME_PREFIX:-serviceradar}_onboarding-key"
   admin-creds:
     name: "${SERVICERADAR_VOLUME_PREFIX:-serviceradar}_admin-creds"
   migrations-data:

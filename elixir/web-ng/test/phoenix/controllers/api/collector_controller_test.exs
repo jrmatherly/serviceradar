@@ -5,6 +5,7 @@ defmodule ServiceRadarWebNGWeb.Api.CollectorControllerTest do
 
   alias ServiceRadar.Edge.CollectorPackage
   alias ServiceRadar.Edge.NatsCredential
+  alias ServiceRadarWebNG.Auth.Guardian
   alias ServiceRadarWebNG.Edge.EnrollmentToken
 
   @moduletag :web_ng_shared_fixture_db
@@ -31,6 +32,17 @@ defmodule ServiceRadarWebNGWeb.Api.CollectorControllerTest do
     def create_tarball(_package, _creds, _tls_key, _opts \\ []), do: {:error, %{secret: "collector-bundle-secret"}}
   end
 
+  setup do
+    prior = Application.get_env(:serviceradar_web_ng, :collector_nats_url)
+    Application.put_env(:serviceradar_web_ng, :collector_nats_url, "tls://nats.example.com:4222")
+
+    on_exit(fn ->
+      if prior,
+        do: Application.put_env(:serviceradar_web_ng, :collector_nats_url, prior),
+        else: Application.delete_env(:serviceradar_web_ng, :collector_nats_url)
+    end)
+  end
+
   describe "POST /api/admin/collectors" do
     setup %{conn: conn} do
       seed = :crypto.strong_rand_bytes(32)
@@ -52,7 +64,7 @@ defmodule ServiceRadarWebNGWeb.Api.CollectorControllerTest do
       end)
 
       {:ok, token, _claims} =
-        ServiceRadarWebNG.Auth.Guardian.create_access_token(ServiceRadarWebNG.AshTestHelpers.admin_user_fixture())
+        Guardian.create_access_token(ServiceRadarWebNG.AshTestHelpers.admin_user_fixture())
 
       %{conn: Plug.Conn.put_req_header(conn, "authorization", "Bearer #{token}")}
     end
@@ -76,21 +88,77 @@ defmodule ServiceRadarWebNGWeb.Api.CollectorControllerTest do
     end
   end
 
-  describe "POST /api/admin/collectors/:id/download" do
-    test "accepts a download token from the POST body", %{conn: _conn} do
-      {package, token} = create_ready_collector_package(:flowgger)
+  describe "POST /api/admin/collectors with an edge site" do
+    setup :authenticate_admin
 
-      conn = post(build_conn(), ~p"/api/admin/collectors/#{package.id}/download", %{"download_token" => token})
+    test "refuses falcosidekick, which has no user on a leaf", %{conn: conn} do
+      if not ServiceRadarWebNG.Capabilities.collectors_enabled?() do
+        previous = Application.get_env(:serviceradar_web_ng, :runtime_capabilities)
 
-      assert %{"package" => %{"status" => "downloaded"}} = json_response(conn, 200)
+        Application.put_env(:serviceradar_web_ng, :runtime_capabilities, %{
+          enabled: [:collectors_enabled],
+          configured?: true
+        })
+
+        on_exit(fn ->
+          if previous,
+            do: Application.put_env(:serviceradar_web_ng, :runtime_capabilities, previous),
+            else: Application.delete_env(:serviceradar_web_ng, :runtime_capabilities)
+        end)
+      end
+
+      conn =
+        post(conn, ~p"/api/admin/collectors", %{
+          "collector_type" => "falcosidekick",
+          "edge_site_id" => Ecto.UUID.generate()
+        })
+
+      assert json_response(conn, 422)["error"] == "validation_error"
+    end
+  end
+
+  describe "GET /api/admin/collectors" do
+    setup :authenticate_admin
+
+    test "lists packages", %{conn: conn} do
+      {package, _token} = create_ready_collector_package(:flowgger)
+
+      body = conn |> get(~p"/api/admin/collectors?limit=1000") |> json_response(200)
+
+      assert package.id in Enum.map(body, & &1["id"])
     end
 
-    test "rejects query-string token fallback", %{conn: _conn} do
-      {package, token} = create_ready_collector_package(:flowgger)
+    test "filters by each status the resource has", %{conn: conn} do
+      {ready, _token} = create_ready_collector_package(:flowgger)
 
-      conn = post(build_conn(), ~p"/api/admin/collectors/#{package.id}/download?download_token=#{token}", %{})
+      pending =
+        CollectorPackage
+        |> Ash.Changeset.for_create(:create, %{collector_type: :trapd}, actor: system_actor())
+        |> Ash.create!(actor: system_actor())
 
-      assert json_response(conn, 400)["error"] == "download_token is required"
+      ready_ids = conn |> get(~p"/api/admin/collectors?limit=1000&status=ready") |> json_response(200) |> ids()
+      pending_ids = conn |> get(~p"/api/admin/collectors?limit=1000&status=pending") |> json_response(200) |> ids()
+
+      assert ready.id in ready_ids
+      refute pending.id in ready_ids
+      assert pending.id in pending_ids
+      refute ready.id in pending_ids
+    end
+  end
+
+  describe "POST /api/admin/collectors/:id/revoke" do
+    setup :authenticate_admin
+
+    test "stores and returns the reason", %{conn: conn} do
+      {package, _token} = create_ready_collector_package(:flowgger)
+
+      body =
+        conn
+        |> post(~p"/api/admin/collectors/#{package.id}/revoke", %{"reason" => "host decommissioned"})
+        |> json_response(200)
+
+      assert body["status"] == "revoked"
+      assert body["revoke_reason"] == "host decommissioned"
     end
   end
 
@@ -114,7 +182,21 @@ defmodule ServiceRadarWebNGWeb.Api.CollectorControllerTest do
       assert Enum.any?(file_names, &String.ends_with?(&1, "/certs/collector.pem"))
     end
 
-    test "downloads a bundle when TLS certificates were not provisioned", %{conn: _conn} do
+    test "refuses a hub-direct bundle with no external hub URL and leaves the token usable", %{conn: _conn} do
+      Application.delete_env(:serviceradar_web_ng, :collector_nats_url)
+
+      {package, token} = create_ready_collector_package(:flowgger)
+
+      conn =
+        build_conn()
+        |> put_req_header("x-serviceradar-download-token", token)
+        |> post(~p"/api/collectors/#{package.id}/bundle", %{})
+
+      assert json_response(conn, 503)["error"] =~ "SERVICERADAR_NATS_COLLECTOR_URL"
+      assert Ash.get!(CollectorPackage, package.id, actor: system_actor()).status == :ready
+    end
+
+    test "refuses a bundle when TLS certificates were not provisioned", %{conn: _conn} do
       {package, token} = create_ready_collector_package(:flowgger, %{tls: false})
 
       conn =
@@ -122,13 +204,7 @@ defmodule ServiceRadarWebNGWeb.Api.CollectorControllerTest do
         |> put_req_header("x-serviceradar-download-token", token)
         |> post(~p"/api/collectors/#{package.id}/bundle", %{})
 
-      body = response(conn, 200)
-      {:ok, files} = :erl_tar.extract({:binary, body}, [:compressed, :memory])
-      file_names = Enum.map(files, fn {name, _content} -> to_string(name) end)
-
-      assert Enum.any?(file_names, &String.ends_with?(&1, "/creds/nats.creds"))
-      assert Enum.any?(file_names, &String.ends_with?(&1, "/config/flowgger.toml"))
-      refute Enum.any?(file_names, &String.contains?(&1, "/certs/"))
+      assert %{"error" => "TLS certificates not provisioned"} = json_response(conn, 500)
     end
 
     test "downloads a falcosidekick bundle that reuses runtime certs", %{conn: _conn} do
@@ -234,25 +310,14 @@ defmodule ServiceRadarWebNGWeb.Api.CollectorControllerTest do
     end
   end
 
-  describe "POST /api/admin/collectors/:id/download install script" do
-    test "returns a shell-literal-safe install script", %{conn: _conn} do
-      {package, token} =
-        create_ready_collector_package(:flowgger, %{
-          site: "$(touch /tmp/site-pwned)",
-          hostname: "$(touch /tmp/host-pwned)"
-        })
+  defp authenticate_admin(%{conn: conn}) do
+    {:ok, token, _claims} =
+      Guardian.create_access_token(ServiceRadarWebNG.AshTestHelpers.admin_user_fixture())
 
-      conn =
-        post(build_conn(), ~p"/api/admin/collectors/#{package.id}/download", %{"download_token" => token})
-
-      install_script = json_response(conn, 200)["install_script"]
-
-      assert install_script =~ "SITE='$(touch /tmp/site-pwned)'"
-      assert install_script =~ "HOSTNAME='$(touch /tmp/host-pwned)'"
-      refute install_script =~ ~s|SITE="$(touch /tmp/site-pwned)"|
-      refute install_script =~ ~s|HOSTNAME="$(touch /tmp/host-pwned)"|
-    end
+    %{conn: Plug.Conn.put_req_header(conn, "authorization", "Bearer #{token}")}
   end
+
+  defp ids(packages), do: Enum.map(packages, & &1["id"])
 
   defp create_ready_collector_package(collector_type, overrides \\ %{}) do
     unique = System.unique_integer([:positive])

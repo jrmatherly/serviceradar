@@ -189,6 +189,7 @@ struct NATSConfig {
     url: String,
     subject: String,
     stream: String,
+    stream_owner: bool,
     stream_replicas: usize,
     partition: String,
     timeout: Duration,
@@ -222,6 +223,11 @@ impl NATSOutput {
         let stream = cfg
             .lookup("output.nats_stream")
             .map_or("events".into(), |v| v.as_str().unwrap().to_owned());
+        // Edge bundles set false: their credential holds no stream API, and behind a
+        // leaf the leaf's own JetStream answers any stream lookup with not-found.
+        let stream_owner = cfg
+            .lookup("output.nats_stream_owner")
+            .is_none_or(|v| v.as_bool().unwrap());
         let stream_replicas = cfg
             .lookup("output.nats_stream_replicas")
             .map_or(1, |v| v.as_integer().unwrap() as usize);
@@ -277,6 +283,7 @@ impl NATSOutput {
                 url,
                 subject,
                 stream,
+                stream_owner,
                 stream_replicas,
                 partition,
                 timeout,
@@ -291,6 +298,67 @@ impl NATSOutput {
             workers,
         }
     }
+}
+
+#[cfg(feature = "nats-output")]
+const NON_OWNER_DUPLICATE_WINDOW: Duration = Duration::from_secs(120);
+
+/// Reconciles the stream when this collector owns it and returns its duplicate
+/// window. A non-owner cannot read the window, so it assumes the 120s its owners set.
+#[cfg(feature = "nats-output")]
+async fn stream_duplicate_window(
+    js: &jetstream::Context,
+    cfg: &NATSConfig,
+) -> Result<Duration, async_nats::Error> {
+    if !cfg.stream_owner {
+        return Ok(NON_OWNER_DUPLICATE_WINDOW);
+    }
+
+    match js.get_stream(&cfg.stream).await {
+        Ok(mut stream) => {
+            let info = stream.info().await?;
+            let mut updated_config = info.config.clone();
+            let mut changed = false;
+
+            // Skip the append when an existing subject (e.g. `logs.>` on the shared
+            // `events` stream) already covers ours — a literal `logs.syslog` append
+            // would self-overlap and JetStream rejects the UPDATE (10052, #4302).
+            if !updated_config
+                .subjects
+                .iter()
+                .any(|existing| subject_covers(existing, &cfg.subject))
+            {
+                updated_config.subjects.push(cfg.subject.clone());
+                changed = true;
+            }
+            if updated_config.num_replicas != cfg.stream_replicas {
+                updated_config.num_replicas = cfg.stream_replicas;
+                changed = true;
+            }
+
+            // The stream already captures our subject, so a failed update is not fatal.
+            let updated = if changed {
+                js.update_stream(updated_config).await.map(|_| ())
+            } else {
+                Ok(())
+            };
+            if let Err(e) = updated {
+                eprintln!("could not update stream {}: {e}", cfg.stream);
+            }
+        }
+        // Flowgger only reconciles. The otel log-collector, or core's EventWriter when
+        // it is absent, creates the stream; the worker's retry waits for it.
+        Err(e) => {
+            return Err(format!("stream {} not created by its owner yet: {e}", cfg.stream).into());
+        }
+    }
+
+    // Read back the server-normalized stream configuration. A zero value in
+    // a create request becomes the server's configured default duplicate
+    // window, and that actual window defines the safe ACK retry horizon.
+    let mut stream = js.get_stream(&cfg.stream).await?;
+    let duplicate_window = stream.info().await?.config.duplicate_window;
+    Ok(duplicate_window)
 }
 
 #[cfg(feature = "nats-output")]
@@ -330,55 +398,7 @@ impl NATSWorker {
             .ack_timeout(self.cfg.timeout)
             .build(client.clone());
 
-        match js.get_stream(&self.cfg.stream).await {
-            Ok(mut stream) => {
-                let info = stream.info().await?;
-                let mut updated_config = info.config.clone();
-                let mut changed = false;
-
-                // Skip the append when an existing subject (e.g. `logs.>` on the shared
-                // `events` stream) already covers ours — a literal `logs.syslog` append
-                // would self-overlap and JetStream rejects the UPDATE (10052, #4302).
-                if !updated_config
-                    .subjects
-                    .iter()
-                    .any(|existing| subject_covers(existing, &self.cfg.subject))
-                {
-                    updated_config.subjects.push(self.cfg.subject.clone());
-                    changed = true;
-                }
-                if updated_config.num_replicas != self.cfg.stream_replicas {
-                    updated_config.num_replicas = self.cfg.stream_replicas;
-                    changed = true;
-                }
-
-                // An edge credential may only read the stream; its owner already
-                // captures our subject, so a denied update is not fatal.
-                let updated = if changed {
-                    js.update_stream(updated_config).await.map(|_| ())
-                } else {
-                    Ok(())
-                };
-                if let Err(e) = updated {
-                    eprintln!("could not update stream {}: {e}", self.cfg.stream);
-                }
-            }
-            // The stream's owner (the otel log-collector, or core's EventWriter when
-            // it is absent) creates and sizes it; the worker's retry waits for it.
-            Err(e) => {
-                return Err(format!(
-                    "stream {} not created by its owner yet: {e}",
-                    self.cfg.stream
-                )
-                .into());
-            }
-        }
-
-        // Read back the server-normalized stream configuration. A zero value in
-        // a create request becomes the server's configured default duplicate
-        // window, and that actual window defines the safe ACK retry horizon.
-        let mut stream = js.get_stream(&self.cfg.stream).await?;
-        let duplicate_window = stream.info().await?.config.duplicate_window;
+        let duplicate_window = stream_duplicate_window(&js, &self.cfg).await?;
 
         Ok(NATSConnection {
             client,
@@ -697,7 +717,64 @@ impl Output for NATSOutput {
 #[cfg(all(test, feature = "nats-output"))]
 mod tests {
     use super::*;
+    use std::path::Path;
     use std::sync::mpsc::sync_channel;
+
+    #[test]
+    fn edge_bundle_config_parses() {
+        let cfg =
+            Config::from_string(include_str!("../../../testdata/edge-flowgger.toml")).unwrap();
+        assert_eq!(cfg.lookup("input.type").unwrap().as_str(), Some("udp"));
+        assert_eq!(cfg.lookup("output.type").unwrap().as_str(), Some("nats"));
+
+        let output = NATSOutput::new(&cfg);
+        assert_eq!(output.cfg.url, "tls://host01.example.com:4222");
+        assert_eq!(output.cfg.subject, "logs.syslog");
+        assert_eq!(output.cfg.stream, "events");
+        assert!(!output.cfg.stream_owner);
+        assert_eq!(
+            output.cfg.creds_file.as_deref(),
+            Some(Path::new("/etc/serviceradar/creds/flowgger.creds"))
+        );
+        assert_eq!(
+            output.cfg.tls_cert.as_deref(),
+            Some(Path::new("/etc/serviceradar/certs/flowgger.pem"))
+        );
+    }
+
+    #[test]
+    fn stream_ownership_defaults_on_for_central_configs() {
+        let cfg = Config::from_string(
+            "[output]\nnats_url = \"nats://host01.example.com:4222\"\nnats_subject = \"logs.syslog\"\n",
+        )
+        .unwrap();
+        assert!(NATSOutput::new(&cfg).cfg.stream_owner);
+    }
+
+    #[tokio::test]
+    async fn non_owner_sends_no_stream_request() {
+        // A client that never connects: any JetStream request fails or hangs.
+        let client = ConnectOptions::new()
+            .retry_on_initial_connect()
+            .connect("nats://127.0.0.1:1")
+            .await
+            .unwrap();
+        let js = ContextBuilder::new()
+            .timeout(Duration::from_millis(100))
+            .build(client);
+
+        let cfg = |stream_owner| {
+            let toml = format!(
+                "[output]\nnats_url = \"nats://127.0.0.1:1\"\nnats_subject = \"logs.syslog\"\nnats_stream_owner = {stream_owner}\n"
+            );
+            NATSOutput::new(&Config::from_string(&toml).unwrap()).cfg
+        };
+
+        let window = stream_duplicate_window(&js, &cfg(false)).await.unwrap();
+        assert_eq!(window, NON_OWNER_DUPLICATE_WINDOW);
+
+        assert!(stream_duplicate_window(&js, &cfg(true)).await.is_err());
+    }
 
     #[test]
     fn idle_queue_does_not_block_current_thread_runtime() {

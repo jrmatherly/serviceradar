@@ -1,16 +1,19 @@
 defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorker do
   @moduledoc """
-  Oban worker for provisioning NATS credentials for collector packages.
+  Oban worker for provisioning NATS credentials and certificates for collector packages.
 
-  In single-deployment mode:
-  - NATS account configuration comes from environment variables
-  - TLS certificates are handled by external infrastructure (SPIFFE/SPIRE, cert-manager)
   - The worker generates NATS user credentials via datasvc gRPC
+  - It issues the collector's mTLS certificate from the agent-gateway CA via
+    `ServiceRadar.Edge.CollectorCertificateIssuer`. Falcosidekick is exempt: it
+    runs in the cluster and mounts the `serviceradar-runtime-certs` secret.
 
   ## Retries
 
-  The job will retry up to 5 times with exponential backoff. If all retries
-  fail, the collector package status is set to `:failed`.
+  The job runs up to 10 times with exponential backoff, about 19 minutes in all,
+  which covers a gateway or datasvc that is restarting. If the last attempt
+  fails, including by raising, the collector package status is set to `:failed`.
+  datasvc answering `INVALID_ARGUMENT` or `FAILED_PRECONDITION` fails it at once,
+  since those describe the request or datasvc's configuration and no retry helps.
 
   ## Usage
 
@@ -20,10 +23,12 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorker do
 
   use Oban.Worker,
     queue: :nats_accounts,
-    max_attempts: 5,
+    max_attempts: 10,
     unique: [period: :infinity, keys: [:package_id]]
 
   alias ServiceRadar.Actors.SystemActor
+  alias ServiceRadar.Analytics.StarRocks.Readers
+  alias ServiceRadar.Edge.CollectorCertificateIssuer
   alias ServiceRadar.Edge.CollectorPackage
   alias ServiceRadar.Edge.NatsCredential
   alias ServiceRadar.NATS.AccountClient
@@ -33,6 +38,8 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorker do
   require Ash.Expr
   require Ash.Query
   require Logger
+
+  @unretryable_grpc_statuses [GRPC.Status.invalid_argument(), GRPC.Status.failed_precondition()]
 
   @doc """
   Enqueue a credential provisioning job for a collector package.
@@ -59,18 +66,30 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorker do
   end
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"package_id" => package_id}, attempt: attempt, max_attempts: max}) do
+  def perform(%Oban.Job{} = job), do: perform(job, [])
+
+  @doc """
+  `perform/1` with an injectable `:certificate_issuer`, a module exporting
+  `issue/1` (default `ServiceRadar.Edge.CollectorCertificateIssuer`).
+  """
+  def perform(
+        %Oban.Job{args: %{"package_id" => package_id}, attempt: attempt, max_attempts: max},
+        opts
+      ) do
+    certificate_issuer = Keyword.get(opts, :certificate_issuer, CollectorCertificateIssuer)
+
     Logger.info(
       "Provisioning credentials for collector package #{package_id} (attempt #{attempt}/#{max})"
     )
 
-    # In single-deployment mode, NATS config comes from environment
     with {:ok, package} <- get_package(package_id),
          :ok <- validate_package_status(package),
          {:ok, package} <- mark_provisioning(package),
-         {:ok, nats_config} <- get_nats_config(),
-         {:ok, user_creds} <- generate_user_credentials(nats_config, package),
-         {:ok, _package} <- persist_credentials(package, user_creds) do
+         :ok <- require_flow_storage(package.collector_type),
+         {:ok, account_name} <- AccountClient.account_name(),
+         {:ok, user_creds} <- generate_user_credentials(account_name, package),
+         {:ok, tls} <- issue_certificate(certificate_issuer, package),
+         {:ok, _package} <- persist_credentials(package, user_creds, tls) do
       Logger.info("Successfully provisioned credentials for collector package #{package_id}")
       :ok
     else
@@ -82,41 +101,77 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorker do
         Logger.info("Collector package #{package_id} not in pending state, skipping")
         :ok
 
+      {:error, :starrocks_required} ->
+        Logger.error("StarRocks not enabled for flow collector package #{package_id}")
+
+        mark_failed(
+          package_id,
+          "NetFlow and sFlow data is stored only in StarRocks, which is not enabled for this deployment"
+        )
+
+        {:discard, :starrocks_required}
+
       {:error, :nats_not_configured} ->
         Logger.error("NATS not configured for package #{package_id}")
         mark_failed(package_id, "NATS account not configured for this deployment")
         {:discard, :nats_not_configured}
 
-      {:error, :account_seed_not_found} ->
-        Logger.error("NATS account seed not found for package #{package_id}")
-        mark_failed(package_id, "NATS account seed not configured")
-        {:discard, :account_seed_not_found}
+      {:error, {:grpc_error, status, message} = reason}
+      when status in @unretryable_grpc_statuses ->
+        Logger.error("datasvc refused credentials for package #{package_id}: #{message}")
+        mark_failed(package_id, message)
+        {:discard, reason}
 
-      {:error, {:grpc_error, message}} = error ->
-        Logger.error("gRPC error provisioning credentials for package #{package_id}: #{message}")
+      {:error, reason} = error ->
+        message = failure_message(reason)
+
+        Logger.warning(
+          "Provisioning collector package #{package_id} failed (attempt #{attempt}/#{max}): #{message}"
+        )
 
         if attempt >= max do
           mark_failed(package_id, message)
         end
 
         error
+    end
+  catch
+    # Oban counts a raise or exit as a failed attempt but it skips the branches
+    # above, so without this the last one leaves the package in :provisioning.
+    kind, reason ->
+      if attempt >= max do
+        mark_failed(package_id, Exception.format_banner(kind, reason, __STACKTRACE__))
+      end
 
-      {:error, :not_connected} = error ->
-        Logger.warning("datasvc not connected, will retry for package #{package_id}")
-        error
+      :erlang.raise(kind, reason, __STACKTRACE__)
+  end
 
-      {:error, reason} = error ->
-        Logger.error(
-          "Error provisioning credentials for package #{package_id}: #{inspect(reason)}"
-        )
+  @doc false
+  # What a package shows the operator when a retryable error used its last attempt.
+  @spec failure_message(term()) :: String.t()
+  def failure_message(:not_connected), do: "datasvc is not reachable to mint NATS credentials"
+  def failure_message({:grpc_error, _status, message}), do: message
 
-        if attempt >= max do
-          mark_failed(package_id, inspect(reason))
-        end
+  def failure_message(:gateway_unavailable),
+    do: "No agent-gateway is reachable to issue the collector's TLS certificate"
 
-        error
+  def failure_message({:collector_certificate_issue_failed, reason}),
+    do: "The agent-gateway could not issue the collector's TLS certificate: #{inspect(reason)}"
+
+  def failure_message(reason), do: inspect(reason)
+
+  @doc false
+  # Without StarRocks, EventWriter acknowledges flow batches without storing them,
+  # so a flow collector would look healthy while its data is dropped.
+  @spec require_flow_storage(atom()) :: :ok | {:error, :starrocks_required}
+  def require_flow_storage(type) when type in [:netflow, :sflow] do
+    case Readers.backend(:flows) do
+      {:error, _reason} = error -> error
+      _backend -> :ok
     end
   end
+
+  def require_flow_storage(_type), do: :ok
 
   # Private helpers
 
@@ -160,30 +215,12 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorker do
     end
   end
 
-  defp get_nats_config do
-    # In single-deployment mode, NATS configuration comes from environment
-    account_name = Application.get_env(:serviceradar, :nats_account_name)
-    account_seed = Application.get_env(:serviceradar, :nats_account_seed)
-
-    cond do
-      is_nil(account_name) or account_name == "" ->
-        {:error, :nats_not_configured}
-
-      is_nil(account_seed) or account_seed == "" ->
-        {:error, :account_seed_not_found}
-
-      true ->
-        {:ok, %{account_name: account_name, account_seed: account_seed}}
-    end
-  end
-
-  defp generate_user_credentials(nats_config, package) do
+  defp generate_user_credentials(account_name, package) do
     # Build permissions based on collector type
     permissions = collector_permissions(package.collector_type)
 
     AccountClient.generate_user_credentials(
-      nats_config.account_name,
-      nats_config.account_seed,
+      account_name,
       package.user_name,
       :collector,
       permissions: permissions
@@ -192,38 +229,39 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorker do
 
   @doc false
   # Edge credentials leave the cluster, so a collector may publish only its own
-  # subjects and read its stream's info. The stream's trusted owner (the otel
-  # log-collector or core's EventWriter) creates it and captures these subjects,
-  # so no edge host can rewrite, purge or delete a shared stream.
+  # subjects, and makes no stream API call: behind a leaf the leaf's own JetStream
+  # answers one. The stream's trusted owner (the otel log-collector or core's
+  # EventWriter) creates it and captures these subjects, so no edge host can
+  # rewrite, purge or delete a shared stream.
   @spec collector_permissions(atom()) :: %{
           publish_allow: [String.t()],
           subscribe_allow: [String.t()]
         }
-  def collector_permissions(:flowgger), do: publisher(["logs.syslog"], ["events"])
-  def collector_permissions(:trapd), do: publisher(["logs.snmp"], ["events"])
+  def collector_permissions(:flowgger), do: publisher(["logs.syslog"])
+  def collector_permissions(:trapd), do: publisher(["logs.snmp"])
 
   def collector_permissions(:otel),
-    do: publisher(["otel.traces.>", "otel.metrics.>", "logs.otel"], ["events"])
+    do: publisher(["otel.traces.>", "otel.metrics.>", "logs.otel"])
 
-  def collector_permissions(:netflow), do: publisher(["flows.raw.netflow"], ["flows", "events"])
-  def collector_permissions(:sflow), do: publisher(["flows.raw.sflow"], ["flows", "events"])
+  def collector_permissions(:netflow), do: publisher(["flows.raw.netflow"])
+  def collector_permissions(:sflow), do: publisher(["flows.raw.sflow"])
 
-  # Falcosidekick publishes plain NATS messages on its subject template.
-  def collector_permissions(:falcosidekick), do: publisher(["falco.>"], [])
+  # Falcosidekick publishes plain NATS messages. The events stream captures only
+  # falco.logs (EventWriter FALCO entry).
+  def collector_permissions(:falcosidekick), do: publisher(["falco.logs"])
 
-  defp publisher(subjects, streams) do
-    %{
-      publish_allow: subjects ++ Enum.map(streams, &"$JS.API.STREAM.INFO.#{&1}"),
-      subscribe_allow: ["_INBOX.>"]
-    }
-  end
+  defp publisher(subjects), do: %{publish_allow: subjects, subscribe_allow: ["_INBOX.>"]}
 
-  defp persist_credentials(package, user_creds) do
+  # Issued last so a retry after a datasvc failure leaves no orphan certificate.
+  defp issue_certificate(_issuer, %{collector_type: :falcosidekick}), do: {:ok, %{}}
+  defp issue_certificate(issuer, package), do: issuer.issue(package)
+
+  defp persist_credentials(package, user_creds, tls) do
     Repo.transaction(fn ->
       with :ok <- require_provisioning(package.id),
            {:ok, credential} <- create_credential_record(package, user_creds),
            {:ok, ready} <-
-             mark_ready(package, credential.id, user_creds.creds_file_content) do
+             mark_ready(package, credential.id, user_creds.creds_file_content, tls) do
         ready
       else
         {:error, error} -> Repo.rollback(error)
@@ -265,9 +303,7 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorker do
     |> Ash.create()
   end
 
-  defp mark_ready(package, credential_id, nats_creds_content) do
-    # TLS certificates are optional here. Bundle downloads that need a key
-    # supply it on the :ready action; this worker records the NATS creds.
+  defp mark_ready(package, credential_id, nats_creds_content, tls) do
     actor = SystemActor.system(:provision_collector)
 
     with {:ok, current} <- get_package(package.id) do
@@ -276,7 +312,7 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorker do
         |> Ash.Changeset.new()
         |> Ash.Changeset.set_argument(:nats_credential_id, credential_id)
         |> Ash.Changeset.set_argument(:nats_creds_content, nats_creds_content)
-        |> Ash.Changeset.for_update(:ready, %{}, actor: actor)
+        |> Ash.Changeset.for_update(:ready, tls, actor: actor)
         |> guarded_update([:provisioning])
       else
         {:error, :package_not_pending}

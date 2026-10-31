@@ -17,7 +17,7 @@ defmodule ServiceRadar.Edge.CollectorPackage do
   ## Package Lifecycle
 
   1. Admin creates collector package (triggers credential provisioning)
-  2. Oban worker provisions NATS credentials via datasvc
+  2. Oban worker provisions NATS credentials via datasvc and a certificate via the gateway
   3. Package becomes ready for download
   4. Collector downloads and installs package
   5. Package marked as installed on successful activation
@@ -26,9 +26,8 @@ defmodule ServiceRadar.Edge.CollectorPackage do
 
   - NATS credentials file (.creds)
   - Collector configuration (collector-specific)
-  - mTLS certificates when the package has them (omitted from the bundle otherwise;
-    Falcosidekick uses the cluster runtime-cert secret). Bundle layout:
-    `ServiceRadarWebNG.Edge.CollectorBundleGenerator`
+  - mTLS certificates (Falcosidekick uses the cluster runtime-cert secret instead).
+    Bundle layout: `ServiceRadarWebNG.Edge.CollectorBundleGenerator`
   - Installation instructions
   """
 
@@ -122,6 +121,13 @@ defmodule ServiceRadar.Edge.CollectorPackage do
         description "Token expiration time"
       end
 
+      # A leaf authorizes a package by its certificate, and Falcosidekick presents the
+      # cluster's runtime certificate, so the leaf would refuse it.
+      validate absent(:edge_site_id) do
+        where attribute_equals(:collector_type, :falcosidekick)
+        message "Falcosidekick runs in the cluster and cannot connect through an edge site"
+      end
+
       change fn changeset, _context ->
         collector_type = Ash.Changeset.get_attribute(changeset, :collector_type)
         site = Ash.Changeset.get_attribute(changeset, :site) || "default"
@@ -190,8 +196,8 @@ defmodule ServiceRadar.Edge.CollectorPackage do
 
       argument :nats_credential_id, :uuid, allow_nil?: false
       argument :nats_creds_content, :string, allow_nil?: false, sensitive?: true
-      # TLS material is optional. The collector worker records NATS creds only;
-      # bundle downloads that need a key supply these arguments themselves.
+      # ProvisionCollectorWorker supplies these for every host collector. Only
+      # Falcosidekick omits them: it mounts the cluster's runtime-cert secret.
       argument :tls_cert_pem, :string, allow_nil?: true, sensitive?: true
       argument :tls_key_pem, :string, allow_nil?: true, sensitive?: true
       argument :ca_chain_pem, :string, allow_nil?: true, sensitive?: true

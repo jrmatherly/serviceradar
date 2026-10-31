@@ -17,6 +17,7 @@
 package accounts
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -336,5 +337,34 @@ func TestDecodeKeyFromStorage_Invalid(t *testing.T) {
 	_, err := DecodeKeyFromStorage("not-valid-base64!!!")
 	if err == nil {
 		t.Error("DecodeKeyFromStorage() expected error for invalid base64, got nil")
+	}
+}
+
+func TestLoadAccountSeedFile(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, content string) string {
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+		return path
+	}
+
+	seed, err := LoadAccountSeedFile(write("account.seed", testAccountSeed+"\n"))
+	if err != nil {
+		t.Fatalf("LoadAccountSeedFile() error = %v", err)
+	}
+	if seed != testAccountSeed {
+		t.Errorf("LoadAccountSeedFile() = %q, want the trimmed seed", seed)
+	}
+
+	if _, err := LoadAccountSeedFile(filepath.Join(dir, "missing.seed")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("missing file: err = %v, want os.ErrNotExist", err)
+	}
+	if _, err := LoadAccountSeedFile(write("operator.seed", testOperatorSeed)); !errors.Is(err, ErrAccountSeedInvalid) {
+		t.Errorf("operator seed: err = %v, want ErrAccountSeedInvalid", err)
+	}
+	if _, err := LoadAccountSeedFile(write("garbage.seed", "not-a-seed")); !errors.Is(err, ErrAccountSeedInvalid) {
+		t.Errorf("garbage: err = %v, want ErrAccountSeedInvalid", err)
 	}
 }

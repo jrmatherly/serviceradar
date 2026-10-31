@@ -193,7 +193,7 @@ helm upgrade --install <release-name> falcosecurity/falcosidekick \
   --set-string config.nats.hostport=nats://serviceradar-nats:4222 \
   --set config.nats.mutualtls=true \
   --set config.nats.checkcert=true \
-  --set-string config.nats.subjecttemplate='falco.<priority>.<rule>' \
+  --set-string config.nats.subjecttemplate=falco.logs \
   --set-string config.nats.minimumpriority=debug \
   --set-string 'config.templatedfields.serviceradar\.agent_id={{ with index . "k8s.node.name" }}agent-{{ . }}{{ end }}' \
   --set-string config.tlsclient.cacertfile=/etc/serviceradar/certs/root.pem \

@@ -46,16 +46,16 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// NATSAccountService provides stateless NATS JWT signing operations.
+// NATSAccountService provides NATS JWT signing operations.
 //
 // This service is called by Elixir core (with platform mTLS credentials) to:
 // - Bootstrap the NATS operator (first-time platform setup)
 // - Generate new account keys and sign account JWTs
-// - Generate user credentials signed with account keys
+// - Generate user credentials signed with the platform account seed
 // - Re-sign account JWTs when claims change (revocations, limits)
 //
-// Elixir is responsible for storing account data in CNPG.
-// datasvc holds only the operator key and performs cryptographic operations.
+// datasvc holds the operator key and the platform account seed. Callers never
+// see the platform account seed; they request credentials by account name.
 type NATSAccountServiceClient interface {
 	// BootstrapOperator initializes the NATS operator for the platform.
 	// This can either generate a new operator key pair or import an existing seed.
@@ -68,7 +68,9 @@ type NATSAccountServiceClient interface {
 	// The account_seed is returned and should be stored encrypted by Elixir (AshCloak).
 	CreateAccount(ctx context.Context, in *CreateAccountRequest, opts ...grpc.CallOption) (*CreateAccountResponse, error)
 	// GenerateUserCredentials creates NATS user credentials for an account.
-	// Requires the account_seed to sign the user JWT.
+	// datasvc signs with its platform account seed. FAILED_PRECONDITION when it has
+	// no seed, INVALID_ARGUMENT when account_name is not the platform account or when
+	// permissions are missing or exceed what an edge credential may hold.
 	GenerateUserCredentials(ctx context.Context, in *GenerateUserCredentialsRequest, opts ...grpc.CallOption) (*GenerateUserCredentialsResponse, error)
 	// SignAccountJWT regenerates an account JWT with updated claims.
 	// Use this when revocations or limits change.
@@ -151,16 +153,16 @@ func (c *nATSAccountServiceClient) PushAccountJWT(ctx context.Context, in *PushA
 // All implementations must embed UnimplementedNATSAccountServiceServer
 // for forward compatibility.
 //
-// NATSAccountService provides stateless NATS JWT signing operations.
+// NATSAccountService provides NATS JWT signing operations.
 //
 // This service is called by Elixir core (with platform mTLS credentials) to:
 // - Bootstrap the NATS operator (first-time platform setup)
 // - Generate new account keys and sign account JWTs
-// - Generate user credentials signed with account keys
+// - Generate user credentials signed with the platform account seed
 // - Re-sign account JWTs when claims change (revocations, limits)
 //
-// Elixir is responsible for storing account data in CNPG.
-// datasvc holds only the operator key and performs cryptographic operations.
+// datasvc holds the operator key and the platform account seed. Callers never
+// see the platform account seed; they request credentials by account name.
 type NATSAccountServiceServer interface {
 	// BootstrapOperator initializes the NATS operator for the platform.
 	// This can either generate a new operator key pair or import an existing seed.
@@ -173,7 +175,9 @@ type NATSAccountServiceServer interface {
 	// The account_seed is returned and should be stored encrypted by Elixir (AshCloak).
 	CreateAccount(context.Context, *CreateAccountRequest) (*CreateAccountResponse, error)
 	// GenerateUserCredentials creates NATS user credentials for an account.
-	// Requires the account_seed to sign the user JWT.
+	// datasvc signs with its platform account seed. FAILED_PRECONDITION when it has
+	// no seed, INVALID_ARGUMENT when account_name is not the platform account or when
+	// permissions are missing or exceed what an edge credential may hold.
 	GenerateUserCredentials(context.Context, *GenerateUserCredentialsRequest) (*GenerateUserCredentialsResponse, error)
 	// SignAccountJWT regenerates an account JWT with updated claims.
 	// Use this when revocations or limits change.

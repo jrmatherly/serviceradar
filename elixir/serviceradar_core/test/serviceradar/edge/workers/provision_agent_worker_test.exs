@@ -9,13 +9,12 @@ defmodule ServiceRadar.Edge.Workers.ProvisionAgentWorkerTest do
   ## Scope
 
   Plain-`perform/1` unit tests cover every branch that resolves before the
-  worker reaches `ServiceRadar.NATS.AccountClient.generate_user_credentials/5`:
+  worker reaches `ServiceRadar.NATS.AccountClient.generate_user_credentials/4`:
 
     * `:package_not_found`
     * `:not_agent_package`
     * `:invalid_agent_id`
     * `:nats_not_configured`
-    * `:account_seed_not_found`
 
   `perform/2` accepts an `:account_client` test seam, mirroring the
   `:awx_client` pattern in `controller_health_worker.ex`, so the tests can
@@ -52,11 +51,9 @@ defmodule ServiceRadar.Edge.Workers.ProvisionAgentWorkerTest do
 
   setup do
     prior_account_name = Application.get_env(:serviceradar, :nats_account_name)
-    prior_account_seed = Application.get_env(:serviceradar, :nats_account_seed)
 
     on_exit(fn ->
       restore_env(:nats_account_name, prior_account_name)
-      restore_env(:nats_account_seed, prior_account_seed)
     end)
 
     %{
@@ -122,7 +119,6 @@ defmodule ServiceRadar.Edge.Workers.ProvisionAgentWorkerTest do
   describe "perform/1 :nats_not_configured branch" do
     test "discards when nats_account_name is missing", %{actor: actor, unique_id: u} do
       Application.delete_env(:serviceradar, :nats_account_name)
-      Application.put_env(:serviceradar, :nats_account_seed, "SEED_PLACEHOLDER")
 
       pkg = create_gateway_package!(actor, u)
       force_agent_component!(pkg.id, "agent_#{u}")
@@ -133,38 +129,11 @@ defmodule ServiceRadar.Edge.Workers.ProvisionAgentWorkerTest do
 
     test "discards when nats_account_name is empty string", %{actor: actor, unique_id: u} do
       Application.put_env(:serviceradar, :nats_account_name, "")
-      Application.put_env(:serviceradar, :nats_account_seed, "SEED_PLACEHOLDER")
 
       pkg = create_gateway_package!(actor, u)
       force_agent_component!(pkg.id, "agent_#{u}")
 
       assert {:discard, :nats_not_configured} =
-               ProvisionAgentWorker.perform(build_job(pkg.id))
-    end
-  end
-
-  # --- :account_seed_not_found ----------------------------------------------
-
-  describe "perform/1 :account_seed_not_found branch" do
-    test "discards when nats_account_seed is missing", %{actor: actor, unique_id: u} do
-      Application.put_env(:serviceradar, :nats_account_name, "TEST_ACCOUNT")
-      Application.delete_env(:serviceradar, :nats_account_seed)
-
-      pkg = create_gateway_package!(actor, u)
-      force_agent_component!(pkg.id, "agent_#{u}")
-
-      assert {:discard, :account_seed_not_found} =
-               ProvisionAgentWorker.perform(build_job(pkg.id))
-    end
-
-    test "discards when nats_account_seed is empty string", %{actor: actor, unique_id: u} do
-      Application.put_env(:serviceradar, :nats_account_name, "TEST_ACCOUNT")
-      Application.put_env(:serviceradar, :nats_account_seed, "")
-
-      pkg = create_gateway_package!(actor, u)
-      force_agent_component!(pkg.id, "agent_#{u}")
-
-      assert {:discard, :account_seed_not_found} =
                ProvisionAgentWorker.perform(build_job(pkg.id))
     end
   end
@@ -188,8 +157,7 @@ defmodule ServiceRadar.Edge.Workers.ProvisionAgentWorkerTest do
 
       expected_user_name = "flow-collector-agent_#{u}"
 
-      assert_receive {:generate_user_credentials, "TEST_ACCOUNT", "SEED_PLACEHOLDER",
-                      ^expected_user_name, opts}
+      assert_receive {:generate_user_credentials, "TEST_ACCOUNT", ^expected_user_name, opts}
 
       assert opts[:expiration_seconds] == 30 * 24 * 60 * 60
       assert opts[:permissions]
@@ -213,7 +181,7 @@ defmodule ServiceRadar.Edge.Workers.ProvisionAgentWorkerTest do
       pkg = create_gateway_package!(actor, u)
       force_agent_component!(pkg.id, "agent_#{u}")
 
-      assert {:error, {:grpc_error, "datasvc unavailable"}} =
+      assert {:error, {:grpc_error, 14, "datasvc unavailable"}} =
                ProvisionAgentWorker.perform(build_job(pkg.id),
                  account_client: __MODULE__.GrpcErrorAccountClient
                )
@@ -252,8 +220,8 @@ defmodule ServiceRadar.Edge.Workers.ProvisionAgentWorkerTest do
   defmodule SuccessfulAccountClient do
     @moduledoc false
 
-    def generate_user_credentials(account_name, account_seed, user_name, :service, opts) do
-      send(self(), {:generate_user_credentials, account_name, account_seed, user_name, opts})
+    def generate_user_credentials(account_name, user_name, :service, opts) do
+      send(self(), {:generate_user_credentials, account_name, user_name, opts})
 
       {:ok,
        %{
@@ -269,27 +237,26 @@ defmodule ServiceRadar.Edge.Workers.ProvisionAgentWorkerTest do
   defmodule GrpcErrorAccountClient do
     @moduledoc false
 
-    def generate_user_credentials(_account_name, _account_seed, _user_name, :service, _opts),
-      do: {:error, {:grpc_error, "datasvc unavailable"}}
+    def generate_user_credentials(_account_name, _user_name, :service, _opts),
+      do: {:error, {:grpc_error, 14, "datasvc unavailable"}}
   end
 
   defmodule NotConnectedAccountClient do
     @moduledoc false
 
-    def generate_user_credentials(_account_name, _account_seed, _user_name, :service, _opts),
+    def generate_user_credentials(_account_name, _user_name, :service, _opts),
       do: {:error, :not_connected}
   end
 
   defmodule UnexpectedErrorAccountClient do
     @moduledoc false
 
-    def generate_user_credentials(_account_name, _account_seed, _user_name, :service, _opts),
+    def generate_user_credentials(_account_name, _user_name, :service, _opts),
       do: {:error, :unexpected_account_error}
   end
 
   defp configure_nats! do
     Application.put_env(:serviceradar, :nats_account_name, "TEST_ACCOUNT")
-    Application.put_env(:serviceradar, :nats_account_seed, "SEED_PLACEHOLDER")
   end
 
   defp metadata_value(metadata, "agent_id"),

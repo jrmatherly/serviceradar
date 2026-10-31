@@ -3,8 +3,8 @@ defmodule ServiceRadar.NATS.AccountClient do
   gRPC client for the datasvc NATSAccountService.
 
   This client is used to create and manage NATS accounts for account isolation.
-  The datasvc is stateless - it only holds the operator key for signing JWTs.
-  Account state (seeds, JWTs) is stored by Elixir in CNPG with AshCloak encryption.
+  datasvc holds the operator key and the platform account seed. Core never sees
+  that seed; it asks datasvc to mint user credentials by account name.
 
   ## Configuration
 
@@ -24,12 +24,12 @@ defmodule ServiceRadar.NATS.AccountClient do
       {:ok, result} = AccountClient.create_account("edge-account")
       # result.account_seed should be encrypted and stored securely
 
-      # Generate user credentials (requires decrypted account seed)
+      # Generate user credentials, signed by datasvc with the platform account seed
       {:ok, creds} = AccountClient.generate_user_credentials(
-        "edge-account",
-        account_seed,
+        "platform",
         "collector-1",
-        :collector
+        :collector,
+        permissions: %{publish_allow: ["logs.syslog"], subscribe_allow: ["_INBOX.>"]}
       )
 
       # Re-sign account JWT (for revocations or limit changes)
@@ -62,6 +62,17 @@ defmodule ServiceRadar.NATS.AccountClient do
           account_public_key: String.t(),
           account_jwt: String.t()
         }
+
+  @doc """
+  The NATS account this deployment mints credentials for, from `:nats_account_name`.
+  """
+  @spec account_name() :: {:ok, String.t()} | {:error, :nats_not_configured}
+  def account_name do
+    case Application.get_env(:serviceradar, :nats_account_name) do
+      name when is_binary(name) and name != "" -> {:ok, name}
+      _ -> {:error, :nats_not_configured}
+    end
+  end
 
   @doc """
   Create a new NATS account.
@@ -122,9 +133,12 @@ defmodule ServiceRadar.NATS.AccountClient do
   end
 
   @doc """
-  Generate NATS user credentials for an account.
+  Generate NATS user credentials for the platform account.
 
-  The `account_seed` must be the decrypted seed from stored configuration.
+  datasvc signs with the platform account seed it holds. It answers
+  `FAILED_PRECONDITION` when it has no seed, and `INVALID_ARGUMENT` when
+  `account_name` is not the platform account or `:permissions` is missing or
+  holds a subject it refuses to mint.
 
   ## Credential Types
 
@@ -134,47 +148,27 @@ defmodule ServiceRadar.NATS.AccountClient do
 
   ## Options
 
-    * `:permissions` - Custom UserPermissions to override defaults
+    * `:permissions` - Required. Map of publish and subscribe allow lists, plus optional deny lists
     * `:expiration_seconds` - Credential expiration in seconds (0 = no expiration)
     * `:timeout` - gRPC call timeout in milliseconds
 
   ## Examples
 
       {:ok, creds} = AccountClient.generate_user_credentials(
-        "edge-account",
-        account_seed,
+        "platform",
         "flowgger-collector-1",
-        :collector
-      )
-
-      {:ok, creds} = AccountClient.generate_user_credentials(
-        "edge-account",
-        account_seed,
-        "event-writer",
-        :service,
+        :collector,
+        permissions: %{publish_allow: ["logs.syslog"], subscribe_allow: ["_INBOX.>"]},
         expiration_seconds: 86_400  # 24 hours
       )
   """
-  @spec generate_user_credentials(
-          String.t(),
-          String.t(),
-          String.t(),
-          credential_type(),
-          keyword()
-        ) ::
+  @spec generate_user_credentials(String.t(), String.t(), credential_type(), keyword()) ::
           {:ok, user_credentials()} | {:error, term()}
-  def generate_user_credentials(
-        account_name,
-        account_seed,
-        user_name,
-        credential_type,
-        opts \\ []
-      ) do
+  def generate_user_credentials(account_name, user_name, credential_type, opts \\ []) do
     timeout = opts[:timeout] || @default_timeout
 
     request = %Proto.GenerateUserCredentialsRequest{
       account_name: account_name,
-      account_seed: account_seed,
       user_name: user_name,
       credential_type: credential_type_to_proto(credential_type),
       permissions: build_permissions(opts[:permissions]),
@@ -191,7 +185,8 @@ defmodule ServiceRadar.NATS.AccountClient do
             "gRPC error generating user credentials for #{account_name}/#{user_name}: #{GRPC.RPCError.message(error)}"
           )
 
-          {:error, {:grpc_error, GRPC.RPCError.message(error)}}
+          # The status tells a caller whether a retry can succeed.
+          {:error, {:grpc_error, error.status, GRPC.RPCError.message(error)}}
 
         {:error, reason} ->
           Logger.error(

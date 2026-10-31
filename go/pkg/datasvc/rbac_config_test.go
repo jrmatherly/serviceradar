@@ -19,11 +19,16 @@ package datasvc
 import (
 	"encoding/json"
 	"os"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/bazelbuild/rules_go/go/runfiles"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
+
+	"github.com/carverauto/serviceradar/go/pkg/nats/accounts"
 )
 
 func TestComposeAgentIdentityIsReadOnly(t *testing.T) {
@@ -52,4 +57,161 @@ func TestComposeAgentIdentityIsReadOnly(t *testing.T) {
 			assert.Equal(t, RoleReader, agentRole)
 		})
 	}
+}
+
+// composeCredsMounts sorts services by how they mount the nats-creds volume.
+func composeCredsMounts(t *testing.T, compose []byte) (seedReaders, wholeVolume []string) {
+	t.Helper()
+
+	var file struct {
+		Services map[string]struct {
+			Volumes []yaml.Node `yaml:"volumes"`
+		} `yaml:"services"`
+	}
+	require.NoError(t, yaml.Unmarshal(compose, &file))
+
+	for name, service := range file.Services {
+		for _, node := range service.Volumes {
+			var short string
+			if node.Decode(&short) == nil {
+				if strings.HasPrefix(short, "${NATS_CREDS_DIR:-nats-creds}:") || strings.HasPrefix(short, "nats-creds:") {
+					wholeVolume = append(wholeVolume, name)
+				}
+				continue
+			}
+
+			var long struct {
+				Source string `yaml:"source"`
+				Volume struct {
+					Subpath string `yaml:"subpath"`
+				} `yaml:"volume"`
+			}
+			require.NoError(t, node.Decode(&long))
+			switch {
+			case long.Source != "nats-creds":
+			case long.Volume.Subpath == "":
+				wholeVolume = append(wholeVolume, name)
+			case long.Volume.Subpath == "platform_account.seed":
+				seedReaders = append(seedReaders, name)
+			}
+		}
+	}
+	slices.Sort(seedReaders)
+	slices.Sort(wholeVolume)
+
+	return seedReaders, wholeVolume
+}
+
+// platform_account.seed signs any user in the platform account. Only datasvc is
+// given it by name, and every service that mounts the whole volume can also read
+// it, so adding a whole-volume mount must be a deliberate change here.
+func TestComposePlatformSeedReaders(t *testing.T) {
+	path, err := runfiles.Rlocation("_main/docker-compose.yml")
+	require.NoError(t, err)
+	compose, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	seedReaders, wholeVolume := composeCredsMounts(t, compose)
+
+	assert.Equal(t, []string{"datasvc"}, seedReaders)
+	assert.Equal(t, []string{"nats", "nats-account-limits", "nats-config-init", "nats-creds-init"}, wholeVolume)
+}
+
+// Core names the account, datasvc refuses to mint for any other, and nats-bootstrap
+// creates it, so the three must agree or every collector package fails to provision.
+func TestComposeAccountNameAgrees(t *testing.T) {
+	path, err := runfiles.Rlocation("_main/docker-compose.yml")
+	require.NoError(t, err)
+	compose, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	var file struct {
+		Services map[string]struct {
+			Environment []string `yaml:"environment"`
+		} `yaml:"services"`
+	}
+	require.NoError(t, yaml.Unmarshal(compose, &file))
+	assert.Contains(t, file.Services["core-elx"].Environment, "NATS_ACCOUNT_NAME="+accounts.DefaultPlatformAccount)
+
+	path, err = runfiles.Rlocation("_main/docker/compose/datasvc.mtls.json")
+	require.NoError(t, err)
+	contents, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	var config Config
+	require.NoError(t, json.Unmarshal(contents, &config))
+	require.NotNil(t, config.NATSOperator)
+	assert.Equal(t, accounts.DefaultPlatformAccount, config.NATSOperator.PlatformAccountName)
+}
+
+// The onboarding key signs collector enrollment tokens. web-ng is the only signer,
+// and onboarding-keygen only writes it.
+func TestComposeOnboardingKeyReaders(t *testing.T) {
+	path, err := runfiles.Rlocation("_main/docker-compose.yml")
+	require.NoError(t, err)
+	compose, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	var file struct {
+		Services map[string]struct {
+			Environment []string    `yaml:"environment"`
+			Volumes     []yaml.Node `yaml:"volumes"`
+		} `yaml:"services"`
+	}
+	require.NoError(t, yaml.Unmarshal(compose, &file))
+
+	var mounts []string
+	for name, service := range file.Services {
+		for _, node := range service.Volumes {
+			var short string
+			if node.Decode(&short) == nil && strings.HasPrefix(short, "onboarding-key:") {
+				mounts = append(mounts, name+" "+short)
+			}
+		}
+	}
+	slices.Sort(mounts)
+
+	assert.Equal(t, []string{
+		"onboarding-keygen onboarding-key:/etc/serviceradar/onboarding",
+		"web-ng onboarding-key:/etc/serviceradar/onboarding:ro",
+	}, mounts)
+	assert.Contains(t, file.Services["web-ng"].Environment,
+		"SERVICERADAR_ONBOARDING_TOKEN_PRIVATE_KEY_FILE=/etc/serviceradar/onboarding/onboarding.key")
+}
+
+func TestComposeCredsMountsSeesEveryMountForm(t *testing.T) {
+	seedReaders, wholeVolume := composeCredsMounts(t, []byte(`
+services:
+  short-default:
+    volumes:
+      - ${NATS_CREDS_DIR:-nats-creds}:/etc/serviceradar/creds:ro
+  short-named:
+    volumes:
+      - nats-creds:/creds
+  long-whole:
+    volumes:
+      - type: volume
+        source: nats-creds
+        target: /creds
+  seed-subpath:
+    volumes:
+      - type: volume
+        source: nats-creds
+        target: /creds/platform_account.seed
+        volume:
+          subpath: platform_account.seed
+  own-creds-only:
+    volumes:
+      - type: volume
+        source: nats-creds
+        target: /creds/trapd.creds
+        volume:
+          subpath: trapd.creds
+  unrelated:
+    volumes:
+      - cert-data:/etc/serviceradar/certs:ro
+`))
+
+	assert.Equal(t, []string{"seed-subpath"}, seedReaders)
+	assert.Equal(t, []string{"long-whole", "short-default", "short-named"}, wholeVolume)
 }

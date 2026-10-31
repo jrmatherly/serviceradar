@@ -24,6 +24,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -39,8 +40,9 @@ import (
 )
 
 // NATSAccountServer implements the NATSAccountService gRPC interface.
-// This is a stateless service that performs NATS JWT/NKeys cryptographic operations.
-// Account state (seeds, JWTs) is stored by the caller (Elixir/CNPG with AshCloak).
+// It performs NATS JWT/NKeys cryptographic operations with the keys it holds: the
+// operator key and the platform account seed. Callers never see the platform seed;
+// they ask for credentials by account name.
 type NATSAccountServer struct {
 	proto.UnimplementedNATSAccountServiceServer
 
@@ -50,6 +52,11 @@ type NATSAccountServer struct {
 
 	// natsStore provides NATS connection for pushing JWTs to resolver
 	natsStore *NATSStore
+
+	// platformAccountName and platformAccountSeed sign GenerateUserCredentials.
+	// Both are empty when the deployment has no platform account seed.
+	platformAccountName string
+	platformAccountSeed string
 
 	// systemAccountSeed is stored after bootstrap for JWT push operations
 	systemAccountSeed string
@@ -72,7 +79,6 @@ type NATSAccountServer struct {
 }
 
 // NewNATSAccountServer creates a new NATSAccountServer with the given operator.
-// The server is stateless - it only holds the operator key for signing operations.
 // If operator is nil, the server will start in uninitialized state and require bootstrap.
 func NewNATSAccountServer(operator *accounts.Operator) *NATSAccountServer {
 	server := &NATSAccountServer{
@@ -82,6 +88,14 @@ func NewNATSAccountServer(operator *accounts.Operator) *NATSAccountServer {
 		server.signer = accounts.NewAccountSigner(operator)
 	}
 	return server
+}
+
+// SetPlatformAccount configures the account GenerateUserCredentials mints for.
+func (s *NATSAccountServer) SetPlatformAccount(name, seed string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.platformAccountName = name
+	s.platformAccountSeed = seed
 }
 
 // SetNATSStore sets the NATS store for JWT push operations.
@@ -644,7 +658,8 @@ func (s *NATSAccountServer) CreateAccount(
 }
 
 // GenerateUserCredentials creates NATS user credentials for an account.
-// Requires the account_seed (from Elixir storage) to sign the user JWT.
+// It signs with the platform account seed held by this server, so a caller gets
+// only credentials that pass validateUserPermissions.
 func (s *NATSAccountServer) GenerateUserCredentials(
 	ctx context.Context,
 	req *proto.GenerateUserCredentialsRequest,
@@ -656,28 +671,34 @@ func (s *NATSAccountServer) GenerateUserCredentials(
 	if req.GetAccountName() == "" {
 		return nil, status.Error(codes.InvalidArgument, "account_name is required")
 	}
-	if req.GetAccountSeed() == "" {
-		return nil, status.Error(codes.InvalidArgument, "account_seed is required")
-	}
 	if req.GetUserName() == "" {
 		return nil, status.Error(codes.InvalidArgument, "user_name is required")
+	}
+
+	s.mu.RLock()
+	platformName, platformSeed := s.platformAccountName, s.platformAccountSeed
+	s.mu.RUnlock()
+
+	if platformSeed == "" {
+		return nil, status.Error(codes.FailedPrecondition, "platform account seed is not configured")
+	}
+	if req.GetAccountName() != platformName {
+		return nil, status.Errorf(codes.InvalidArgument, "account_name %q is not the platform account", req.GetAccountName())
+	}
+
+	if err := validateMintedPermissions(req.GetPermissions()); err != nil {
+		return nil, err
 	}
 
 	// Convert proto credential type to domain model
 	credType := protoToCredentialType(req.GetCredentialType())
 
-	// Convert proto permissions to domain model
-	var permissions *accounts.UserPermissions
-	if req.GetPermissions() != nil {
-		permissions = protoToUserPermissions(req.GetPermissions())
-	}
-
 	creds, err := accounts.GenerateUserCredentials(
-		req.GetAccountName(),
-		req.GetAccountSeed(),
+		platformName,
+		platformSeed,
 		req.GetUserName(),
 		credType,
-		permissions,
+		protoToUserPermissions(req.GetPermissions()),
 		req.GetExpirationSeconds(),
 	)
 	if err != nil {
@@ -695,6 +716,48 @@ func (s *NATSAccountServer) GenerateUserCredentials(
 		CredsFileContent: creds.CredsFileContent,
 		ExpiresAtUnix:    expiresAtUnix,
 	}, nil
+}
+
+// validateMintedPermissions narrows what a compromised core can obtain from this
+// RPC. It refuses omitted permissions, which would mint the credential type's wide
+// defaults, and every subject refusedForMinting names. It does not stop a named
+// $JS.API.STREAM.CREATE or UPDATE, which agent flow collectors need, or a $KV. or
+// $O. grant; docs/superpowers/plans/2026-10-31-nats-hardening-followups.md Task 5
+// covers those last two. It lives here rather than in
+// accounts.validateUserPermissions because the offline bootstrap, a trusted path,
+// grants $JS.API.> to platform services through that validator. Deny lists are not
+// checked: deny ">" is how a credential is granted nothing.
+func validateMintedPermissions(p *proto.UserPermissions) error {
+	if p == nil {
+		return status.Error(codes.InvalidArgument, "permissions are required")
+	}
+	// An empty list keeps the credential type's broad defaults.
+	if len(p.GetPublishAllow()) == 0 || len(p.GetSubscribeAllow()) == 0 {
+		return status.Error(codes.InvalidArgument, "custom permissions need publish and subscribe allow lists")
+	}
+	for _, subject := range slices.Concat(p.GetPublishAllow(), p.GetSubscribeAllow()) {
+		if refusedForMinting(subject) {
+			return status.Errorf(codes.InvalidArgument, "subject %q cannot be minted", subject)
+		}
+	}
+	return nil
+}
+
+// refusedForMinting catches a wildcard first token, which matches every subject
+// tree, any wildcard in the JetStream API, the JetStream calls that destroy stored
+// data even when they name one stream, and the server's system subjects.
+func refusedForMinting(subject string) bool {
+	first, _, _ := strings.Cut(subject, ".")
+	if first == "*" || first == ">" {
+		return true
+	}
+	if strings.HasPrefix(subject, "$JS.API.") && strings.ContainsAny(subject, "*>") {
+		return true
+	}
+	return strings.HasPrefix(subject, "$SYS.") ||
+		strings.HasPrefix(subject, "$JS.API.STREAM.DELETE.") ||
+		strings.HasPrefix(subject, "$JS.API.STREAM.PURGE.") ||
+		strings.HasPrefix(subject, "$JS.API.STREAM.MSG.DELETE.")
 }
 
 // SignAccountJWT regenerates an account JWT with updated claims.

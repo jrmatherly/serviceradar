@@ -34,6 +34,10 @@ pub struct Config {
     pub ready_state_path: Option<PathBuf>,
     #[serde(default = "default_partition")]
     pub partition: String,
+    /// False on edge collectors, which never call the stream API: they publish,
+    /// and retry on no-responders until the stream's central owner has created it.
+    #[serde(default = "default_stream_owner")]
+    pub stream_owner: bool,
 
     // Buffering
     //
@@ -422,6 +426,10 @@ fn default_publish_timeout_ms() -> u64 {
 
 fn default_partition() -> String {
     "default".to_string()
+}
+
+fn default_stream_owner() -> bool {
+    true
 }
 
 fn default_stream_max_bytes() -> i64 {
@@ -819,6 +827,54 @@ mod tests {
         assert_eq!(config.batch_size, 100);
         assert_eq!(config.stream_max_age_secs, 6 * 60 * 60);
         assert_eq!(config.stream_max_bytes, 10 * 1024 * 1024 * 1024);
+    }
+
+    /// The fixtures are generator output; CollectorBundleGeneratorTest pins them.
+    #[test]
+    fn edge_bundle_fixtures_load_as_flow_collector_config() {
+        for (raw, protocol, listen_addr, subject) in [
+            (
+                include_str!("../testdata/edge-netflow.json"),
+                "netflow",
+                "0.0.0.0:2055",
+                "flows.raw.netflow",
+            ),
+            (
+                include_str!("../testdata/edge-sflow.json"),
+                "sflow",
+                "0.0.0.0:6343",
+                "flows.raw.sflow",
+            ),
+        ] {
+            let config = Config::from_json_with_env(raw, |_| None).unwrap();
+            assert_eq!(config.stream_name, "flows");
+            assert!(!config.stream_owner);
+            assert_eq!(
+                config.nats_creds_file.as_deref(),
+                Some("/etc/serviceradar/creds/flow-collector.creds")
+            );
+            assert_eq!(config.listeners.len(), 1);
+            assert_eq!(config.listeners[0].protocol_name(), protocol);
+            assert_eq!(config.listeners[0].listen_addr(), listen_addr);
+            assert_eq!(config.listeners[0].subject(), subject);
+
+            let security = config.security.expect("bundle configures NATS mTLS");
+            assert_eq!(security.mode, SecurityMode::Mtls);
+            assert_eq!(
+                security.cert_file_path(),
+                Some(PathBuf::from("/etc/serviceradar/certs/flow-collector.pem"))
+            );
+            assert_eq!(
+                security.key_file_path(),
+                Some(PathBuf::from(
+                    "/etc/serviceradar/certs/flow-collector-key.pem"
+                ))
+            );
+            assert_eq!(
+                security.ca_file_path(),
+                Some(PathBuf::from("/etc/serviceradar/certs/ca-chain.pem"))
+            );
+        }
     }
 
     #[test]
@@ -1331,6 +1387,7 @@ mod tests {
         let raw = include_str!("../flow-collector.json");
         let config: Config = serde_json::from_str(raw).expect("flow-collector.json parses");
         assert_eq!(config.stream_name, "flows");
+        assert!(config.stream_owner);
         // Image/docker bake uses a capacity-safe override, not the 10 GiB binary default.
         assert_eq!(config.stream_max_bytes, 1024 * 1024 * 1024);
         assert!(config.stream_max_age_secs > 0);

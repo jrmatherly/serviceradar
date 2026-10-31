@@ -3,7 +3,7 @@ defmodule ServiceRadarWebNGWeb.Api.CollectorController do
   JSON API controller for collector package operations.
 
   Provides REST endpoints for managing collector packages (flowgger, trapd, netflow, otel),
-  including creation, listing, download, and revocation.
+  including creation, listing, bundle download, and revocation.
   """
 
   use ServiceRadarWebNGWeb, :controller
@@ -16,7 +16,6 @@ defmodule ServiceRadarWebNGWeb.Api.CollectorController do
   alias ServiceRadarWebNG.Edge.EnrollmentToken
   alias ServiceRadarWebNG.Edge.NatsDeploymentStatus
   alias ServiceRadarWebNG.RBAC
-  alias ServiceRadarWebNG.Shell
   alias ServiceRadarWebNGWeb.ClientIP
 
   require Ash.Query
@@ -34,13 +33,13 @@ defmodule ServiceRadarWebNGWeb.Api.CollectorController do
 
     query =
       CollectorPackage
-      |> Ash.Query.for_read(:list)
+      |> Ash.Query.for_read(:read)
       |> Ash.Query.load(edge_site: :nats_leaf_server)
       |> Ash.Query.limit(limit)
 
     query =
       if status = params["status"] do
-        case parse_status(status) do
+        case parse_package_status(status) do
           nil -> query
           status_atom -> Ash.Query.filter(query, status == ^status_atom)
         end
@@ -143,31 +142,6 @@ defmodule ServiceRadarWebNGWeb.Api.CollectorController do
   end
 
   @doc """
-  POST /api/admin/collectors/:id/download
-
-  Downloads the collector package with NATS credentials.
-  Requires a valid download token.
-  """
-  def download(conn, %{"id" => id}) do
-    download_token = conn |> body_param("download_token") |> normalize_download_token()
-    source_ip = ClientIP.get(conn)
-
-    if download_token in [nil, ""] do
-      return_error(conn, :bad_request, "download_token is required")
-    else
-      with :ok <- require_collectors_enabled(conn) do
-        case download_with_token(id, download_token, source_ip) do
-          {:ok, result} ->
-            json(conn, result)
-
-          {:error, reason} ->
-            handle_download_error(conn, reason)
-        end
-      end
-    end
-  end
-
-  @doc """
   POST /api/collectors/:id/bundle
 
   Downloads the collector package as a tarball bundle.
@@ -187,7 +161,7 @@ defmodule ServiceRadarWebNGWeb.Api.CollectorController do
       return_error(conn, :bad_request, "download token is required")
     else
       with :ok <- require_collectors_enabled(conn) do
-        case bundle_with_token(id, download_token, source_ip) do
+        case do_bundle_download(id, download_token, source_ip) do
           {:ok, tarball, filename} ->
             conn
             |> put_resp_content_type("application/gzip")
@@ -252,8 +226,7 @@ defmodule ServiceRadarWebNGWeb.Api.CollectorController do
 
         {:ok, package} ->
           case package
-               |> Ash.Changeset.for_update(:revoke)
-               |> Ash.Changeset.set_argument(:reason, reason)
+               |> Ash.Changeset.for_update(:revoke, %{reason: reason})
                |> Ash.update(opts) do
             {:ok, updated_package} ->
               json(conn, package_to_json(updated_package))
@@ -284,7 +257,7 @@ defmodule ServiceRadarWebNGWeb.Api.CollectorController do
 
     query =
       if status = params["status"] do
-        case parse_status(status) do
+        case parse_credential_status(status) do
           nil -> query
           status_atom -> Ash.Query.filter(query, status == ^status_atom)
         end
@@ -336,30 +309,6 @@ defmodule ServiceRadarWebNGWeb.Api.CollectorController do
   end
 
   # Private helpers
-
-  defp do_download(package_id, download_token, source_ip) do
-    with {:ok, package} <- get_package(package_id),
-         :ok <- validate_package_ready(package),
-         :ok <- validate_download_token(package, download_token),
-         {:ok, creds_content} <- get_nats_creds(package),
-         {:ok, updated_package} <- mark_downloaded(package, source_ip) do
-      {:ok,
-       %{
-         package: package_to_json(updated_package),
-         nats_creds_file: creds_content,
-         collector_config: generate_collector_config(updated_package),
-         install_script: generate_install_script(updated_package)
-       }}
-    end
-  end
-
-  defp download_with_token(package_id, download_token, source_ip) do
-    do_download(package_id, download_token, source_ip)
-  end
-
-  defp bundle_with_token(package_id, download_token, source_ip) do
-    do_bundle_download(package_id, download_token, source_ip)
-  end
 
   defp do_bundle_download(package_id, download_token, source_ip) do
     with {:ok, package} <- get_package(package_id),
@@ -473,61 +422,19 @@ defmodule ServiceRadarWebNGWeb.Api.CollectorController do
     |> Ash.update(actor: nil, authorize?: false)
   end
 
-  defp generate_collector_config(package) do
-    # Generate collector-specific configuration
-    config = %{
-      collector_type: to_string(package.collector_type),
-      site: package.site,
-      hostname: package.hostname
-    }
+  defp parse_package_status("pending"), do: :pending
+  defp parse_package_status("provisioning"), do: :provisioning
+  defp parse_package_status("ready"), do: :ready
+  defp parse_package_status("downloaded"), do: :downloaded
+  defp parse_package_status("installed"), do: :installed
+  defp parse_package_status("revoked"), do: :revoked
+  defp parse_package_status("failed"), do: :failed
+  defp parse_package_status(_), do: nil
 
-    config = Map.merge(config, package.config_overrides || %{})
-    Jason.encode!(config)
-  end
-
-  defp generate_install_script(package) do
-    site = package.site || "default"
-    collector_type = to_string(package.collector_type)
-
-    hostname_assignment =
-      case package.hostname do
-        value when is_binary(value) and value != "" ->
-          "HOSTNAME=#{Shell.literal(value)}"
-
-        _ ->
-          ~s|HOSTNAME="$(hostname)"|
-      end
-
-    """
-    #!/bin/bash
-    # ServiceRadar #{collector_type} Collector Installation Script
-    # Generated by ServiceRadar Platform
-
-    set -e
-
-    COLLECTOR_TYPE=#{Shell.literal(collector_type)}
-    SITE=#{Shell.literal(site)}
-    #{hostname_assignment}
-
-    echo "Installing ServiceRadar $COLLECTOR_TYPE collector..."
-
-    # Place NATS credentials
-    mkdir -p /etc/serviceradar/creds
-    # NATS creds should be placed in /etc/serviceradar/creds/nats.creds
-
-    echo "Installation complete. Start the collector with:"
-    echo "  systemctl start serviceradar-$COLLECTOR_TYPE"
-    """
-  end
-
-  defp parse_status("issued"), do: :issued
-  defp parse_status("delivered"), do: :delivered
-  defp parse_status("ready"), do: :ready
-  defp parse_status("activated"), do: :activated
-  defp parse_status("revoked"), do: :revoked
-  defp parse_status("expired"), do: :expired
-  defp parse_status("deleted"), do: :deleted
-  defp parse_status(_), do: nil
+  defp parse_credential_status("active"), do: :active
+  defp parse_credential_status("revoked"), do: :revoked
+  defp parse_credential_status("expired"), do: :expired
+  defp parse_credential_status(_), do: nil
 
   defp parse_collector_type("flowgger"), do: :flowgger
   defp parse_collector_type("trapd"), do: :trapd
@@ -592,25 +499,6 @@ defmodule ServiceRadarWebNGWeb.Api.CollectorController do
     |> json(%{error: message})
   end
 
-  defp handle_download_error(_conn, :not_found), do: {:error, :not_found}
-
-  defp handle_download_error(conn, :not_ready) do
-    return_error(conn, :conflict, "package is not ready for download")
-  end
-
-  defp handle_download_error(conn, :invalid_token) do
-    return_error(conn, :unauthorized, "invalid download token")
-  end
-
-  defp handle_download_error(conn, :token_expired) do
-    return_error(conn, :gone, "download token expired")
-  end
-
-  defp handle_download_error(conn, reason) do
-    Logger.error("Collector package download failed: #{inspect(reason)}")
-    return_error(conn, :internal_server_error, "download failed")
-  end
-
   defp handle_bundle_error(_conn, :not_found), do: {:error, :not_found}
 
   defp handle_bundle_error(conn, :not_ready) do
@@ -629,8 +517,17 @@ defmodule ServiceRadarWebNGWeb.Api.CollectorController do
     return_error(conn, :internal_server_error, "NATS credentials not provisioned")
   end
 
-  defp handle_bundle_error(conn, reason) when reason in [:tls_key_not_found, :tls_cert_not_found] do
+  defp handle_bundle_error(conn, reason)
+       when reason in [:tls_key_not_found, :tls_cert_not_found, :tls_material_missing] do
     return_error(conn, :internal_server_error, "TLS certificates not provisioned")
+  end
+
+  defp handle_bundle_error(conn, :collector_nats_url_missing) do
+    return_error(
+      conn,
+      :service_unavailable,
+      "no NATS URL is reachable from a collector host: set SERVICERADAR_NATS_COLLECTOR_URL on web-ng"
+    )
   end
 
   defp handle_bundle_error(conn, reason) do
@@ -723,7 +620,7 @@ defmodule ServiceRadarWebNGWeb.Api.CollectorController do
   defp collector_config_filename("flowgger"), do: "flowgger.toml"
   defp collector_config_filename("otel"), do: "otel.toml"
   defp collector_config_filename("trapd"), do: "trapd.json"
-  defp collector_config_filename("netflow"), do: "netflow.json"
+  defp collector_config_filename(type) when type in ["netflow", "sflow"], do: "flow-collector.json"
   defp collector_config_filename("falcosidekick"), do: "falcosidekick.yaml"
   defp collector_config_filename(_), do: ""
 end

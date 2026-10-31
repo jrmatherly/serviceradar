@@ -1,0 +1,19 @@
+[input]
+type = "udp"
+listen = "0.0.0.0:514"
+format = "auto"
+rfc3164_timezone = "UTC"
+
+[output]
+type = "nats"
+format = "gelf"
+framing = "noop"
+partition = "site01"
+nats_url = "tls://host01.example.com:4222"
+nats_subject = "logs.syslog"
+nats_stream = "events"
+nats_stream_owner = false
+nats_tls_ca_file = "/etc/serviceradar/certs/ca-chain.pem"
+nats_tls_cert = "/etc/serviceradar/certs/flowgger.pem"
+nats_tls_key = "/etc/serviceradar/certs/flowgger-key.pem"
+nats_creds_file = "/etc/serviceradar/creds/flowgger.creds"

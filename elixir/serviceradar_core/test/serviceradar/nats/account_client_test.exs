@@ -10,9 +10,98 @@ defmodule ServiceRadar.NATS.AccountClientTest do
   - Credential type conversion
   """
 
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias Proto.NATSAccountService.Stub
+  alias ServiceRadar.DataService.Client
+  alias ServiceRadar.NATS.AccountClient
+
+  defmodule RefusingAdapter do
+    @moduledoc false
+
+    @behaviour GRPC.Client.Adapter
+
+    @impl true
+    def connect(channel, _opts), do: {:ok, channel}
+
+    @impl true
+    def disconnect(channel), do: {:ok, channel}
+
+    @impl true
+    def send_request(stream, _contents, _opts), do: stream
+
+    @impl true
+    def receive_data(_stream, _opts) do
+      {:error,
+       %GRPC.RPCError{status: GRPC.Status.failed_precondition(), message: "invented refusal"}}
+    end
+
+    @impl true
+    def send_headers(stream, _opts), do: stream
+
+    @impl true
+    def send_data(stream, _message, _opts), do: stream
+
+    @impl true
+    def end_stream(stream), do: stream
+
+    @impl true
+    def cancel(_stream), do: :ok
+  end
+
+  describe "generate_user_credentials/4" do
+    test "an RPC error carries its status" do
+      # The grpc application owns this supervisor once core has booted.
+      if !Process.whereis(GRPC.Client.Supervisor) do
+        start_supervised!(
+          {DynamicSupervisor, name: GRPC.Client.Supervisor, strategy: :one_for_one}
+        )
+      end
+
+      start_supervised!(
+        {Client, host: "127.0.0.1", port: 1, sec_mode: "plaintext", connect_timeout_ms: 10}
+      )
+
+      # A booted core runs Gun, and the client's first connect holds its mailbox while Gun retries.
+      :sys.replace_state(
+        Client,
+        fn state ->
+          %{state | channel: %GRPC.Channel{adapter: RefusingAdapter}, connect_task: nil}
+        end,
+        15_000
+      )
+
+      assert AccountClient.generate_user_credentials("invented", "user", :collector) ==
+               {:error, {:grpc_error, GRPC.Status.failed_precondition(), "invented refusal"}}
+    end
+  end
+
+  describe "account_name/0" do
+    setup do
+      prior = Application.get_env(:serviceradar, :nats_account_name)
+
+      on_exit(fn ->
+        if prior do
+          Application.put_env(:serviceradar, :nats_account_name, prior)
+        else
+          Application.delete_env(:serviceradar, :nats_account_name)
+        end
+      end)
+    end
+
+    test "returns the configured account" do
+      Application.put_env(:serviceradar, :nats_account_name, "invented-account")
+      assert AccountClient.account_name() == {:ok, "invented-account"}
+    end
+
+    test "missing or empty is not configured" do
+      Application.delete_env(:serviceradar, :nats_account_name)
+      assert AccountClient.account_name() == {:error, :nats_not_configured}
+
+      Application.put_env(:serviceradar, :nats_account_name, "")
+      assert AccountClient.account_name() == {:error, :nats_not_configured}
+    end
+  end
 
   describe "Proto.AccountLimits construction" do
     test "builds limits struct from map" do
@@ -153,7 +242,6 @@ defmodule ServiceRadar.NATS.AccountClientTest do
     test "builds request with all fields" do
       request = %Proto.GenerateUserCredentialsRequest{
         account_name: "edge-account",
-        account_seed: "SATEST123",
         user_name: "collector-1",
         credential_type: :USER_CREDENTIAL_TYPE_COLLECTOR,
         permissions: nil,
@@ -161,7 +249,7 @@ defmodule ServiceRadar.NATS.AccountClientTest do
       }
 
       assert request.account_name == "edge-account"
-      assert request.account_seed == "SATEST123"
+      refute Map.has_key?(request, :account_seed)
       assert request.user_name == "collector-1"
       assert request.credential_type == :USER_CREDENTIAL_TYPE_COLLECTOR
       assert request.expiration_seconds == 86_400

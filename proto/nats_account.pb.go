@@ -576,11 +576,10 @@ func (x *UserPermissions) GetMaxResponses() int32 {
 // GenerateUserCredentialsRequest is the request to create user credentials.
 type GenerateUserCredentialsRequest struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
-	AccountName       string                 `protobuf:"bytes,1,opt,name=account_name,json=accountName,proto3" json:"account_name,omitempty"`                                         // Account the user belongs to
-	AccountSeed       string                 `protobuf:"bytes,2,opt,name=account_seed,json=accountSeed,proto3" json:"account_seed,omitempty"`                                         // Account's private seed for signing (from Elixir storage)
+	AccountName       string                 `protobuf:"bytes,1,opt,name=account_name,json=accountName,proto3" json:"account_name,omitempty"`                                         // Account the user belongs to (the platform account)
 	UserName          string                 `protobuf:"bytes,3,opt,name=user_name,json=userName,proto3" json:"user_name,omitempty"`                                                  // Human-readable user identifier
 	CredentialType    UserCredentialType     `protobuf:"varint,4,opt,name=credential_type,json=credentialType,proto3,enum=proto.UserCredentialType" json:"credential_type,omitempty"` // Type of credentials to generate
-	Permissions       *UserPermissions       `protobuf:"bytes,5,opt,name=permissions,proto3" json:"permissions,omitempty"`                                                            // Optional custom permissions (defaults based on type)
+	Permissions       *UserPermissions       `protobuf:"bytes,5,opt,name=permissions,proto3" json:"permissions,omitempty"`                                                            // Required: there are no defaults by type
 	ExpirationSeconds int64                  `protobuf:"varint,6,opt,name=expiration_seconds,json=expirationSeconds,proto3" json:"expiration_seconds,omitempty"`                      // Credential expiration in seconds (0 = no expiration)
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
@@ -619,13 +618,6 @@ func (*GenerateUserCredentialsRequest) Descriptor() ([]byte, []int) {
 func (x *GenerateUserCredentialsRequest) GetAccountName() string {
 	if x != nil {
 		return x.AccountName
-	}
-	return ""
-}
-
-func (x *GenerateUserCredentialsRequest) GetAccountSeed() string {
-	if x != nil {
-		return x.AccountSeed
 	}
 	return ""
 }
@@ -1274,14 +1266,13 @@ const file_nats_account_proto_rawDesc = "" +
 	"\x0fsubscribe_allow\x18\x03 \x03(\tR\x0esubscribeAllow\x12%\n" +
 	"\x0esubscribe_deny\x18\x04 \x03(\tR\rsubscribeDeny\x12'\n" +
 	"\x0fallow_responses\x18\x05 \x01(\bR\x0eallowResponses\x12#\n" +
-	"\rmax_responses\x18\x06 \x01(\x05R\fmaxResponses\"\xb0\x02\n" +
+	"\rmax_responses\x18\x06 \x01(\x05R\fmaxResponses\"\xa1\x02\n" +
 	"\x1eGenerateUserCredentialsRequest\x12!\n" +
-	"\faccount_name\x18\x01 \x01(\tR\vaccountName\x12!\n" +
-	"\faccount_seed\x18\x02 \x01(\tR\vaccountSeed\x12\x1b\n" +
+	"\faccount_name\x18\x01 \x01(\tR\vaccountName\x12\x1b\n" +
 	"\tuser_name\x18\x03 \x01(\tR\buserName\x12B\n" +
 	"\x0fcredential_type\x18\x04 \x01(\x0e2\x19.proto.UserCredentialTypeR\x0ecredentialType\x128\n" +
 	"\vpermissions\x18\x05 \x01(\v2\x16.proto.UserPermissionsR\vpermissions\x12-\n" +
-	"\x12expiration_seconds\x18\x06 \x01(\x03R\x11expirationSeconds\"\xba\x01\n" +
+	"\x12expiration_seconds\x18\x06 \x01(\x03R\x11expirationSecondsJ\x04\b\x02\x10\x03R\faccount_seed\"\xba\x01\n" +
 	"\x1fGenerateUserCredentialsResponse\x12&\n" +
 	"\x0fuser_public_key\x18\x01 \x01(\tR\ruserPublicKey\x12\x19\n" +
 	"\buser_jwt\x18\x02 \x01(\tR\auserJwt\x12,\n" +

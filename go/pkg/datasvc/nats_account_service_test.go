@@ -21,9 +21,12 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 
+	"github.com/nats-io/jwt/v2"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
@@ -219,6 +222,10 @@ func TestNATSAccountServer_CreateAccount(t *testing.T) {
 	})
 }
 
+func mintablePermissions() *proto.UserPermissions {
+	return &proto.UserPermissions{PublishAllow: []string{"logs.syslog"}, SubscribeAllow: []string{"_INBOX.>"}}
+}
+
 func TestNATSAccountServer_GenerateUserCredentials(t *testing.T) {
 	server := newTestNATSAccountServer(t)
 	ctx := authorizedContext()
@@ -230,13 +237,14 @@ func TestNATSAccountServer_GenerateUserCredentials(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create test account: %v", err)
 	}
+	server.SetPlatformAccount("test-ns", createResp.AccountSeed)
 
 	t.Run("success with collector type", func(t *testing.T) {
 		req := &proto.GenerateUserCredentialsRequest{
 			AccountName:    "test-ns",
-			AccountSeed:    createResp.AccountSeed,
 			UserName:       "collector-1",
 			CredentialType: proto.UserCredentialType_USER_CREDENTIAL_TYPE_COLLECTOR,
+			Permissions:    mintablePermissions(),
 		}
 
 		resp, err := server.GenerateUserCredentials(ctx, req)
@@ -266,10 +274,10 @@ func TestNATSAccountServer_GenerateUserCredentials(t *testing.T) {
 	t.Run("with expiration", func(t *testing.T) {
 		req := &proto.GenerateUserCredentialsRequest{
 			AccountName:       "test-ns",
-			AccountSeed:       createResp.AccountSeed,
 			UserName:          "expiring-user",
 			CredentialType:    proto.UserCredentialType_USER_CREDENTIAL_TYPE_SERVICE,
 			ExpirationSeconds: 3600, // 1 hour
+			Permissions:       mintablePermissions(),
 		}
 
 		resp, err := server.GenerateUserCredentials(ctx, req)
@@ -285,7 +293,6 @@ func TestNATSAccountServer_GenerateUserCredentials(t *testing.T) {
 	t.Run("rejects out of scope custom permissions", func(t *testing.T) {
 		req := &proto.GenerateUserCredentialsRequest{
 			AccountName: "test-ns",
-			AccountSeed: createResp.AccountSeed,
 			UserName:    "bad-user",
 			Permissions: &proto.UserPermissions{
 				PublishAllow: []string{"$SYS.REQ.CLAIMS.UPDATE"},
@@ -306,7 +313,6 @@ func TestNATSAccountServer_GenerateUserCredentials(t *testing.T) {
 	t.Run("empty account name", func(t *testing.T) {
 		req := &proto.GenerateUserCredentialsRequest{
 			AccountName: "",
-			AccountSeed: createResp.AccountSeed,
 			UserName:    "test-user",
 		}
 
@@ -321,28 +327,48 @@ func TestNATSAccountServer_GenerateUserCredentials(t *testing.T) {
 		}
 	})
 
-	t.Run("empty account seed", func(t *testing.T) {
-		req := &proto.GenerateUserCredentialsRequest{
+	t.Run("signs with the platform account seed", func(t *testing.T) {
+		resp, err := server.GenerateUserCredentials(ctx, &proto.GenerateUserCredentialsRequest{
 			AccountName: "test-ns",
-			AccountSeed: "",
+			UserName:    "trapd-edge",
+			Permissions: mintablePermissions(),
+		})
+		if err != nil {
+			t.Fatalf("GenerateUserCredentials failed: %v", err)
+		}
+
+		claims, err := jwt.DecodeUserClaims(resp.UserJwt)
+		if err != nil {
+			t.Fatalf("decode user JWT: %v", err)
+		}
+		if claims.IssuerAccount != createResp.AccountPublicKey {
+			t.Errorf("issuer account = %s, want %s", claims.IssuerAccount, createResp.AccountPublicKey)
+		}
+	})
+
+	t.Run("refuses an account other than the platform account", func(t *testing.T) {
+		_, err := server.GenerateUserCredentials(ctx, &proto.GenerateUserCredentialsRequest{
+			AccountName: "other-account",
 			UserName:    "test-user",
+		})
+		if got := status.Code(err); got != codes.InvalidArgument {
+			t.Errorf("code = %v, want InvalidArgument (err %v)", got, err)
 		}
+	})
 
-		_, err := server.GenerateUserCredentials(ctx, req)
-		if err == nil {
-			t.Fatal("Expected error for empty account seed")
-		}
-
-		st, _ := status.FromError(err)
-		if st.Code() != codes.InvalidArgument {
-			t.Errorf("Expected InvalidArgument, got: %v", st.Code())
+	t.Run("refuses when no seed is configured", func(t *testing.T) {
+		_, err := newTestNATSAccountServer(t).GenerateUserCredentials(ctx, &proto.GenerateUserCredentialsRequest{
+			AccountName: "test-ns",
+			UserName:    "test-user",
+		})
+		if got := status.Code(err); got != codes.FailedPrecondition {
+			t.Errorf("code = %v, want FailedPrecondition (err %v)", got, err)
 		}
 	})
 
 	t.Run("empty user name", func(t *testing.T) {
 		req := &proto.GenerateUserCredentialsRequest{
 			AccountName: "test-ns",
-			AccountSeed: createResp.AccountSeed,
 			UserName:    "",
 		}
 
@@ -393,10 +419,11 @@ func TestNATSAccountServer_SignAccountJWT(t *testing.T) {
 
 	t.Run("with revocations", func(t *testing.T) {
 		// First generate a user to revoke
+		server.SetPlatformAccount("resign-account", createResp.AccountSeed)
 		userResp, err := server.GenerateUserCredentials(ctx, &proto.GenerateUserCredentialsRequest{
 			AccountName: "resign-account",
-			AccountSeed: createResp.AccountSeed,
 			UserName:    "revoke-me",
+			Permissions: mintablePermissions(),
 		})
 		if err != nil {
 			t.Fatalf("Failed to create user: %v", err)
@@ -575,4 +602,100 @@ func TestProtoConversions(t *testing.T) {
 			t.Errorf("MaxResponses: got %d, want 10", result.MaxResponses)
 		}
 	})
+}
+
+// A compromised core reaches accounts only through this RPC, so it must not be
+// able to mint a credential that reaches everything. The real cases come from the
+// fixture core's Elixir test pins to what it sends.
+func TestGenerateUserCredentialsPermissionLimits(t *testing.T) {
+	server := newTestNATSAccountServer(t)
+	ctx := authorizedContext()
+
+	createResp, err := server.CreateAccount(ctx, &proto.CreateAccountRequest{AccountName: "test-ns"})
+	if err != nil {
+		t.Fatalf("Failed to create test account: %v", err)
+	}
+	server.SetPlatformAccount("test-ns", createResp.AccountSeed)
+
+	const (
+		collector = proto.UserCredentialType_USER_CREDENTIAL_TYPE_COLLECTOR
+		service   = proto.UserCredentialType_USER_CREDENTIAL_TYPE_SERVICE
+	)
+	inbox := []string{"_INBOX.>"}
+	publisher := func(subjects ...string) *proto.UserPermissions {
+		return &proto.UserPermissions{PublishAllow: subjects, SubscribeAllow: inbox}
+	}
+
+	refused := []struct {
+		name  string
+		perms *proto.UserPermissions
+	}{
+		{"publish everything", publisher(">")},
+		{"publish one token", publisher("*")},
+		{"publish any first token", publisher("*.foo")},
+		{"subscribe everything", &proto.UserPermissions{PublishAllow: []string{"logs.syslog"}, SubscribeAllow: []string{">"}}},
+		{"subscribe any first token", &proto.UserPermissions{PublishAllow: []string{"logs.syslog"}, SubscribeAllow: []string{"*.>"}}},
+		{"publish the whole JetStream API", publisher("$JS.API.>")},
+		{"publish all stream admin", publisher("$JS.API.STREAM.>")},
+		{"publish any stream delete", publisher("$JS.API.STREAM.DELETE.*")},
+		{"subscribe the whole JetStream API", &proto.UserPermissions{PublishAllow: []string{"logs.syslog"}, SubscribeAllow: []string{"$JS.API.>"}}},
+		{"no publish list falls back to type defaults", &proto.UserPermissions{SubscribeAllow: inbox}},
+		{"no subscribe list falls back to type defaults", &proto.UserPermissions{PublishAllow: []string{"logs.syslog"}}},
+		{"no permissions fall back to type defaults", nil},
+		{"delete a named stream", publisher("$JS.API.STREAM.DELETE.events")},
+		{"purge a named stream", publisher("$JS.API.STREAM.PURGE.events")},
+		{"delete a message from a named stream", publisher("$JS.API.STREAM.MSG.DELETE.events")},
+		{"delete a stream through a domain prefix", publisher("$JS.hub.API.STREAM.DELETE.events")},
+		{"publish a system request", publisher("$SYS.REQ.CLAIMS.UPDATE")},
+		{"publish all system subjects", publisher("$SYS.>")},
+		{"subscribe a system subject", &proto.UserPermissions{PublishAllow: []string{"logs.syslog"}, SubscribeAllow: []string{"$SYS.ACCOUNT.CONNECT"}}},
+	}
+	for _, credType := range []proto.UserCredentialType{collector, service} {
+		for _, tc := range refused {
+			t.Run(credType.String()+"/refuses "+tc.name, func(t *testing.T) {
+				_, err := server.GenerateUserCredentials(ctx, &proto.GenerateUserCredentialsRequest{
+					AccountName: "test-ns", UserName: "u", CredentialType: credType, Permissions: tc.perms,
+				})
+				if got := status.Code(err); got != codes.InvalidArgument {
+					t.Errorf("code = %v, want InvalidArgument (err %v)", got, err)
+				}
+			})
+		}
+	}
+
+	contents, err := os.ReadFile("../cli/testdata/nats-permissions.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture map[string]*proto.UserPermissions
+	if err := json.Unmarshal(contents, &fixture); err != nil {
+		t.Fatal(err)
+	}
+
+	allowed := []struct {
+		name     string
+		credType proto.UserCredentialType
+		perms    *proto.UserPermissions
+	}{
+		{"flowgger", collector, fixture["flowgger"]},
+		{"trapd", collector, fixture["trapd"]},
+		{"otel", collector, fixture["otel"]},
+		{"netflow", collector, fixture["netflow"]},
+		{"sflow", collector, fixture["sflow"]},
+		{"falcosidekick", collector, fixture["falcosidekick"]},
+		{"agent flow collector", service, fixture["agent_flow_collector"]},
+		{"leaf", service, fixture["leaf"]},
+		{"deny everything stays expressible", collector, &proto.UserPermissions{
+			PublishAllow: []string{"logs.syslog"}, SubscribeAllow: inbox, PublishDeny: []string{">"}, SubscribeDeny: []string{">"},
+		}},
+	}
+	for _, tc := range allowed {
+		t.Run("allows "+tc.name, func(t *testing.T) {
+			if _, err := server.GenerateUserCredentials(ctx, &proto.GenerateUserCredentialsRequest{
+				AccountName: "test-ns", UserName: "u", CredentialType: tc.credType, Permissions: tc.perms,
+			}); err != nil {
+				t.Errorf("GenerateUserCredentials: %v", err)
+			}
+		})
+	}
 }

@@ -4,7 +4,7 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
 
   A collector bundle contains everything needed to configure an already-installed collector:
   - NATS credentials file (.creds) for account-isolated messaging
-  - mTLS certificates for host-installed collectors, when the package has them
+  - mTLS certificates for host-installed collectors
   - Collector configuration file (TOML for flowgger/otel, JSON for trapd/netflow)
   - Update or deploy script for the target runtime
 
@@ -13,7 +13,7 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
       collector-package-<id>/
       ├── creds/
       │   └── nats.creds           # NATS account credentials
-      ├── certs/                   # omitted entirely when the package has no TLS material
+      ├── certs/
       │   ├── collector.pem        # TLS certificate
       │   ├── collector-key.pem    # TLS private key
       │   └── ca-chain.pem         # CA certificate chain
@@ -22,10 +22,15 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
       ├── update.sh                # Script to copy files and restart service
       └── README.md                # Installation instructions
 
-  `update.sh` copies `certs/` only when all three files are in the bundle.
-  README.md lists those certificate files, and the mTLS note, only when the
-  files are in the bundle. A package marked ready with NATS credentials and
-  no PEMs still downloads.
+  `update.sh` installs the files under `/etc/serviceradar` named for the binary's
+  config file (`certs/flowgger.pem`, `creds/flowgger.creds`), so two collectors on one
+  host keep separate identities. Flowgger and OTel share the `serviceradar-log-collector`
+  package and its one service, which runs each input whose config file is present.
+
+  Every host collector config points at mTLS certificates (the JSON ones also say
+  `mode: mtls`) and nothing else puts them on the host, so a package without all
+  three PEMs returns
+  `{:error, :tls_material_missing}` rather than a bundle that fails at connect.
 
   Falcosidekick is the Kubernetes exception: its bundle ships Helm values and
   a deploy script, and it expects the cluster-wide `serviceradar-runtime-certs`
@@ -42,7 +47,8 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
   configuration uses the local NATS leaf URL instead of the upstream NATS URL. This
   enables:
   - Low-latency local message delivery
-  - WAN resilience (collectors buffer locally when upstream is down)
+  - No WAN buffering: nothing creates a stream on the leaf, so while upstream is down
+    a publish gets no ack and the collector retries or drops it
   - Simplified network topology (only leaf -> upstream connection needed)
   """
 
@@ -60,49 +66,77 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
 
   ## Parameters
 
-    * `package` - The CollectorPackage struct. Nil TLS PEM fields are left out of the tarball.
+    * `package` - The CollectorPackage struct
     * `nats_creds` - Plaintext NATS credentials (AshCloak decrypts the field when it is loaded)
-    * `tls_key_pem` - Plaintext TLS private key, or nil when the package has none
+    * `tls_key_pem` - Plaintext TLS private key (falcosidekick does not use it)
     * `opts` - Additional options:
-      * `:nats_url` - NATS server URL (default: from config)
+      * `:nats_url` - NATS server URL (default: `get_nats_url/2`)
 
   ## Returns
 
     * `{:ok, tarball_binary}` - The gzipped tarball as binary
+    * `{:error, :collector_nats_url_missing}` - A hub-direct host collector and no
+      `SERVICERADAR_NATS_COLLECTOR_URL`: web-ng's own `NATS_URL` names a host inside
+      the deployment, which the collector's host cannot resolve
     * `{:error, reason}` - If bundle creation fails
   """
   @spec create_tarball(CollectorPackage.t(), String.t(), String.t() | nil, keyword()) ::
           {:ok, binary()} | {:error, term()}
-  def create_tarball(package, nats_creds, tls_key_pem, opts \\ []) do
+  def create_tarball(package, nats_creds, tls_key_pem, opts \\ [])
+
+  def create_tarball(%{collector_type: :falcosidekick} = package, nats_creds, _tls_key_pem, opts) do
     package_dir = "collector-package-#{short_id(package.id)}"
 
-    files =
-      case package.collector_type do
-        :falcosidekick ->
-          # Falcosidekick deploys via Helm in k8s and reuses the shared
-          # serviceradar-runtime-certs secret that already exists in-cluster.
-          [
-            {"#{package_dir}/creds/nats.creds", nats_creds},
-            {"#{package_dir}/#{config_filename(package)}", generate_config(package, opts)},
-            {"#{package_dir}/deploy.sh", generate_falcosidekick_deploy_script(package)},
-            {"#{package_dir}/README.md", generate_readme(package)}
-          ]
-
-        _ ->
-          # Standard collectors: systemd services on bare metal / VMs
-          [
-            {"#{package_dir}/creds/nats.creds", nats_creds},
-            {"#{package_dir}/certs/collector.pem", package.tls_cert_pem},
-            {"#{package_dir}/certs/collector-key.pem", tls_key_pem},
-            {"#{package_dir}/certs/ca-chain.pem", package.ca_chain_pem},
-            {"#{package_dir}/config/#{config_filename(package)}", generate_config(package, opts)},
-            {"#{package_dir}/update.sh", generate_update_script(package)},
-            {"#{package_dir}/README.md", generate_readme(package, tls_key_pem)}
-          ]
-      end
-
-    create_tar_gz(Enum.reject(files, fn {_name, content} -> is_nil(content) end))
+    # Falcosidekick deploys via Helm in k8s and reuses the shared
+    # serviceradar-runtime-certs secret that already exists in-cluster.
+    create_tar_gz([
+      {"#{package_dir}/creds/nats.creds", nats_creds},
+      {"#{package_dir}/#{config_filename(package)}", generate_config(package, opts)},
+      {"#{package_dir}/deploy.sh", generate_falcosidekick_deploy_script(package)},
+      {"#{package_dir}/README.md", generate_readme(package)}
+    ])
   end
+
+  def create_tarball(%{tls_cert_pem: cert, ca_chain_pem: ca}, _nats_creds, key, _opts)
+      when is_nil(cert) or is_nil(ca) or is_nil(key) do
+    {:error, :tls_material_missing}
+  end
+
+  def create_tarball(package, nats_creds, tls_key_pem, opts) do
+    package_dir = "collector-package-#{short_id(package.id)}"
+
+    if get_nats_url(package, opts) do
+      # Standard collectors: systemd services on bare metal / VMs
+      create_tar_gz([
+        {"#{package_dir}/creds/nats.creds", nats_creds},
+        {"#{package_dir}/certs/collector.pem", package.tls_cert_pem},
+        {"#{package_dir}/certs/collector-key.pem", tls_key_pem},
+        {"#{package_dir}/certs/ca-chain.pem", package.ca_chain_pem},
+        {"#{package_dir}/config/#{config_filename(package)}", generate_config(package, opts)},
+        {"#{package_dir}/update.sh", generate_update_script(package)},
+        {"#{package_dir}/README.md", generate_readme(package)}
+      ])
+    else
+      {:error, :collector_nats_url_missing}
+    end
+  end
+
+  @doc """
+  Returns whether a bundle for this package can name a NATS URL its host can reach.
+  """
+  @spec nats_url_configured?(CollectorPackage.t()) :: boolean()
+  def nats_url_configured?(%{collector_type: :falcosidekick}), do: true
+  def nats_url_configured?(%{edge_site_id: id}) when is_binary(id), do: true
+  def nats_url_configured?(_package), do: collector_nats_url() != nil
+
+  @doc """
+  Returns the system package and systemd unit a host collector installs into.
+  """
+  @spec service_name(CollectorPackage.t()) :: String.t()
+  # NetFlow and sFlow share one binary, whose unit reads flow-collector.json.
+  def service_name(%{collector_type: type}) when type in [:netflow, :sflow], do: "serviceradar-flow-collector"
+  def service_name(%{collector_type: type}) when type in [:flowgger, :otel], do: "serviceradar-log-collector"
+  def service_name(%{collector_type: type}), do: "serviceradar-#{type}"
 
   @doc """
   Returns the bundle filename for a collector package.
@@ -146,17 +180,26 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
 
   defp short_id(id) when is_binary(id), do: String.slice(id, 0, 8)
 
+  # NetFlow and sFlow share one binary: the serviceradar-flow-collector package,
+  # whose unit reads /etc/serviceradar/flow-collector.json.
   defp config_filename(package) do
     case package.collector_type do
       :flowgger -> "flowgger.toml"
       :otel -> "otel.toml"
       :trapd -> "trapd.json"
-      :netflow -> "netflow.json"
-      :sflow -> "sflow.json"
+      type when type in [:netflow, :sflow] -> "flow-collector.json"
       :falcosidekick -> "falcosidekick.yaml"
       _ -> "config.toml"
     end
   end
+
+  # NetFlow and sFlow share a config file, so they share an installed identity too:
+  # installing one replaces the other.
+  defp identity_name(package), do: package |> config_filename() |> Path.rootname()
+
+  defp cert_path(package), do: "/etc/serviceradar/certs/#{identity_name(package)}.pem"
+  defp key_path(package), do: "/etc/serviceradar/certs/#{identity_name(package)}-key.pem"
+  defp creds_path(package), do: "/etc/serviceradar/creds/#{identity_name(package)}.creds"
 
   defp generate_config(package, opts) do
     case package.collector_type do
@@ -203,18 +246,11 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
     nats_url = #{encode_toml_value(nats_url)}
     nats_subject = "logs.syslog"
     nats_stream = "events"
+    nats_stream_owner = false
     nats_tls_ca_file = "/etc/serviceradar/certs/ca-chain.pem"
-    nats_tls_cert = "/etc/serviceradar/certs/collector.pem"
-    nats_tls_key = "/etc/serviceradar/certs/collector-key.pem"
-    nats_creds_file = "/etc/serviceradar/creds/nats.creds"
-
-    [grpc]
-    listen_addr = "127.0.0.1:50044"
-    mode = "mtls"
-    cert_dir = "/etc/serviceradar/certs"
-    cert_file = "/etc/serviceradar/certs/collector.pem"
-    key_file = "/etc/serviceradar/certs/collector-key.pem"
-    ca_file = "/etc/serviceradar/certs/ca-chain.pem"
+    nats_tls_cert = #{encode_toml_value(cert_path(package))}
+    nats_tls_key = #{encode_toml_value(key_path(package))}
+    nats_creds_file = #{encode_toml_value(creds_path(package))}
     """
   end
 
@@ -240,17 +276,18 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
     subject = "otel"
     logs_subject = "logs.otel"
     stream = "events"
+    stream_owner = false
     timeout_secs = 30
-    creds_file = "/etc/serviceradar/creds/nats.creds"
+    creds_file = #{encode_toml_value(creds_path(package))}
 
     [nats.tls]
-    cert_file = "/etc/serviceradar/certs/collector.pem"
-    key_file = "/etc/serviceradar/certs/collector-key.pem"
+    cert_file = #{encode_toml_value(cert_path(package))}
+    key_file = #{encode_toml_value(key_path(package))}
     ca_file = "/etc/serviceradar/certs/ca-chain.pem"
 
     [grpc_tls]
-    cert_file = "/etc/serviceradar/certs/collector.pem"
-    key_file = "/etc/serviceradar/certs/collector-key.pem"
+    cert_file = #{encode_toml_value(cert_path(package))}
+    key_file = #{encode_toml_value(key_path(package))}
     ca_file = "/etc/serviceradar/certs/ca-chain.pem"
     """
   end
@@ -270,19 +307,19 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
       "stream_name" => "events",
       "subject" => "logs.snmp",
       "partition" => site,
-      "nats_creds_file" => "/etc/serviceradar/creds/nats.creds",
+      "nats_creds_file" => creds_path(package),
       "nats_security" => %{
         "mode" => "mtls",
-        "cert_file" => "/etc/serviceradar/certs/collector.pem",
-        "key_file" => "/etc/serviceradar/certs/collector-key.pem",
+        "cert_file" => cert_path(package),
+        "key_file" => key_path(package),
         "ca_file" => "/etc/serviceradar/certs/ca-chain.pem"
       },
       "grpc_listen_addr" => "0.0.0.0:#{grpc_port}",
       "grpc_security" => %{
         "mode" => "mtls",
         "cert_dir" => "/etc/serviceradar/certs",
-        "cert_file" => "/etc/serviceradar/certs/collector.pem",
-        "key_file" => "/etc/serviceradar/certs/collector-key.pem",
+        "cert_file" => cert_path(package),
+        "key_file" => key_path(package),
         "ca_file" => "/etc/serviceradar/certs/ca-chain.pem"
       }
     }
@@ -291,60 +328,38 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
   end
 
   defp generate_netflow_config(package, opts) do
-    nats_url = get_nats_url(package, opts)
-    site = package.site || "default"
-
-    # Apply any config overrides
-    listen_addr = get_in(package.config_overrides, ["listen_addr"]) || "0.0.0.0:2055"
-    grpc_port = get_in(package.config_overrides, ["grpc_port"]) || 50_045
-
-    config = %{
-      "listen_addr" => listen_addr,
-      "protocols" => ["netflow-v5", "netflow-v9", "ipfix", "sflow"],
-      "nats_url" => nats_url,
-      "stream_name" => "events",
-      "subject" => "events.netflow",
-      "partition" => site,
-      "nats_creds_file" => "/etc/serviceradar/creds/nats.creds",
-      "nats_security" => %{
-        "mode" => "mtls",
-        "cert_file" => "/etc/serviceradar/certs/collector.pem",
-        "key_file" => "/etc/serviceradar/certs/collector-key.pem",
-        "ca_file" => "/etc/serviceradar/certs/ca-chain.pem"
-      },
-      "grpc_listen_addr" => "0.0.0.0:#{grpc_port}",
-      "grpc_security" => %{
-        "mode" => "mtls",
-        "cert_dir" => "/etc/serviceradar/certs",
-        "cert_file" => "/etc/serviceradar/certs/collector.pem",
-        "key_file" => "/etc/serviceradar/certs/collector-key.pem",
-        "ca_file" => "/etc/serviceradar/certs/ca-chain.pem"
-      }
-    }
-
-    Jason.encode!(config, pretty: true)
+    generate_flow_collector_config(package, opts, "netflow", "0.0.0.0:2055")
   end
 
   defp generate_sflow_config(package, opts) do
-    nats_url = get_nats_url(package, opts)
-    site = package.site || "default"
+    generate_flow_collector_config(package, opts, "sflow", "0.0.0.0:6343")
+  end
 
-    # Apply any config overrides
-    listen_addr = get_in(package.config_overrides, ["listen_addr"]) || "0.0.0.0:6343"
+  # Field names are rust/flow-collector's Config and ListenerConfig; the binary
+  # ignores unknown keys, so a stale name silently disables what it configured.
+  defp generate_flow_collector_config(package, opts, protocol, default_listen_addr) do
+    listen_addr = get_in(package.config_overrides, ["listen_addr"]) || default_listen_addr
 
     config = %{
-      "listen_addr" => listen_addr,
-      "nats_url" => nats_url,
-      "stream_name" => "events",
-      "subject" => "flows.raw.sflow",
-      "partition" => site,
-      "nats_creds_file" => "/etc/serviceradar/creds/nats.creds",
+      "nats_url" => get_nats_url(package, opts),
+      "nats_creds_file" => creds_path(package),
+      "stream_name" => "flows",
+      # Edge credentials hold no stream API; core's EventWriter creates `flows`.
+      "stream_owner" => false,
+      "partition" => package.site || "default",
+      "listeners" => [
+        %{
+          "protocol" => protocol,
+          "listen_addr" => listen_addr,
+          "subject" => "flows.raw.#{protocol}"
+        }
+      ],
       "security" => %{
         "mode" => "mtls",
         "cert_dir" => "/etc/serviceradar/certs",
         "tls" => %{
-          "cert_file" => "collector.pem",
-          "key_file" => "collector-key.pem",
+          "cert_file" => Path.basename(cert_path(package)),
+          "key_file" => Path.basename(key_path(package)),
           "ca_file" => "ca-chain.pem"
         }
       }
@@ -353,8 +368,9 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
     Jason.encode!(config, pretty: true)
   end
 
+  # Runs inside the cluster, so unlike a host collector it dials the cluster's own URL.
   defp generate_falcosidekick_config(package, opts) do
-    nats_url = get_nats_url(package, opts)
+    nats_url = Keyword.get_lazy(opts, :nats_url, &default_nats_url/0)
 
     # Apply any config overrides
     namespace =
@@ -364,7 +380,7 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
       get_in(package.config_overrides, ["release_name"]) || "falcosidekick-nats-auth"
 
     subject_template =
-      get_in(package.config_overrides, ["subject_template"]) || "falco.<priority>.<rule>"
+      get_in(package.config_overrides, ["subject_template"]) || "falco.logs"
 
     agent_id_template =
       get_in(package.config_overrides, ["agent_id_template"]) ||
@@ -503,6 +519,7 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
   defp generate_update_script(package) do
     collector_type = to_string(package.collector_type)
     config_file = config_filename(package)
+    identity = identity_name(package)
 
     """
     #!/bin/bash
@@ -518,7 +535,7 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
 
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     COLLECTOR_TYPE=#{Shell.literal(collector_type)}
-    SERVICE_NAME=#{Shell.literal("serviceradar-#{collector_type}")}
+    SERVICE_NAME=#{Shell.literal(service_name(package))}
     CONFIG_DIR="/etc/serviceradar"
     CERTS_DIR="$CONFIG_DIR/certs"
     CREDS_DIR="$CONFIG_DIR/creds"
@@ -537,13 +554,13 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
     # Check if service exists
     if ! systemctl list-unit-files | grep -q "$SERVICE_NAME"; then
         echo "Error: Service $SERVICE_NAME not found."
-        echo "Please install the serviceradar-$COLLECTOR_TYPE package first."
+        echo "Please install the $SERVICE_NAME package first."
         echo ""
         echo "On Debian/Ubuntu:"
-        echo "  apt install serviceradar-$COLLECTOR_TYPE"
+        echo "  apt install $SERVICE_NAME"
         echo ""
         echo "On RHEL/CentOS:"
-        echo "  dnf install serviceradar-$COLLECTOR_TYPE"
+        echo "  dnf install $SERVICE_NAME"
         exit 1
     fi
 
@@ -554,17 +571,15 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
     mkdir -p "$CERTS_DIR" "$CREDS_DIR" "$CONFIG_DIR"
 
     echo "Installing credentials..."
-    cp "$SCRIPT_DIR/creds/nats.creds" "$CREDS_DIR/"
-    chmod 600 "$CREDS_DIR/nats.creds"
+    cp "$SCRIPT_DIR/creds/nats.creds" "$CREDS_DIR/#{identity}.creds"
+    chmod 600 "$CREDS_DIR/#{identity}.creds"
 
-    if [ -f "$SCRIPT_DIR/certs/collector.pem" ] && [ -f "$SCRIPT_DIR/certs/collector-key.pem" ] && [ -f "$SCRIPT_DIR/certs/ca-chain.pem" ]; then
-        echo "Installing certificates..."
-        cp "$SCRIPT_DIR/certs/collector.pem" "$CERTS_DIR/"
-        cp "$SCRIPT_DIR/certs/collector-key.pem" "$CERTS_DIR/"
-        cp "$SCRIPT_DIR/certs/ca-chain.pem" "$CERTS_DIR/"
-        chmod 644 "$CERTS_DIR/collector.pem" "$CERTS_DIR/ca-chain.pem"
-        chmod 600 "$CERTS_DIR/collector-key.pem"
-    fi
+    echo "Installing certificates..."
+    cp "$SCRIPT_DIR/certs/collector.pem" "$CERTS_DIR/#{identity}.pem"
+    cp "$SCRIPT_DIR/certs/collector-key.pem" "$CERTS_DIR/#{identity}-key.pem"
+    cp "$SCRIPT_DIR/certs/ca-chain.pem" "$CERTS_DIR/"
+    chmod 644 "$CERTS_DIR/#{identity}.pem" "$CERTS_DIR/ca-chain.pem"
+    chmod 600 "$CERTS_DIR/#{identity}-key.pem"
 
     echo "Installing configuration..."
     cp "$SCRIPT_DIR/config/#{config_file}" "$CONFIG_DIR/"
@@ -577,6 +592,15 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
 
     echo "Starting $SERVICE_NAME..."
     systemctl start "$SERVICE_NAME"
+
+    # The unit is Type=simple, so `systemctl start` succeeds even if the binary exits at once.
+    sleep 2
+    if ! systemctl is-active --quiet "$SERVICE_NAME"; then
+        echo "" >&2
+        echo "ERROR: $SERVICE_NAME failed to start" >&2
+        echo "Check logs: journalctl -u $SERVICE_NAME -n 50" >&2
+        exit 1
+    fi
 
     echo ""
     echo "Update complete!"
@@ -692,7 +716,7 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
 
     # Subscribe to Falco events
     kubectl -n #{namespace} exec deploy/serviceradar-tools -- \\
-      nats --context serviceradar sub 'falco.>'
+      nats --context serviceradar sub falco.logs
     ```
 
     ## Security Notes
@@ -700,7 +724,7 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
     - Falcosidekick reuses the cluster's `serviceradar-runtime-certs` secret
     - mTLS authenticates Falcosidekick to the NATS cluster
     - All messages are scoped to this deployment's account
-    - Events publish to `falco.<priority>.<rule>` subjects
+    - Events publish to the `falco.logs` subject on the shared `events` stream
 
     ## Support
 
@@ -709,14 +733,14 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
     """
   end
 
-  defp generate_readme(package, tls_key_pem \\ nil) do
+  defp generate_readme(package) do
     collector_type = to_string(package.collector_type)
+    service = service_name(package)
     config_file = config_filename(package)
-    cert_contents = readme_cert_contents(package, tls_key_pem)
 
     port_info =
       case package.collector_type do
-        :flowgger -> "514 (TCP/UDP)"
+        :flowgger -> "514 (UDP)"
         :trapd -> "162 (UDP)"
         :netflow -> "2055 (UDP)"
         :sflow -> "6343 (UDP)"
@@ -725,6 +749,17 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
       end
 
     edge_site_section = generate_edge_site_section(package)
+
+    shared_service_note =
+      if service == "serviceradar-log-collector" do
+        """
+
+        Flowgger and OTel share this package and its one service, which runs each
+        input whose config file is present in `/etc/serviceradar`.
+        """
+      else
+        ""
+      end
 
     """
     # ServiceRadar Collector Package
@@ -740,12 +775,12 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
 
     ```bash
     # Debian/Ubuntu
-    sudo apt install serviceradar-#{collector_type}
+    sudo apt install #{service}
 
     # RHEL/CentOS
-    sudo dnf install serviceradar-#{collector_type}
+    sudo dnf install #{service}
     ```
-
+    #{shared_service_note}
     ## Quick Start
 
     Prefer the enrollment command from the UI (token required):
@@ -763,7 +798,10 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
     ## Contents
 
     - `creds/nats.creds` - NATS account credentials
-    #{cert_contents}- `config/#{config_file}` - Collector configuration
+    - `certs/collector.pem` - TLS certificate
+    - `certs/collector-key.pem` - TLS private key (keep secure!)
+    - `certs/ca-chain.pem` - CA certificate chain
+    - `config/#{config_file}` - Collector configuration
     - `update.sh` - Update script (copies files, restarts service)
 
     ## Network Ports
@@ -772,17 +810,21 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
 
     ## Security Notes
 
-    #{readme_security_notes(tls_key_pem, cert_contents)}
+    - The private key and NATS credentials should be kept secure (mode 600)
+    - Credentials authenticate this collector to your NATS account
+    - All messages are scoped to this deployment's account
+    - mTLS ensures encrypted, authenticated communication
+
     ## Troubleshooting
 
     Check collector status and logs:
 
     ```bash
     # Service status
-    systemctl status serviceradar-#{collector_type}
+    systemctl status #{service}
 
     # View logs
-    journalctl -u serviceradar-#{collector_type} -f
+    journalctl -u #{service} -f
     ```
 
     ## Support
@@ -792,56 +834,7 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
     """
   end
 
-  # create_tarball/4 drops nil entries, so the README lists a cert file only
-  # when that entry is present.
-  defp readme_cert_contents(package, tls_key_pem) do
-    lines =
-      Enum.reject(
-        [
-          bundle_readme_line(package.tls_cert_pem, "- `certs/collector.pem` - TLS certificate"),
-          bundle_readme_line(
-            tls_key_pem,
-            "- `certs/collector-key.pem` - TLS private key (keep secure!)"
-          ),
-          bundle_readme_line(package.ca_chain_pem, "- `certs/ca-chain.pem` - CA certificate chain")
-        ],
-        &is_nil/1
-      )
-
-    case lines do
-      [] -> ""
-      _ -> Enum.join(lines, "\n") <> "\n"
-    end
-  end
-
-  defp bundle_readme_line(nil, _line), do: nil
-  defp bundle_readme_line(_content, line), do: line
-
-  defp readme_security_notes(tls_key_pem, cert_contents) do
-    credential_line =
-      if is_nil(tls_key_pem) do
-        "- NATS credentials should be kept secure (mode 600)"
-      else
-        "- The private key and NATS credentials should be kept secure (mode 600)"
-      end
-
-    lines = [
-      credential_line,
-      "- Credentials authenticate this collector to your NATS account",
-      "- All messages are scoped to this deployment's account"
-    ]
-
-    lines =
-      if cert_contents == "" do
-        lines
-      else
-        lines ++ ["- mTLS ensures encrypted, authenticated communication"]
-      end
-
-    Enum.join(lines, "\n") <> "\n"
-  end
-
-  defp generate_edge_site_section(%{edge_site: %EdgeSite{} = site}) do
+  defp generate_edge_site_section(%{edge_site: %EdgeSite{} = site} = package) do
     """
 
     ## Edge Site Deployment
@@ -849,12 +842,13 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
     This collector connects to a **local NATS leaf server** at your edge site.
 
     **Edge Site:** #{site.name}
-    **NATS Leaf URL:** #{site.nats_leaf_url || "Not configured"}
+    **NATS Leaf URL:** #{get_nats_url(package)}
 
     ### Benefits
 
     - **Low latency**: Messages are delivered locally before forwarding upstream
-    - **WAN resilience**: Local buffering when upstream connection is down
+    - **No WAN buffering**: Nothing creates a stream on the leaf, so while its upstream
+      connection is down a publish gets no ack and the collector retries or drops it
     - **Simplified networking**: Only the leaf server needs outbound connectivity
     """
   end
@@ -881,6 +875,8 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
     Application.get_env(:serviceradar_web_ng, :nats_url, "nats://nats:4222")
   end
 
+  defp collector_nats_url, do: Application.get_env(:serviceradar_web_ng, :collector_nats_url)
+
   @doc """
   Returns the NATS URL for a collector package.
 
@@ -888,13 +884,14 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
   1. Explicit :nats_url in opts
   2. Edge site's nats_leaf_url, when the operator set one
   3. The leaf's local TLS client URL, when the package is assigned to an edge site
-  4. Default NATS URL from config
+  4. `SERVICERADAR_NATS_COLLECTOR_URL`, the hub URL reachable from outside the
+     deployment. `nil` when it is unset.
 
   The edge site relationship must be preloaded on the package for options 2 and 3.
   A collector on the leaf host dials that local URL. `nats_leaf_url` remains the
   override for a collector that is not on the leaf host.
   """
-  @spec get_nats_url(CollectorPackage.t(), keyword()) :: String.t()
+  @spec get_nats_url(CollectorPackage.t(), keyword()) :: String.t() | nil
   def get_nats_url(package, opts \\ []) do
     cond do
       Keyword.has_key?(opts, :nats_url) ->
@@ -907,7 +904,7 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
         NatsLeafConfigGenerator.client_url(edge_site_listen(package))
 
       true ->
-        default_nats_url()
+        collector_nats_url()
     end
   end
 

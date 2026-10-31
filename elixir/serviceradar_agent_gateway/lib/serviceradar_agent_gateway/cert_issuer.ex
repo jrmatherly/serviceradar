@@ -103,7 +103,7 @@ defmodule ServiceRadarAgentGateway.CertIssuer do
     end
   end
 
-  defp validate_component_type(type) when type in [:agent, :addon, :nats_leaf, :nats_leaf_server], do: :ok
+  defp validate_component_type(type) when type in [:agent, :addon, :collector, :nats_leaf, :nats_leaf_server], do: :ok
   defp validate_component_type(_), do: {:error, :unsupported_component_type}
 
   defp validate_identity_tokens(component_id, partition_id) do
