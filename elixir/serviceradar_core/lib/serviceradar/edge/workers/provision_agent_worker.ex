@@ -124,7 +124,7 @@ defmodule ServiceRadar.Edge.Workers.ProvisionAgentWorker do
         Logger.error("NATS account not configured for agent package #{package_id}")
         {:discard, :nats_not_configured}
 
-      {:error, {:grpc_error, message}} = error ->
+      {:error, {:grpc_error, _status, message}} = error ->
         Logger.error(
           "gRPC error provisioning flow-collector creds for agent #{package_id}: #{message}"
         )

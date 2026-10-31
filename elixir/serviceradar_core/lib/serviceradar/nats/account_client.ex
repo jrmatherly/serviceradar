@@ -185,7 +185,8 @@ defmodule ServiceRadar.NATS.AccountClient do
             "gRPC error generating user credentials for #{account_name}/#{user_name}: #{GRPC.RPCError.message(error)}"
           )
 
-          {:error, {:grpc_error, GRPC.RPCError.message(error)}}
+          # The status tells a caller whether a retry can succeed.
+          {:error, {:grpc_error, error.status, GRPC.RPCError.message(error)}}
 
         {:error, reason} ->
           Logger.error(

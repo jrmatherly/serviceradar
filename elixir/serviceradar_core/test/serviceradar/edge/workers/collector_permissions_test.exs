@@ -41,7 +41,7 @@ defmodule ServiceRadar.Edge.Workers.CollectorPermissionsTest do
     end
 
     test "each retryable error names its cause" do
-      assert ProvisionCollectorWorker.failure_message({:grpc_error, "refused"}) == "refused"
+      assert ProvisionCollectorWorker.failure_message({:grpc_error, 14, "refused"}) == "refused"
 
       assert ProvisionCollectorWorker.failure_message(:gateway_unavailable) =~
                "No agent-gateway is reachable"

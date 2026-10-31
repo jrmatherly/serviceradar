@@ -181,7 +181,7 @@ defmodule ServiceRadar.Edge.Workers.ProvisionAgentWorkerTest do
       pkg = create_gateway_package!(actor, u)
       force_agent_component!(pkg.id, "agent_#{u}")
 
-      assert {:error, {:grpc_error, "datasvc unavailable"}} =
+      assert {:error, {:grpc_error, 14, "datasvc unavailable"}} =
                ProvisionAgentWorker.perform(build_job(pkg.id),
                  account_client: __MODULE__.GrpcErrorAccountClient
                )
@@ -238,7 +238,7 @@ defmodule ServiceRadar.Edge.Workers.ProvisionAgentWorkerTest do
     @moduledoc false
 
     def generate_user_credentials(_account_name, _user_name, :service, _opts),
-      do: {:error, {:grpc_error, "datasvc unavailable"}}
+      do: {:error, {:grpc_error, 14, "datasvc unavailable"}}
   end
 
   defmodule NotConnectedAccountClient do

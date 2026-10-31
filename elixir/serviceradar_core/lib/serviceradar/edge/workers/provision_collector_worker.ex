@@ -12,6 +12,8 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorker do
   The job runs up to 10 times with exponential backoff, about 19 minutes in all,
   which covers a gateway or datasvc that is restarting. If the last attempt
   fails, including by raising, the collector package status is set to `:failed`.
+  datasvc answering `INVALID_ARGUMENT` or `FAILED_PRECONDITION` fails it at once,
+  since those describe the request or datasvc's configuration and no retry helps.
 
   ## Usage
 
@@ -36,6 +38,8 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorker do
   require Ash.Expr
   require Ash.Query
   require Logger
+
+  @unretryable_grpc_statuses [GRPC.Status.invalid_argument(), GRPC.Status.failed_precondition()]
 
   @doc """
   Enqueue a credential provisioning job for a collector package.
@@ -112,6 +116,12 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorker do
         mark_failed(package_id, "NATS account not configured for this deployment")
         {:discard, :nats_not_configured}
 
+      {:error, {:grpc_error, status, message} = reason}
+      when status in @unretryable_grpc_statuses ->
+        Logger.error("datasvc refused credentials for package #{package_id}: #{message}")
+        mark_failed(package_id, message)
+        {:discard, reason}
+
       {:error, reason} = error ->
         message = failure_message(reason)
 
@@ -140,7 +150,7 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorker do
   # What a package shows the operator when a retryable error used its last attempt.
   @spec failure_message(term()) :: String.t()
   def failure_message(:not_connected), do: "datasvc is not reachable to mint NATS credentials"
-  def failure_message({:grpc_error, message}), do: message
+  def failure_message({:grpc_error, _status, message}), do: message
 
   def failure_message(:gateway_unavailable),
     do: "No agent-gateway is reachable to issue the collector's TLS certificate"
