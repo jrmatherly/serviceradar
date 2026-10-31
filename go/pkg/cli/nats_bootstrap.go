@@ -438,7 +438,9 @@ func writePlatformAccountFiles(cfg *CmdConfig, paths *natsBootstrapPaths, result
 		return fmt.Errorf("write platform.creds: %w", err)
 	}
 
-	// datasvc mints edge credentials with this seed; it is mounted nowhere else.
+	// datasvc mints edge credentials with this seed and is the only service given
+	// it by name; nats, nats-account-limits, nats-config-init and nats-creds-init
+	// mount the whole volume.
 	seedPath := filepath.Join(paths.outputDir, "platform_account.seed")
 	if err := os.WriteFile(seedPath, []byte(platformResult.AccountSeed), 0600); err != nil {
 		return fmt.Errorf("write platform_account.seed: %w", err)

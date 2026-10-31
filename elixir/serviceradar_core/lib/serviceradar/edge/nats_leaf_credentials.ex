@@ -5,10 +5,10 @@ defmodule ServiceRadar.Edge.NatsLeafCredentials do
   The hub authenticates leaf servers by mTLS (see
   `ServiceRadar.Edge.NatsLeafCertificateIssuer`), so credentials are optional.
   When this deployment has a NATS account configured (`:nats_account_name`, the
-  same setting `ProvisionCollectorWorker` uses), a leaf-scoped user is minted through `ServiceRadar.NATS.AccountClient` and
-  recorded as a `NatsCredential`. Without that configuration this returns
-  `{:ok, nil}` and the bundle ships without a creds file. Placeholder
-  credentials are never produced.
+  same setting `ProvisionCollectorWorker` uses), a leaf-scoped user is minted
+  through `ServiceRadar.NATS.AccountClient` and recorded as a `NatsCredential`.
+  Without that configuration this returns `{:ok, nil}` and the bundle ships without
+  a creds file. Placeholder credentials are never produced.
   """
 
   alias ServiceRadar.Actors.SystemActor

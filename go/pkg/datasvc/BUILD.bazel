@@ -52,6 +52,7 @@ go_test(
     data = [
         "//docker/compose:datasvc.docker.json",
         "//docker/compose:datasvc.mtls.json",
+        "//:docker-compose.yml",
     ],
     deps = [
         "//go/pkg/models",
@@ -63,6 +64,7 @@ go_test(
         "@com_github_nats_io_nats_server_v2//server",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@in_gopkg_yaml_v3//:yaml_v3",
         "@io_bazel_rules_go//go/runfiles",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//codes",
