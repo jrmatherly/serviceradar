@@ -220,12 +220,16 @@ defmodule ServiceRadar.NATS.AccountClient do
   answers `FAILED_PRECONDITION` when it lacks the operator key or the platform
   account seed, and `UNAVAILABLE` when it cannot read or update the resolver.
 
+  `newly_revoked` counts the keys the hub did not already hold. At zero, datasvc
+  pushed nothing.
+
   ## Options
 
     * `:timeout` - gRPC call timeout in milliseconds
   """
   @spec revoke_users(String.t(), [String.t()], keyword()) ::
-          {:ok, %{account_public_key: String.t()}} | {:error, term()}
+          {:ok, %{account_public_key: String.t(), newly_revoked: non_neg_integer()}}
+          | {:error, term()}
   def revoke_users(account_name, user_public_keys, opts \\ []) do
     timeout = opts[:timeout] || @default_timeout
 
@@ -237,7 +241,11 @@ defmodule ServiceRadar.NATS.AccountClient do
     with {:ok, channel} <- get_channel() do
       case Stub.revoke_users(channel, request, timeout: timeout) do
         {:ok, response} ->
-          {:ok, %{account_public_key: response.account_public_key}}
+          {:ok,
+           %{
+             account_public_key: response.account_public_key,
+             newly_revoked: response.newly_revoked
+           }}
 
         {:error, %GRPC.RPCError{} = error} ->
           Logger.error(
@@ -268,7 +276,8 @@ defmodule ServiceRadar.NATS.AccountClient do
     * `:nodes` - injectable node list (tests)
   """
   @spec revoke_users_on_core([String.t()], keyword()) ::
-          {:ok, %{account_public_key: String.t()}} | {:error, term()}
+          {:ok, %{account_public_key: String.t(), newly_revoked: non_neg_integer()}}
+          | {:error, term()}
   def revoke_users_on_core(user_public_keys, opts \\ []) do
     rpc_call = Keyword.get(opts, :rpc_call, &:rpc.call/5)
     nodes = Keyword.get_lazy(opts, :nodes, fn -> [Node.self() | Node.list()] end)
