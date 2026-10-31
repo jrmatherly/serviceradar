@@ -114,7 +114,14 @@ defmodule ServiceRadarWebNGWeb.Api.EdgeSiteControllerTest do
     assigned = create_collector_package!(actor, :trapd, site["id"])
     revoked = create_collector_package!(actor, :flowgger, site["id"])
     elsewhere = create_collector_package!(actor, :otel, other_site["id"])
-    create_collector_package!(actor, :falcosidekick, site["id"])
+
+    # Creation refuses this pairing, so only a row older than that rule can have it.
+    legacy = create_collector_package!(actor, :falcosidekick, nil)
+
+    ServiceRadar.Repo.query!(
+      "UPDATE platform.collector_packages SET edge_site_id = $1 WHERE id = $2",
+      [Ecto.UUID.dump!(site["id"]), Ecto.UUID.dump!(legacy.id)]
+    )
 
     revoked
     |> Ash.Changeset.new()
