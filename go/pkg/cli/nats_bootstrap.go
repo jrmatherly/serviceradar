@@ -639,73 +639,7 @@ func generatePlatformAccount(
 	// Per-agent credentials (per-host flow-collector JWTs) should be issued
 	// with GenerateAgentFlowCollectorCreds, which scopes publish to a
 	// single flow.host-slice.<agent_id> subject.
-	permissions := &accounts.UserPermissions{
-		PublishAllow: []string{
-			"flow.attributed.>",
-			"flow.raw.>",
-			"flows.raw.>",
-			"logs.>",
-			"live.logs.>",
-			"events.>",
-			"metrics.>",
-			"config.>",
-			// The rest of the Helm CN=serviceradar-core publish set, since
-			// core-elx runs on this credential in Compose.
-			"flows.*.processed",
-			"flows.attribution.observations",
-			"pdns.ocsf",
-			"pdns.ocsf.>",
-			"signals.analytics.>",
-			"notifications.>",
-			"scans.results.>",
-			"mtr.results.>",
-			"vulnerability.assessment.transitions.>",
-			"exposure.dimensions.cve",
-			"exposure.dimensions.package",
-			"$JS.API.>",
-			"$JS.ACK.>",
-			// Object-store writes for the serviceradar_plugins bucket
-			// (native add-on bundles, plugin WASM blobs, dashboard
-			// artifacts). web-ng's Plugins.Storage publishes chunks to
-			// $O.<bucket>.C.<nuid> and metadata to $O.<bucket>.M.<key>;
-			// large-object PUTs also require replying to JetStream
-			// flow-control on $JS.FC.OBJ_<bucket>.>. Without these the
-			// platform-services credential hits "Permissions Violation for
-			// Publish to $O.serviceradar_plugins.C.<id>".
-			"$O.serviceradar_plugins.>",
-			"$JS.FC.OBJ_serviceradar_plugins.>",
-			"_INBOX.>",
-		},
-		PublishDeny: append([]string{"$SYS.>"}, datasvcStreamAdminDenies()...),
-		SubscribeAllow: []string{
-			"flow.host-slice.>",
-			"flow.attributed.>",
-			"flow.raw.>",
-			"flows.raw.>",
-			"logs.>",
-			"events.>",
-			"metrics.>",
-			"config.>",
-			"flows.*.processed",
-			"pdns.ocsf",
-			"pdns.ocsf.>",
-			"signals.analytics.>",
-			"inventory.k8s.>",
-			"trivy.report.>",
-			"vulnerability.assessment.transitions.>",
-			"exposure.dimensions.cve",
-			"exposure.dimensions.package",
-			"falco.>",
-			"$JS.API.>",
-			"$JS.ACK.>",
-			// Object-store reads (GET) for the serviceradar_plugins bucket.
-			"$O.serviceradar_plugins.>",
-			"_INBOX.>",
-		},
-		SubscribeDeny:  []string{"$SYS.>"},
-		AllowResponses: true,
-		MaxResponses:   1000,
-	}
+	permissions := platformPermissions()
 
 	if userName == "" {
 		userName = defaultPlatformUser
@@ -716,7 +650,7 @@ func generatePlatformAccount(
 		account.AccountSeed,
 		userName,
 		accounts.CredentialTypeService,
-		permissions,
+		&permissions,
 		0,
 	)
 	if err != nil {
@@ -777,6 +711,56 @@ func GenerateAgentFlowCollectorCreds(
 	)
 }
 
+// platformPermissions is the shared platform-services identity. Helm still
+// hands platform.creds to several components, so it stays at this set; core
+// adds its own subjects through the core service identity.
+func platformPermissions() accounts.UserPermissions {
+	return accounts.UserPermissions{
+		PublishAllow: []string{
+			"flow.attributed.>",
+			"flow.raw.>",
+			"flows.raw.>",
+			"logs.>",
+			"live.logs.>",
+			"events.>",
+			"metrics.>",
+			"config.>",
+			"$JS.API.>",
+			"$JS.ACK.>",
+			// Object-store writes for the serviceradar_plugins bucket
+			// (native add-on bundles, plugin WASM blobs, dashboard
+			// artifacts). web-ng's Plugins.Storage publishes chunks to
+			// $O.<bucket>.C.<nuid> and metadata to $O.<bucket>.M.<key>;
+			// large-object PUTs also require replying to JetStream
+			// flow-control on $JS.FC.OBJ_<bucket>.>. Without these the
+			// platform-services credential hits "Permissions Violation for
+			// Publish to $O.serviceradar_plugins.C.<id>".
+			"$O.serviceradar_plugins.>",
+			"$JS.FC.OBJ_serviceradar_plugins.>",
+			"_INBOX.>",
+		},
+		PublishDeny: append([]string{"$SYS.>"}, datasvcStreamAdminDenies()...),
+		SubscribeAllow: []string{
+			"flow.host-slice.>",
+			"flow.attributed.>",
+			"flow.raw.>",
+			"flows.raw.>",
+			"logs.>",
+			"events.>",
+			"metrics.>",
+			"config.>",
+			"$JS.API.>",
+			"$JS.ACK.>",
+			// Object-store reads (GET) for the serviceradar_plugins bucket.
+			"$O.serviceradar_plugins.>",
+			"_INBOX.>",
+		},
+		SubscribeDeny:  []string{"$SYS.>"},
+		AllowResponses: true,
+		MaxResponses:   1000,
+	}
+}
+
 // serviceIdentity is a service that authenticates with its own <user>.creds
 // instead of platform.creds, scoped like its Helm CN=serviceradar-<user> user.
 // Collectors also drop that user's blanket $JS.API.>, which could delete any
@@ -810,7 +794,22 @@ func serviceIdentities() []serviceIdentity {
 		"_INBOX.>",
 	}, slices.Concat(jsAPIForStream("KV_"+datasvcKVBucket), jsAPIForStream("OBJ_"+datasvcObjectBucket))...)
 
+	core := platformPermissions()
+	// The rest of the Helm CN=serviceradar-core set, which core-elx needs in
+	// Compose.
+	core.PublishAllow = append(core.PublishAllow,
+		"flows.*.processed", "flows.attribution.observations", "pdns.ocsf", "pdns.ocsf.>",
+		"signals.analytics.>", "notifications.>", "scans.results.>", "mtr.results.>",
+		"vulnerability.assessment.transitions.>", "exposure.dimensions.cve", "exposure.dimensions.package",
+	)
+	core.SubscribeAllow = append(core.SubscribeAllow,
+		"flows.*.processed", "pdns.ocsf", "pdns.ocsf.>", "signals.analytics.>", "inventory.k8s.>",
+		"trivy.report.>", "vulnerability.assessment.transitions.>", "exposure.dimensions.cve",
+		"exposure.dimensions.package", "falco.>",
+	)
+
 	return []serviceIdentity{
+		{user: "core", permissions: core},
 		{user: "flow-collector", permissions: accounts.UserPermissions{
 			PublishAllow: append([]string{
 				"flow.host-slice.>",
@@ -845,16 +844,23 @@ const (
 	datasvcObjectBucket = "serviceradar-objects"
 )
 
-// jsAPIForStream covers every JetStream API request naming one stream: stream
-// INFO/CREATE/UPDATE/DELETE/PURGE, DIRECT.GET, STREAM.MSG.*, and consumer
-// create, info, next and delete, which is what a KV or object store client sends.
+// jsAPIForStream lists the JetStream API requests a KV or object store client
+// sends for one stream, with the stream always in the stream position: a
+// wildcard there would also match a consumer named after the stream on any
+// other stream. Stream DELETE is left out; datasvc never deletes its buckets.
 func jsAPIForStream(stream string) []string {
-	return []string{
-		"$JS.API.*.*." + stream,
-		"$JS.API.*.*." + stream + ".>",
-		"$JS.API.*.*.*." + stream,
-		"$JS.API.*.*.*." + stream + ".>",
+	apis := []string{
+		"$JS.API.DIRECT.GET." + stream + ".>",
+		"$JS.API.CONSUMER.CREATE." + stream + ".>",
 	}
+	for _, op := range []string{"STREAM.INFO", "STREAM.CREATE", "STREAM.UPDATE", "STREAM.PURGE", "STREAM.MSG.GET", "STREAM.MSG.DELETE", "DIRECT.GET", "CONSUMER.CREATE"} {
+		apis = append(apis, "$JS.API."+op+"."+stream)
+	}
+	for _, op := range []string{"CONSUMER.DURABLE.CREATE", "CONSUMER.INFO", "CONSUMER.DELETE", "CONSUMER.MSG.NEXT"} {
+		apis = append(apis, "$JS.API."+op+"."+stream+".*")
+	}
+
+	return apis
 }
 
 // datasvcStreamAdminDenies stops the broad platform credential from deleting,

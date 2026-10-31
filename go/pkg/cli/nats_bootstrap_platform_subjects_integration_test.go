@@ -33,8 +33,8 @@ const (
 
 // Account subject mappings rewrite a subject before the publish ACL check, so
 // only a server running the bootstrap's real account JWT exposes a mismatch.
-// The three passes share one store, so each identity acts on the streams the
-// one before it created.
+// The passes share one store, so each identity acts on the streams the ones
+// before it created.
 func TestBootstrapCredsReachTheirOwnSubjects(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -55,7 +55,7 @@ func TestBootstrapCredsReachTheirOwnSubjects(t *testing.T) {
 		"exposure.dimensions.cve",
 	}
 
-	withJetStreamAs(t, credsDir, storeDir, "platform.creds", func(js nats.JetStreamContext) {
+	withJetStreamAs(t, credsDir, storeDir, "core.creds", func(js nats.JetStreamContext) {
 		if _, err := js.AddStream(&nats.StreamConfig{
 			Name:     "events",
 			Subjects: []string{"logs.>", "events.>", "metrics.>", "mtr.>", "scans.>", "notifications.>", "signals.>", "vulnerability.>", "exposure.>"},
@@ -66,8 +66,15 @@ func TestBootstrapCredsReachTheirOwnSubjects(t *testing.T) {
 
 		for _, subject := range coreSubjects {
 			if _, err := js.Publish(subject, []byte(`{}`), nats.AckWait(2*time.Second)); err != nil {
-				t.Errorf("platform publish %s: %v", subject, err)
+				t.Errorf("core publish %s: %v", subject, err)
 			}
+		}
+	})
+
+	// platform.creds stays the shared base set; core-only subjects need core.creds.
+	withJetStreamAs(t, credsDir, storeDir, "platform.creds", func(js nats.JetStreamContext) {
+		if _, err := js.Publish("mtr.results.ingest", []byte(`{}`), nats.AckWait(500*time.Millisecond)); !deniedJS(err) {
+			t.Errorf("platform publish mtr.results.ingest: got %v, want a denied (timed out) request", err)
 		}
 	})
 
@@ -97,19 +104,26 @@ func TestBootstrapCredsReachTheirOwnSubjects(t *testing.T) {
 		if err := js.DeleteStream("events", shortJSContext(t)); !deniedJS(err) {
 			t.Errorf("datasvc delete events: got %v, want a denied (timed out) request", err)
 		}
+		// A consumer named after datasvc's stream, but on events, would read events.
+		named := &nats.ConsumerConfig{Durable: "KV_" + datasvcBucket, AckPolicy: nats.AckExplicitPolicy}
+		if _, err := js.AddConsumer("events", named, shortJSContext(t)); !deniedJS(err) {
+			t.Errorf("datasvc consumer on events: got %v, want a denied (timed out) request", err)
+		}
 	})
 
-	withJetStreamAs(t, credsDir, storeDir, "platform.creds", func(js nats.JetStreamContext) {
-		if _, err := js.Publish(datasvcKey, []byte(`{}`), nats.AckWait(500*time.Millisecond)); !deniedJS(err) {
-			t.Errorf("platform write datasvc KV: got %v, want a denied (timed out) request", err)
-		}
-		if err := js.PurgeStream("KV_"+datasvcBucket, shortJSContext(t)); !deniedJS(err) {
-			t.Errorf("platform purge datasvc KV: got %v, want a denied (timed out) request", err)
-		}
-		if err := js.DeleteStream("KV_"+datasvcBucket, shortJSContext(t)); !deniedJS(err) {
-			t.Errorf("platform delete datasvc KV: got %v, want a denied (timed out) request", err)
-		}
-	})
+	for _, creds := range []string{"core.creds", "platform.creds"} {
+		withJetStreamAs(t, credsDir, storeDir, creds, func(js nats.JetStreamContext) {
+			if _, err := js.Publish(datasvcKey, []byte(`{}`), nats.AckWait(500*time.Millisecond)); !deniedJS(err) {
+				t.Errorf("%s write datasvc KV: got %v, want a denied (timed out) request", creds, err)
+			}
+			if err := js.PurgeStream("KV_"+datasvcBucket, shortJSContext(t)); !deniedJS(err) {
+				t.Errorf("%s purge datasvc KV: got %v, want a denied (timed out) request", creds, err)
+			}
+			if err := js.DeleteStream("KV_"+datasvcBucket, shortJSContext(t)); !deniedJS(err) {
+				t.Errorf("%s delete datasvc KV: got %v, want a denied (timed out) request", creds, err)
+			}
+		})
+	}
 }
 
 // A denied JetStream request gets no reply, so it times out; a permitted one
