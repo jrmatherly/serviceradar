@@ -388,11 +388,11 @@ spec:
                 user: "CN=serviceradar-agent-gateway,OU=Kubernetes,O=ServiceRadar,L=San Francisco,ST=CA,C=US"
                 permissions: {
                   publish: {
-                    allow: ["metrics.sysmon.>", "metrics.snmp.>", "metrics.icmp.>", "metrics.mtr.>", "metrics.rperf.>", "metrics.sweep.>", "metrics.timeseries.>", "metrics.agent_gateway", "otel.traces.raw", "otel.metrics.raw", "otel.metrics.derived", "logs.otel", "\$JS.API.>"]
+                    allow: ["metrics.sysmon.>", "metrics.snmp.>", "metrics.icmp.>", "metrics.mtr.>", "metrics.rperf.>", "metrics.sweep.>", "metrics.timeseries.>", "metrics.agent_gateway", "otel.traces.raw", "otel.metrics.raw", "otel.metrics.derived", "logs.otel", "inventory.k8s.public_endpoints"]
                     deny: ["\$SYS.>", "flow.attributed.>", "events.>", "logs.syslog", "logs.syslog.>", "logs.snmp", "logs.snmp.>"]
                   }
                   subscribe: {
-                    allow: []
+                    allow: ["_INBOX.>"]
                     deny: ["\$SYS.>", "flow.attributed.>", "flow.host-slice.>"]
                   }
                 }
@@ -428,35 +428,6 @@ spec:
                       "_INBOX.>"
                     ]
                     deny: ["\$SYS.>"]
-                  }
-                }
-              },
-              # Agent (B-5 subject-scoping): emits sweep/discovery events
-              # and consumes config for its partition. Denied from
-              # flow.attributed.> (attribution is core's responsibility)
-              # and $SYS.>.
-              {
-                user: "CN=serviceradar-agent,OU=Kubernetes,O=ServiceRadar,L=San Francisco,ST=CA,C=US"
-                permissions: {
-                  publish: {
-                    allow: [
-                      "events.>",
-                      "logs.>",
-                      "\$JS.API.>",
-                      "\$JS.ACK.>",
-                      "_INBOX.>"
-                    ]
-                    deny: ["\$SYS.>", "flow.attributed.>"]
-                  }
-                  subscribe: {
-                    allow: [
-                      "config.agent.>",
-                      "config.{{ $partitionId }}.>",
-                      "\$JS.API.>",
-                      "\$JS.ACK.>",
-                      "_INBOX.>"
-                    ]
-                    deny: ["\$SYS.>", "flow.attributed.>", "flow.host-slice.>"]
                   }
                 }
               },
@@ -511,14 +482,14 @@ spec:
                     {{- if $flowCollectorEnabled }}
                     allow: ["flows.raw.>", "flow.host-slice.>", {{ printf "\"\\$JS.API.STREAM.INFO.%s\"" $flowCollectorStream }}, {{ printf "\"\\$JS.API.STREAM.CREATE.%s\"" $flowCollectorStream }}, {{ printf "\"\\$JS.API.STREAM.UPDATE.%s\"" $flowCollectorStream }}, "\$JS.API.STREAM.INFO.events", "\$JS.API.STREAM.UPDATE.events"]
                     {{- else }}
-                    allow: []
+                    deny: [">"]
                     {{- end }}
                   }
                   subscribe: {
                     {{- if $flowCollectorEnabled }}
                     allow: ["_INBOX.>"]
                     {{- else }}
-                    allow: []
+                    deny: [">"]
                     {{- end }}
                   }
                 }
@@ -530,14 +501,14 @@ spec:
                     {{- if $flowCollectorEnabled }}
                     allow: ["flows.raw.>", {{ printf "\"\\$JS.API.STREAM.INFO.%s\"" $flowCollectorStream }}, {{ printf "\"\\$JS.API.STREAM.CREATE.%s\"" $flowCollectorStream }}, {{ printf "\"\\$JS.API.STREAM.UPDATE.%s\"" $flowCollectorStream }}, "\$JS.API.STREAM.INFO.events", "\$JS.API.STREAM.UPDATE.events"]
                     {{- else }}
-                    allow: []
+                    deny: [">"]
                     {{- end }}
                   }
                   subscribe: {
                     {{- if $flowCollectorEnabled }}
                     allow: ["_INBOX.>"]
                     {{- else }}
-                    allow: []
+                    deny: [">"]
                     {{- end }}
                   }
                 }
@@ -582,26 +553,15 @@ spec:
                     {{- if $k8sInventoryNatsEnabled }}
                     allow: [{{ $k8sInventorySubject | quote }}{{ if $k8sInventoryNodesEnabled }}, "inventory.k8s.nodes"{{ end }}, {{ printf "\"\\$JS.API.STREAM.INFO.%s\"" $k8sInventoryStream }}, {{ printf "\"\\$JS.API.STREAM.CREATE.%s\"" $k8sInventoryStream }}, {{ printf "\"\\$JS.API.STREAM.UPDATE.%s\"" $k8sInventoryStream }}]
                     {{- else }}
-                    allow: []
+                    deny: [">"]
                     {{- end }}
                   }
                   subscribe: {
                     {{- if $k8sInventoryNatsEnabled }}
                     allow: ["_INBOX.>"]
                     {{- else }}
-                    allow: []
+                    deny: [">"]
                     {{- end }}
-                  }
-                }
-              },
-              {
-                user: "O=ServiceRadar"
-                permissions: {
-                  publish: {
-                    allow: [">"]
-                  }
-                  subscribe: {
-                    allow: [">"]
                   }
                 }
               }

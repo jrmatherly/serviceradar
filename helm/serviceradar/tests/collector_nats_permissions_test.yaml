@@ -28,3 +28,32 @@ tests:
       - matchRegex:
           path: spec.template.spec.containers[0].args[0]
           pattern: '(?s)user: "CN=serviceradar-falcosidekick,[^"]+"\s+permissions: \{\s+publish: \{\s+allow: \["falco\.>"\]\s+\}\s+subscribe: \{\s+allow: \["_INBOX\.>"\]'
+
+  - it: limits agent-gateway to its publish subjects and reply inboxes
+    template: templates/nats.yaml
+    documentSelector:
+      path: kind
+      value: StatefulSet
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: '(?s)user: "CN=serviceradar-agent-gateway,[^"]+"\s+permissions: \{\s+publish: \{\s+allow: \["metrics\.sysmon\.>", "metrics\.snmp\.>", "metrics\.icmp\.>", "metrics\.mtr\.>", "metrics\.rperf\.>", "metrics\.sweep\.>", "metrics\.timeseries\.>", "metrics\.agent_gateway", "otel\.traces\.raw", "otel\.metrics\.raw", "otel\.metrics\.derived", "logs\.otel", "inventory\.k8s\.public_endpoints"\]\s+deny: \[[^\]]*\]\s+\}\s+subscribe: \{\s+allow: \["_INBOX\.>"\]'
+
+  # nats-server reads an empty allow list as no restriction, and a catch-all
+  # O=ServiceRadar user granted every subject. Only the tools pod keeps ">".
+  - it: never grants everything by accident
+    template: templates/nats.yaml
+    documentSelector:
+      path: kind
+      value: StatefulSet
+    asserts:
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: 'allow: \[\]'
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: 'user: "O=ServiceRadar"'
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: 'user: "CN=serviceradar-agent,'
+
