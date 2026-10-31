@@ -395,5 +395,16 @@ func allowedSystemSubject(
 		}
 	}
 
+	// Collector credentials go to edge hosts, so they may only read one named
+	// stream's info. Creating or reconciling a shared stream belongs to its
+	// trusted owner (the otel log-collector or core's EventWriter).
+	if credType == CredentialTypeCollector {
+		if stream, ok := strings.CutPrefix(subject, "$JS.API.STREAM.INFO."); ok {
+			return stream != "" && !strings.ContainsAny(stream, ".*>")
+		}
+
+		return subject == "$SYS.>"
+	}
+
 	return false
 }

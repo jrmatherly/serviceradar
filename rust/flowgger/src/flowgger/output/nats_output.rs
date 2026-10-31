@@ -352,8 +352,15 @@ impl NATSWorker {
                     changed = true;
                 }
 
-                if changed {
-                    let _ = js.update_stream(updated_config).await?;
+                // An edge credential may only read the stream; its owner already
+                // captures our subject, so a denied update is not fatal.
+                let updated = if changed {
+                    js.update_stream(updated_config).await.map(|_| ())
+                } else {
+                    Ok(())
+                };
+                if let Err(e) = updated {
+                    eprintln!("could not update stream {}: {e}", self.cfg.stream);
                 }
             }
             // The stream's owner (the otel log-collector, or core's EventWriter when

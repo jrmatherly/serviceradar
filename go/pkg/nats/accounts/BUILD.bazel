@@ -22,6 +22,7 @@ go_test(
     name = "accounts_test",
     srcs = [
         "account_manager_test.go",
+        "collector_scope_test.go",
         "jetstream_sizing_test.go",
         "operator_test.go",
         "test_keys_test.go",

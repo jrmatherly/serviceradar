@@ -179,7 +179,7 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorker do
 
   defp generate_user_credentials(nats_config, package) do
     # Build permissions based on collector type
-    permissions = build_permissions_for_collector(package.collector_type)
+    permissions = collector_permissions(package.collector_type)
 
     AccountClient.generate_user_credentials(
       nats_config.account_name,
@@ -190,51 +190,32 @@ defmodule ServiceRadar.Edge.Workers.ProvisionCollectorWorker do
     )
   end
 
-  defp build_permissions_for_collector(collector_type) do
-    # Collectors publish to simple subjects without any deployment prefix.
-    # NATS account isolation enforces separation without subject rewriting.
-
-    case collector_type do
-      :flowgger ->
-        %{
-          publish_allow: ["logs.syslog.>"],
-          subscribe_allow: []
+  @doc false
+  # Edge credentials leave the cluster, so a collector may publish only its own
+  # subjects and read its stream's info. The stream's trusted owner (the otel
+  # log-collector or core's EventWriter) creates it and captures these subjects,
+  # so no edge host can rewrite, purge or delete a shared stream.
+  @spec collector_permissions(atom()) :: %{
+          publish_allow: [String.t()],
+          subscribe_allow: [String.t()]
         }
+  def collector_permissions(:flowgger), do: publisher(["logs.syslog"], ["events"])
+  def collector_permissions(:trapd), do: publisher(["logs.snmp"], ["events"])
 
-      :trapd ->
-        %{
-          publish_allow: ["logs.snmp.>"],
-          subscribe_allow: []
-        }
+  def collector_permissions(:otel),
+    do: publisher(["otel.traces.>", "otel.metrics.>", "logs.otel"], ["events"])
 
-      :netflow ->
-        %{
-          publish_allow: ["netflow.>", "events.netflow.>"],
-          subscribe_allow: []
-        }
+  def collector_permissions(:netflow), do: publisher(["flows.raw.netflow"], ["flows", "events"])
+  def collector_permissions(:sflow), do: publisher(["flows.raw.sflow"], ["flows", "events"])
 
-      :otel ->
-        %{
-          publish_allow: [
-            "otel.traces.>",
-            "otel.metrics.>",
-            "logs.otel"
-          ],
-          subscribe_allow: []
-        }
+  # Falcosidekick publishes plain NATS messages on its subject template.
+  def collector_permissions(:falcosidekick), do: publisher(["falco.>"], [])
 
-      :falcosidekick ->
-        %{
-          publish_allow: ["events.falco.>"],
-          subscribe_allow: []
-        }
-
-      _ ->
-        %{
-          publish_allow: ["events.>"],
-          subscribe_allow: []
-        }
-    end
+  defp publisher(subjects, streams) do
+    %{
+      publish_allow: subjects ++ Enum.map(streams, &"$JS.API.STREAM.INFO.#{&1}"),
+      subscribe_allow: ["_INBOX.>"]
+    }
   end
 
   defp persist_credentials(package, user_creds) do
