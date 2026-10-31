@@ -727,7 +727,7 @@ services:
       - /bin/sh
       - -c
       - |
-          serviceradar-cli nats-account-limits --creds-dir /etc/serviceradar/creds --resolver-data-dir /data || echo "nats-account-limits: skipped, existing platform account quota kept" >&2
+          serviceradar-cli nats-account-limits --creds-dir /etc/serviceradar/creds --resolver-data-dir /data || echo "nats-account-limits: failed, any account JWT copy not re-issued above keeps its existing quota" >&2
     restart: "no"
     networks:
       - serviceradar-net
@@ -752,7 +752,12 @@ services:
           mkdir -p /data/jwt
           if [ -d /etc/serviceradar/creds/jwt ]; then
             # Never over an existing copy: the resolver's JWT holds the revocations.
-            find /etc/serviceradar/creds/jwt -maxdepth 1 -type f -name '*.jwt' -exec cp -n {} /data/jwt/ \;
+            # Tested with [ -e ] because cp -n exits differently across platforms when it skips.
+            for source in /etc/serviceradar/creds/jwt/*.jwt; do
+              [ -f "$${source}" ] || continue
+              target="/data/jwt/$${source##*/}"
+              [ -e "$${target}" ] || cp "$${source}" "$${target}"
+            done
             echo 'Seeded missing account JWTs from creds/jwt'
           fi
           if [ -f /etc/serviceradar/creds/system.jwt ] && [ -f /etc/serviceradar/creds/system_account.pub ]; then

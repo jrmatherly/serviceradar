@@ -464,3 +464,73 @@ func TestAccountLimitsResizeResolverCopyKeepsRevocations(t *testing.T) {
 		t.Error("resizing the resolver copy lost its revocation")
 	}
 }
+
+// Each copy of the JWT is resized on its own, and a failure names the copy that
+// kept its quota, because the two can now disagree.
+func TestAccountLimitsReportsEachCopyOnItsOwn(t *testing.T) {
+	brokenDir := func(t *testing.T) string {
+		t.Helper()
+		dir := t.TempDir()
+		// A file where the jwt/ directory belongs, which fails whoever runs the test.
+		if err := os.WriteFile(filepath.Join(dir, natsAccountJWTSubdir), nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return dir
+	}
+	diskStorage := func(t *testing.T, path string) int64 {
+		t.Helper()
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		claims, err := jwt.DecodeAccountClaims(string(data))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return claims.Limits.DiskStorage
+	}
+	const quota = 30_000_000_000
+
+	t.Run("a broken resolver copy still resizes creds", func(t *testing.T) {
+		t.Setenv(accounts.MaxFileStoreEnv, "")
+		credsDir := bootstrapLocalCreds(t)
+		credsPath, _ := platformAccountJWT(t, credsDir)
+
+		t.Setenv(accounts.MaxFileStoreEnv, "30G")
+		err := RunNatsAccountLimits(&CmdConfig{
+			NATSOutputDir:       credsDir,
+			NATSPlatformAccount: defaultPlatformAccount,
+			NATSResolverDataDir: brokenDir(t),
+		})
+		if err == nil || !strings.Contains(err.Error(), "resolver copy") || strings.Contains(err.Error(), "creds copy") {
+			t.Errorf("error = %v, want one naming only the resolver copy", err)
+		}
+		if got := diskStorage(t, credsPath); got != quota {
+			t.Errorf("creds copy quota = %d, want %d", got, quota)
+		}
+	})
+
+	t.Run("a broken creds copy still resizes the resolver", func(t *testing.T) {
+		t.Setenv(accounts.MaxFileStoreEnv, "")
+		goodCreds := bootstrapLocalCreds(t)
+		goodPath, _ := platformAccountJWT(t, goodCreds)
+		seed, err := os.ReadFile(filepath.Join(goodCreds, natsOperatorSeedFile))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv(natsOperatorSeedEnv, strings.TrimSpace(string(seed)))
+
+		t.Setenv(accounts.MaxFileStoreEnv, "30G")
+		err = RunNatsAccountLimits(&CmdConfig{
+			NATSOutputDir:       brokenDir(t),
+			NATSPlatformAccount: defaultPlatformAccount,
+			NATSResolverDataDir: goodCreds,
+		})
+		if err == nil || !strings.Contains(err.Error(), "creds copy") || strings.Contains(err.Error(), "resolver copy") {
+			t.Errorf("error = %v, want one naming only the creds copy", err)
+		}
+		if got := diskStorage(t, goodPath); got != quota {
+			t.Errorf("resolver copy quota = %d, want %d", got, quota)
+		}
+	})
+}

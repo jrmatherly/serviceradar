@@ -88,19 +88,21 @@ func RunNatsAccountLimits(cfg *CmdConfig) error {
 		}
 	}
 
-	if _, err = resizeAccountJetStream(credsDir, cfg.NATSPlatformAccount, seed, sizing, os.Stdout); err != nil {
-		return err
-	}
+	var credsErr, resolverErr error
 
-	if cfg.NATSResolverDataDir == "" {
-		return nil
+	if _, err = resizeAccountJetStream(credsDir, cfg.NATSPlatformAccount, seed, sizing, os.Stdout); err != nil {
+		credsErr = fmt.Errorf("creds copy of the account keeps its quota: %w", err)
 	}
 
 	// The resolver's copy carries revocations the creds copy lacks, so it is resized
 	// in place and never replaced from creds.
-	_, err = resizeAccountJetStream(cfg.NATSResolverDataDir, cfg.NATSPlatformAccount, seed, sizing, os.Stdout)
+	if cfg.NATSResolverDataDir != "" {
+		if _, err = resizeAccountJetStream(cfg.NATSResolverDataDir, cfg.NATSPlatformAccount, seed, sizing, os.Stdout); err != nil {
+			resolverErr = fmt.Errorf("resolver copy of the account keeps its quota: %w", err)
+		}
+	}
 
-	return err
+	return errors.Join(credsErr, resolverErr)
 }
 
 // resizeAccountJetStream applies sizing to the named account's JWT under

@@ -940,6 +940,98 @@ func TestComposeAccountLimitsNeverBlocksNATS(t *testing.T) {
 	}
 }
 
+// runNATSConfigInit runs the real nats-config-init command against temp dirs.
+func runNATSConfigInit(t *testing.T, credsDir, dataDir string) (string, error) {
+	t.Helper()
+
+	var project composeProject
+	if err := yaml.Unmarshal(readRepoFile(t, composeFile), &project); err != nil {
+		t.Fatalf("parse %s: %v", composeFile, err)
+	}
+	command := project.Services[natsConfigInitService].Command
+	if len(command) != 3 {
+		t.Fatalf("service %s command = %q, want sh -c <script>", natsConfigInitService, command)
+	}
+
+	script := strings.NewReplacer("$$", "$", "/etc/serviceradar/creds", credsDir, "/data", dataDir).Replace(command[2])
+	out, err := exec.CommandContext(t.Context(), "/bin/sh", "-c", script).CombinedOutput()
+
+	return string(out), err
+}
+
+// The resolver's copy of an account holds revocations the creds copy lacks, so a
+// restart must add what is missing without touching what is there, and NATS must
+// not start on a directory that is missing an account.
+func TestComposeNATSConfigInitSeedsWithoutOverwriting(t *testing.T) {
+	setup := func(t *testing.T) (credsDir, dataDir string) {
+		t.Helper()
+		credsDir, dataDir = t.TempDir(), t.TempDir()
+		for _, dir := range []string{filepath.Join(credsDir, "jwt"), filepath.Join(dataDir, "jwt")} {
+			if err := os.MkdirAll(dir, 0o750); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for name, content := range map[string]string{
+			"jwt/ACOPIED.jwt":   "creds copy of the existing account",
+			"jwt/AMISSING.jwt":  "creds copy of the missing account",
+			"jwt/not-a-jwt.txt": "ignored",
+		} {
+			if err := os.WriteFile(filepath.Join(credsDir, name), []byte(content), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return credsDir, dataDir
+	}
+	read := func(t *testing.T, path string) string {
+		t.Helper()
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(data)
+	}
+
+	t.Run("keeps an existing copy and seeds a missing one", func(t *testing.T) {
+		credsDir, dataDir := setup(t)
+		const withRevocations = "resolver copy holding revocations"
+		existing := filepath.Join(dataDir, "jwt", "ACOPIED.jwt")
+		if err := os.WriteFile(existing, []byte(withRevocations), 0o600); err != nil {
+			t.Fatal(err)
+		}
+
+		out, err := runNATSConfigInit(t, credsDir, dataDir)
+		if err != nil {
+			t.Fatalf("an existing copy failed the init, which would stop NATS: %v\n%s", err, out)
+		}
+		if got := read(t, existing); got != withRevocations {
+			t.Errorf("existing resolver copy = %q, want it byte-identical", got)
+		}
+		if got := read(t, filepath.Join(dataDir, "jwt", "AMISSING.jwt")); got != "creds copy of the missing account" {
+			t.Errorf("seeded copy = %q", got)
+		}
+		if _, statErr := os.Stat(filepath.Join(dataDir, "jwt", "not-a-jwt.txt")); statErr == nil {
+			t.Error("copied a file that is not an account JWT")
+		}
+	})
+
+	t.Run("a failed copy fails the init", func(t *testing.T) {
+		credsDir, dataDir := setup(t)
+		// A dangling link where the copy goes refuses it even for root, unlike a mode.
+		missing := filepath.Join(dataDir, "no-such-dir", "target")
+		if err := os.Symlink(missing, filepath.Join(dataDir, "jwt", "AMISSING.jwt")); err != nil {
+			t.Fatal(err)
+		}
+
+		out, err := runNATSConfigInit(t, credsDir, dataDir)
+		if err == nil {
+			t.Errorf("init succeeded without the account JWT:\n%s", out)
+		}
+		if strings.Contains(out, "Prepared NATS resolver directory") {
+			t.Errorf("init reported success after a failed copy:\n%s", out)
+		}
+	})
+}
+
 // Compose runs NATS in operator mode, so every stream lands in the platform
 // account and its JetStream quota must hold what the preset reserves.
 func TestComposePresetsFitIssuedAccountQuota(t *testing.T) {
