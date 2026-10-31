@@ -404,9 +404,6 @@ defmodule ServiceRadarWebNGWeb.OpenAPI.AdminSpec do
       "/api/admin/collectors/{id}/revoke" => %{
         "post" => op("Revoke collector", "Collectors", params: [:id], response: "AnyObject")
       },
-      "/api/admin/collectors/{id}/download" => %{
-        "post" => op("Download collector package", "Collectors", params: [:id], response: "AnyObject")
-      },
       "/api/admin/nats/account" => %{
         "get" => op("Get NATS account status", "NATS", response: "AnyObject")
       },

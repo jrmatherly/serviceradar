@@ -5,6 +5,7 @@ defmodule ServiceRadarWebNGWeb.Api.CollectorControllerTest do
 
   alias ServiceRadar.Edge.CollectorPackage
   alias ServiceRadar.Edge.NatsCredential
+  alias ServiceRadarWebNG.Auth.Guardian
   alias ServiceRadarWebNG.Edge.EnrollmentToken
 
   @moduletag :web_ng_shared_fixture_db
@@ -52,7 +53,7 @@ defmodule ServiceRadarWebNGWeb.Api.CollectorControllerTest do
       end)
 
       {:ok, token, _claims} =
-        ServiceRadarWebNG.Auth.Guardian.create_access_token(ServiceRadarWebNG.AshTestHelpers.admin_user_fixture())
+        Guardian.create_access_token(ServiceRadarWebNG.AshTestHelpers.admin_user_fixture())
 
       %{conn: Plug.Conn.put_req_header(conn, "authorization", "Bearer #{token}")}
     end
@@ -76,21 +77,48 @@ defmodule ServiceRadarWebNGWeb.Api.CollectorControllerTest do
     end
   end
 
-  describe "POST /api/admin/collectors/:id/download" do
-    test "accepts a download token from the POST body", %{conn: _conn} do
-      {package, token} = create_ready_collector_package(:flowgger)
+  describe "GET /api/admin/collectors" do
+    setup :authenticate_admin
 
-      conn = post(build_conn(), ~p"/api/admin/collectors/#{package.id}/download", %{"download_token" => token})
+    test "lists packages", %{conn: conn} do
+      {package, _token} = create_ready_collector_package(:flowgger)
 
-      assert %{"package" => %{"status" => "downloaded"}} = json_response(conn, 200)
+      body = conn |> get(~p"/api/admin/collectors?limit=1000") |> json_response(200)
+
+      assert package.id in Enum.map(body, & &1["id"])
     end
 
-    test "rejects query-string token fallback", %{conn: _conn} do
-      {package, token} = create_ready_collector_package(:flowgger)
+    test "filters by each status the resource has", %{conn: conn} do
+      {ready, _token} = create_ready_collector_package(:flowgger)
 
-      conn = post(build_conn(), ~p"/api/admin/collectors/#{package.id}/download?download_token=#{token}", %{})
+      pending =
+        CollectorPackage
+        |> Ash.Changeset.for_create(:create, %{collector_type: :trapd}, actor: system_actor())
+        |> Ash.create!(actor: system_actor())
 
-      assert json_response(conn, 400)["error"] == "download_token is required"
+      ready_ids = conn |> get(~p"/api/admin/collectors?limit=1000&status=ready") |> json_response(200) |> ids()
+      pending_ids = conn |> get(~p"/api/admin/collectors?limit=1000&status=pending") |> json_response(200) |> ids()
+
+      assert ready.id in ready_ids
+      refute pending.id in ready_ids
+      assert pending.id in pending_ids
+      refute ready.id in pending_ids
+    end
+  end
+
+  describe "POST /api/admin/collectors/:id/revoke" do
+    setup :authenticate_admin
+
+    test "stores and returns the reason", %{conn: conn} do
+      {package, _token} = create_ready_collector_package(:flowgger)
+
+      body =
+        conn
+        |> post(~p"/api/admin/collectors/#{package.id}/revoke", %{"reason" => "host decommissioned"})
+        |> json_response(200)
+
+      assert body["status"] == "revoked"
+      assert body["revoke_reason"] == "host decommissioned"
     end
   end
 
@@ -228,25 +256,14 @@ defmodule ServiceRadarWebNGWeb.Api.CollectorControllerTest do
     end
   end
 
-  describe "POST /api/admin/collectors/:id/download install script" do
-    test "returns a shell-literal-safe install script", %{conn: _conn} do
-      {package, token} =
-        create_ready_collector_package(:flowgger, %{
-          site: "$(touch /tmp/site-pwned)",
-          hostname: "$(touch /tmp/host-pwned)"
-        })
+  defp authenticate_admin(%{conn: conn}) do
+    {:ok, token, _claims} =
+      Guardian.create_access_token(ServiceRadarWebNG.AshTestHelpers.admin_user_fixture())
 
-      conn =
-        post(build_conn(), ~p"/api/admin/collectors/#{package.id}/download", %{"download_token" => token})
-
-      install_script = json_response(conn, 200)["install_script"]
-
-      assert install_script =~ "SITE='$(touch /tmp/site-pwned)'"
-      assert install_script =~ "HOSTNAME='$(touch /tmp/host-pwned)'"
-      refute install_script =~ ~s|SITE="$(touch /tmp/site-pwned)"|
-      refute install_script =~ ~s|HOSTNAME="$(touch /tmp/host-pwned)"|
-    end
+    %{conn: Plug.Conn.put_req_header(conn, "authorization", "Bearer #{token}")}
   end
+
+  defp ids(packages), do: Enum.map(packages, & &1["id"])
 
   defp create_ready_collector_package(collector_type, overrides \\ %{}) do
     unique = System.unique_integer([:positive])

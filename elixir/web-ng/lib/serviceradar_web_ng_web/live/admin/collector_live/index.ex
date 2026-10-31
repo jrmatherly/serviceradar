@@ -991,8 +991,7 @@ defmodule ServiceRadarWebNGWeb.Admin.CollectorLive.Index do
     case get_package(id, actor) do
       {:ok, package} ->
         package
-        |> Ash.Changeset.for_update(:revoke)
-        |> Ash.Changeset.set_argument(:reason, "Revoked from admin UI")
+        |> Ash.Changeset.for_update(:revoke, %{reason: "Revoked from admin UI"})
         |> Ash.update(actor: actor)
 
       error ->
