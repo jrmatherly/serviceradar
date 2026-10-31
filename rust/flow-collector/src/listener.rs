@@ -682,6 +682,7 @@ mod tests {
             publish_timeout_ms: 1000,
             security: None,
             metrics_addr: None,
+            stream_owner: true,
             host_slice_allowlist: vec!["agent-1".to_string()],
             host_slices: vec![HostSliceConfig {
                 agent_id: "agent-1".to_string(),

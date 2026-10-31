@@ -18,5 +18,6 @@
       "key_file": "collector-key.pem"
     }
   },
-  "stream_name": "flows"
+  "stream_name": "flows",
+  "stream_owner": false
 }

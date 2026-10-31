@@ -34,6 +34,10 @@ pub struct Config {
     pub ready_state_path: Option<PathBuf>,
     #[serde(default = "default_partition")]
     pub partition: String,
+    /// False on edge collectors, whose credentials can only read stream info:
+    /// wait for the stream's central owner instead of creating or changing it.
+    #[serde(default = "default_stream_owner")]
+    pub stream_owner: bool,
 
     // Buffering
     //
@@ -422,6 +426,10 @@ fn default_publish_timeout_ms() -> u64 {
 
 fn default_partition() -> String {
     "default".to_string()
+}
+
+fn default_stream_owner() -> bool {
+    true
 }
 
 fn default_stream_max_bytes() -> i64 {
@@ -840,6 +848,7 @@ mod tests {
         ] {
             let config = Config::from_json_with_env(raw, |_| None).unwrap();
             assert_eq!(config.stream_name, "flows");
+            assert!(!config.stream_owner);
             assert_eq!(
                 config.nats_creds_file.as_deref(),
                 Some("/etc/serviceradar/creds/nats.creds")
@@ -1376,6 +1385,7 @@ mod tests {
         let raw = include_str!("../flow-collector.json");
         let config: Config = serde_json::from_str(raw).expect("flow-collector.json parses");
         assert_eq!(config.stream_name, "flows");
+        assert!(config.stream_owner);
         // Image/docker bake uses a capacity-safe override, not the 10 GiB binary default.
         assert_eq!(config.stream_max_bytes, 1024 * 1024 * 1024);
         assert!(config.stream_max_age_secs > 0);

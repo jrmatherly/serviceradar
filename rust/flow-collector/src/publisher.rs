@@ -674,6 +674,9 @@ impl Publisher {
     }
 
     async fn ensure_owned_stream(&self, admin_js: &jetstream::Context) -> Result<Duration> {
+        if !self.config.stream_owner {
+            return wait_for_owner_stream(admin_js, &self.config).await;
+        }
         let desired_max_age = Duration::from_secs(self.config.stream_max_age_secs);
         let mut subjects = self.config.stream_subjects_resolved();
         // Recover post-cutover ownership (includes migrated extension subjects
@@ -1017,6 +1020,15 @@ impl Publisher {
         let mut publish_js = jetstream::new(client.clone());
         let ack_timeout = Duration::from_millis(self.config.publish_timeout_ms.max(1_000));
         publish_js.set_timeout(ack_timeout);
+
+        if !self.config.stream_owner {
+            let dup_window = wait_for_owner_stream(&admin_js, &self.config).await?;
+            info!(
+                "Connected to NATS at {} as non-owner of stream '{}' (dup_window={:?})",
+                self.config.nats_url, self.config.stream_name, dup_window
+            );
+            return Ok((client, admin_js, publish_js, dup_window));
+        }
 
         let required_subjects = self.config.stream_subjects_resolved();
         let desired_max_age = Duration::from_secs(self.config.stream_max_age_secs);
@@ -2616,6 +2628,75 @@ async fn ensure_flows_stream(
     }
 }
 
+/// What a collector that does not own its stream sees when it looks at it.
+#[derive(Debug)]
+enum NonOwnerStream {
+    /// The stream captures every subject; carries its verified duplicate window.
+    Usable(Duration),
+    /// The owner has not created the stream or added a subject yet.
+    Waiting(String),
+}
+
+fn non_owner_stream_state(
+    stream_name: &str,
+    existing: Option<&jetstream::stream::Config>,
+    required_subjects: &[String],
+) -> Result<NonOwnerStream> {
+    let Some(existing) = existing else {
+        return Ok(NonOwnerStream::Waiting(format!(
+            "stream '{stream_name}' not created by its owner yet"
+        )));
+    };
+    let uncaptured: Vec<&String> = required_subjects
+        .iter()
+        .filter(|required| {
+            !existing
+                .subjects
+                .iter()
+                .any(|s| subject_covers(s, required))
+        })
+        .collect();
+    if !uncaptured.is_empty() {
+        return Ok(NonOwnerStream::Waiting(format!(
+            "stream '{stream_name}' does not capture {uncaptured:?} yet"
+        )));
+    }
+    if existing.no_ack {
+        return Err(anyhow::anyhow!(
+            "stream '{stream_name}' has no_ack=true; publisher requires publish ACKs"
+        ));
+    }
+    Ok(NonOwnerStream::Usable(existing.duplicate_window))
+}
+
+/// Wait for the stream's owner, the way trapd does: only not-found and missing
+/// subjects keep waiting, and this makes no call but STREAM.INFO.
+async fn wait_for_owner_stream(js: &jetstream::Context, config: &Config) -> Result<Duration> {
+    let required_subjects = config.stream_subjects_resolved();
+    let mut delay = Duration::from_millis(500);
+    loop {
+        let existing = match js.get_stream(&config.stream_name).await {
+            Ok(mut stream) => Some(stream.info().await?.config.clone()),
+            Err(err) if is_stream_not_found(&err) => None,
+            Err(err) => {
+                return Err(anyhow::anyhow!(
+                    "failed to INFO stream '{}': {err}",
+                    config.stream_name
+                ));
+            }
+        };
+        match non_owner_stream_state(&config.stream_name, existing.as_ref(), &required_subjects)? {
+            NonOwnerStream::Usable(window) => return Ok(window),
+            NonOwnerStream::Waiting(reason) => {
+                clear_publisher_ready(config, &reason)?;
+                warn!("{reason}; retrying in {delay:?}");
+                sleep(delay).await;
+                delay = min(delay.saturating_mul(2), Duration::from_secs(30));
+            }
+        }
+    }
+}
+
 fn is_stream_not_found(err: &async_nats::jetstream::context::GetStreamError) -> bool {
     use async_nats::jetstream::context::GetStreamErrorKind;
     match err.kind() {
@@ -2784,6 +2865,178 @@ pub(crate) fn is_protocol_valid_nats_subject(subject: &str) -> bool {
 /// Listener publish subjects must be concrete and protocol-valid.
 pub(crate) fn is_valid_listener_publish_subject(subject: &str) -> bool {
     exact_nats_subject(subject)
+}
+
+#[cfg(test)]
+mod non_owner_tests {
+    use super::*;
+    use std::sync::Mutex;
+    use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+    use tokio::net::TcpListener;
+
+    const NOT_FOUND: &str =
+        r#"{"error":{"code":404,"err_code":10059,"description":"stream not found"}}"#;
+
+    fn stream_info(subjects: &[&str]) -> String {
+        serde_json::json!({
+            "config": {
+                "name": "flows",
+                "subjects": subjects,
+                "retention": "limits",
+                "storage": "file",
+                "discard": "old",
+                "max_bytes": 1024,
+                "num_replicas": 1,
+                "duplicate_window": 120_000_000_000u64
+            },
+            "created": "2026-10-31T00:00:00Z",
+            "state": {
+                "messages": 0, "bytes": 0, "first_seq": 0, "last_seq": 0,
+                "first_ts": "2026-10-31T00:00:00Z", "last_ts": "2026-10-31T00:00:00Z",
+                "consumer_count": 0
+            }
+        })
+        .to_string()
+    }
+
+    /// Speaks enough of the NATS protocol to answer JetStream API requests in
+    /// order and record every API subject the client asked for.
+    async fn fake_jetstream(replies: Vec<String>) -> (String, Arc<Mutex<Vec<String>>>) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let requests = Arc::new(Mutex::new(Vec::new()));
+        let recorded = Arc::clone(&requests);
+        tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            let (read, mut write) = socket.into_split();
+            let mut read = BufReader::new(read);
+            let info = format!(
+                r#"INFO {{"server_id":"fake","server_name":"fake","version":"2.14.0","go":"go","host":"127.0.0.1","port":{port},"headers":true,"max_payload":1048576,"proto":1}}"#
+            );
+            write
+                .write_all(format!("{info}\r\n").as_bytes())
+                .await
+                .unwrap();
+            let mut replies = replies.into_iter();
+            let mut last = String::new();
+            let mut inbox_sid = String::new();
+            let mut line = String::new();
+            loop {
+                line.clear();
+                if read.read_line(&mut line).await.unwrap_or(0) == 0 {
+                    return;
+                }
+                let parts: Vec<String> = line.split_whitespace().map(str::to_string).collect();
+                match parts.first().map(String::as_str) {
+                    Some("PING") => write.write_all(b"PONG\r\n").await.unwrap(),
+                    Some("SUB") => inbox_sid = parts[parts.len() - 1].clone(),
+                    Some("PUB" | "HPUB") => {
+                        let size: usize = parts[parts.len() - 1].parse().unwrap();
+                        let mut body = vec![0u8; size + 2];
+                        read.read_exact(&mut body).await.unwrap();
+                        recorded.lock().unwrap().push(parts[1].clone());
+                        // The last reply repeats, so a retrying client stays answered.
+                        last = replies.next().unwrap_or(last);
+                        let message =
+                            format!("MSG {} {inbox_sid} {}\r\n{last}\r\n", parts[2], last.len());
+                        write.write_all(message.as_bytes()).await.unwrap();
+                    }
+                    _ => {}
+                }
+            }
+        });
+        (format!("nats://127.0.0.1:{port}"), requests)
+    }
+
+    fn non_owner_publisher(url: &str, dir: &Path) -> Publisher {
+        let config: Config = serde_json::from_value(serde_json::json!({
+            "nats_url": url,
+            "stream_name": "flows",
+            "stream_owner": false,
+            "rehome_state_path": dir.join("rehome.json"),
+            "ready_state_path": dir.join("ready"),
+            "listeners": [{
+                "protocol": "netflow",
+                "listen_addr": "0.0.0.0:2055",
+                "subject": "flows.raw.netflow"
+            }]
+        }))
+        .unwrap();
+        let (_tx, rx) = mpsc::channel(1);
+        Publisher::new(
+            Arc::new(config),
+            rx,
+            Arc::new(HostSliceMetricsRegistry::new(vec![])),
+        )
+    }
+
+    /// The edge credential allows STREAM.INFO only, so anything else on the wire
+    /// would be refused by the server; here it would show as a recorded subject.
+    #[tokio::test]
+    async fn non_owner_never_creates_or_updates_streams() {
+        let dir = std::env::temp_dir().join(format!("non-owner-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let (url, requests) = fake_jetstream(vec![
+            NOT_FOUND.to_string(),
+            stream_info(&["flows.raw.netflow", "flows.raw.sflow"]),
+        ])
+        .await;
+        let mut publisher = non_owner_publisher(&url, &dir);
+
+        let (_client, admin_js, _publish_js, window) =
+            tokio::time::timeout(Duration::from_secs(20), publisher.connect_once())
+                .await
+                .expect("the wait ends once the owner has created the stream")
+                .unwrap();
+        assert_eq!(window, Duration::from_secs(120));
+
+        // The reconnect path re-checks the stream the same way.
+        let window = publisher.ensure_owned_stream(&admin_js).await.unwrap();
+        assert_eq!(window, Duration::from_secs(120));
+
+        let requests = requests.lock().unwrap().clone();
+        assert!(
+            requests.len() >= 2,
+            "expected a retry after 10059: {requests:?}"
+        );
+        assert!(
+            requests.iter().all(|s| s == "$JS.API.STREAM.INFO.flows"),
+            "non-owner sent more than INFO on its own stream: {requests:?}"
+        );
+        assert!(!rehome_state_path(&publisher.config).exists());
+        assert!(!ownership_state_path(&publisher.config).exists());
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// A subject no stream captures is acked by nobody, so a stream that lacks it
+    /// is not ready yet: only its owner can add it.
+    #[test]
+    fn non_owner_waits_until_the_stream_captures_its_subjects() {
+        let required = vec!["flows.raw.netflow".to_string()];
+        let stream = |subjects: &[&str]| jetstream::stream::Config {
+            name: "flows".to_string(),
+            subjects: subjects.iter().map(|s| s.to_string()).collect(),
+            duplicate_window: Duration::from_secs(120),
+            ..Default::default()
+        };
+
+        for waiting in [None, Some(stream(&["flows.raw.sflow"]))] {
+            assert!(matches!(
+                non_owner_stream_state("flows", waiting.as_ref(), &required).unwrap(),
+                NonOwnerStream::Waiting(_)
+            ));
+        }
+        for covering in ["flows.raw.netflow", "flows.raw.>"] {
+            assert!(matches!(
+                non_owner_stream_state("flows", Some(&stream(&[covering])), &required).unwrap(),
+                NonOwnerStream::Usable(window) if window == Duration::from_secs(120)
+            ));
+        }
+
+        let mut no_ack = stream(&["flows.raw.netflow"]);
+        no_ack.no_ack = true;
+        assert!(non_owner_stream_state("flows", Some(&no_ack), &required).is_err());
+    }
 }
 
 #[cfg(test)]

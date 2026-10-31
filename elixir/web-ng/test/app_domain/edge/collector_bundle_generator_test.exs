@@ -3,6 +3,8 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
 
   alias ServiceRadar.Edge.CollectorPackage
   alias ServiceRadar.Edge.EdgeSite
+  alias ServiceRadar.Edge.Workers.ProvisionCollectorWorker
+  alias ServiceRadar.EventWriter.Config, as: EventWriterConfig
   alias ServiceRadarWebNG.Edge.CollectorBundleGenerator
 
   @moduletag :db_free
@@ -213,6 +215,7 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
       config = flow_bundle_config(sample_flow_package(:netflow))
 
       assert config["stream_name"] == "flows"
+      assert config["stream_owner"] == false
 
       assert config["listeners"] == [
                %{
@@ -230,6 +233,7 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
       config = flow_bundle_config(sample_flow_package(:sflow))
 
       assert config["stream_name"] == "flows"
+      assert config["stream_owner"] == false
 
       assert config["listeners"] == [
                %{
@@ -283,6 +287,28 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
 
         assert flow_bundle_config(sample_flow_package(unquote(type))) == expected
       end
+    end
+  end
+
+  describe "bundle subjects" do
+    # A subject no stream captures is acknowledged by nobody, so each one must land
+    # in a stream EventWriter creates and be publishable with the edge credential.
+    test "each is captured by a stream EventWriter creates and allowed by the credential" do
+      streams = EventWriterConfig.default_streams() ++ EventWriterConfig.default_flow_streams()
+
+      for {type, stream_name, subject} <- bundle_subjects() do
+        assert Enum.any?(streams, &captures?(&1, stream_name, subject)),
+               "#{type}: no EventWriter stream #{stream_name} captures #{subject}"
+
+        assert subject in ProvisionCollectorWorker.collector_permissions(type).publish_allow
+      end
+    end
+
+    test "a subject outside every EventWriter stream is not reported as captured" do
+      streams = EventWriterConfig.default_flow_streams()
+
+      refute Enum.any?(streams, &captures?(&1, "flows", "flows.raw.unknown"))
+      refute Enum.any?(streams, &captures?(&1, "events", "flows.raw.netflow"))
     end
   end
 
@@ -472,17 +498,51 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGeneratorTest do
     }
   end
 
-  defp flow_bundle_config(package) do
+  defp bundle_subjects do
+    netflow = flow_bundle_config(sample_flow_package(:netflow))
+    sflow = flow_bundle_config(sample_flow_package(:sflow))
+    trapd = bundle_json(sample_flow_package(:trapd), "trapd.json")
+    flowgger = bundle_text(sample_flow_package(:flowgger), "flowgger.toml")
+    otel = bundle_text(sample_flow_package(:otel), "otel.toml")
+
+    [
+      {:netflow, netflow["stream_name"], hd(netflow["listeners"])["subject"]},
+      {:sflow, sflow["stream_name"], hd(sflow["listeners"])["subject"]},
+      {:trapd, trapd["stream_name"], trapd["subject"]},
+      {:flowgger, toml_string(flowgger, "nats_stream"), toml_string(flowgger, "nats_subject")},
+      {:otel, toml_string(otel, "stream"), toml_string(otel, "logs_subject")}
+    ]
+  end
+
+  defp captures?(stream, stream_name, subject) do
+    Map.get(stream, :ensure_stream, true) and
+      EventWriterConfig.jetstream_stream_name(stream) == stream_name and
+      nats_covers?(String.split(stream.subject, "."), String.split(subject, "."))
+  end
+
+  defp nats_covers?([">"], [_ | _]), do: true
+  defp nats_covers?(["*" | filter], [_ | subject]), do: nats_covers?(filter, subject)
+  defp nats_covers?([token | filter], [token | subject]), do: nats_covers?(filter, subject)
+  defp nats_covers?([], []), do: true
+  defp nats_covers?(_filter, _subject), do: false
+
+  defp toml_string(toml, key) do
+    [_, value] = Regex.run(~r/^#{key} = "([^"]+)"$/m, toml)
+    value
+  end
+
+  defp bundle_json(package, file), do: package |> bundle_text(file) |> Jason.decode!()
+
+  defp bundle_text(package, file) do
     {:ok, tarball} =
       CollectorBundleGenerator.create_tarball(package, sample_nats_creds(), nil,
         nats_url: "tls://host01.example.com:4222"
       )
 
-    tarball
-    |> extract_files()
-    |> find_file("#{package.collector_type}.json")
-    |> Jason.decode!()
+    tarball |> extract_files() |> find_file(file)
   end
+
+  defp flow_bundle_config(package), do: bundle_json(package, "#{package.collector_type}.json")
 
   defp sample_flow_package(type, config_overrides \\ %{}) do
     %CollectorPackage{

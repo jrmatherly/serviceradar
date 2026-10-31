@@ -307,6 +307,8 @@ defmodule ServiceRadarWebNG.Edge.CollectorBundleGenerator do
       "nats_url" => get_nats_url(package, opts),
       "nats_creds_file" => "/etc/serviceradar/creds/nats.creds",
       "stream_name" => "flows",
+      # Edge credentials only read stream info; core's EventWriter creates `flows`.
+      "stream_owner" => false,
       "partition" => package.site || "default",
       "listeners" => [
         %{
