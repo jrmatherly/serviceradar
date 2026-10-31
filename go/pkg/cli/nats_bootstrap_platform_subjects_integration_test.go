@@ -33,41 +33,45 @@ const (
 
 // Account subject mappings rewrite a subject before the publish ACL check, so
 // only a server running the bootstrap's real account JWT exposes a mismatch.
+// The three passes share one store, so each identity acts on the streams the
+// one before it created.
 func TestBootstrapCredsReachTheirOwnSubjects(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
 
 	credsDir := bootstrapLocalCreds(t)
+	storeDir := t.TempDir()
 
-	withJetStreamAs(t, credsDir, t.TempDir(), "platform.creds", func(js nats.JetStreamContext) {
+	coreSubjects := []string{
+		"logs.internal.audit",
+		"events.internal.jobs",
+		"metrics.ingestion_lanes",
+		"mtr.results.ingest",
+		"scans.results.synthetic-run",
+		"notifications.deliveries",
+		"signals.analytics.synthetic",
+		"vulnerability.assessment.transitions.synthetic",
+		"exposure.dimensions.cve",
+	}
+
+	withJetStreamAs(t, credsDir, storeDir, "platform.creds", func(js nats.JetStreamContext) {
 		if _, err := js.AddStream(&nats.StreamConfig{
-			Name:     "CORE_SUBJECTS",
-			Subjects: []string{"logs.internal.>", "events.internal.>", "metrics.>"},
+			Name:     "events",
+			Subjects: []string{"logs.>", "events.>", "metrics.>", "mtr.>", "scans.>", "notifications.>", "signals.>", "vulnerability.>", "exposure.>"},
 			MaxBytes: 1 << 20,
 		}); err != nil {
 			t.Fatalf("add stream: %v", err)
 		}
 
-		for _, subject := range []string{
-			"logs.internal.audit",
-			"events.internal.jobs",
-			"metrics.ingestion_lanes",
-		} {
+		for _, subject := range coreSubjects {
 			if _, err := js.Publish(subject, []byte(`{}`), nats.AckWait(2*time.Second)); err != nil {
 				t.Errorf("platform publish %s: %v", subject, err)
 			}
 		}
-
-		if _, err := js.CreateKeyValue(&nats.KeyValueConfig{Bucket: datasvcBucket, MaxBytes: 1 << 20}); err != nil {
-			t.Fatalf("create datasvc bucket: %v", err)
-		}
-		if _, err := js.Publish(datasvcKey, []byte(`{}`), nats.AckWait(500*time.Millisecond)); err == nil {
-			t.Error("platform.creds wrote the datasvc KV bucket; only datasvc.creds may")
-		}
 	})
 
-	withJetStreamAs(t, credsDir, t.TempDir(), "datasvc.creds", func(js nats.JetStreamContext) {
+	withJetStreamAs(t, credsDir, storeDir, "datasvc.creds", func(js nats.JetStreamContext) {
 		kv, err := js.CreateKeyValue(&nats.KeyValueConfig{Bucket: datasvcBucket, MaxBytes: 1 << 20})
 		if err != nil {
 			t.Fatalf("datasvc create bucket: %v", err)
@@ -75,7 +79,52 @@ func TestBootstrapCredsReachTheirOwnSubjects(t *testing.T) {
 		if _, err := kv.Put("agents/default-agent/config.json", []byte(`{}`)); err != nil {
 			t.Errorf("datasvc kv put: %v", err)
 		}
+		if entry, err := kv.Get("agents/default-agent/config.json"); err != nil || string(entry.Value()) != `{}` {
+			t.Errorf("datasvc kv get: %v", err)
+		}
+
+		obj, err := js.CreateObjectStore(&nats.ObjectStoreConfig{Bucket: "serviceradar-objects", MaxBytes: 1 << 20})
+		if err != nil {
+			t.Fatalf("datasvc create object store: %v", err)
+		}
+		if _, err := obj.PutBytes("plugins/synthetic.wasm", []byte("synthetic")); err != nil {
+			t.Errorf("datasvc object put: %v", err)
+		}
+		if data, err := obj.GetBytes("plugins/synthetic.wasm"); err != nil || string(data) != "synthetic" {
+			t.Errorf("datasvc object get: %v", err)
+		}
+
+		if err := js.DeleteStream("events", shortJSContext(t)); !deniedJS(err) {
+			t.Errorf("datasvc delete events: got %v, want a denied (timed out) request", err)
+		}
 	})
+
+	withJetStreamAs(t, credsDir, storeDir, "platform.creds", func(js nats.JetStreamContext) {
+		if _, err := js.Publish(datasvcKey, []byte(`{}`), nats.AckWait(500*time.Millisecond)); !deniedJS(err) {
+			t.Errorf("platform write datasvc KV: got %v, want a denied (timed out) request", err)
+		}
+		if err := js.PurgeStream("KV_"+datasvcBucket, shortJSContext(t)); !deniedJS(err) {
+			t.Errorf("platform purge datasvc KV: got %v, want a denied (timed out) request", err)
+		}
+		if err := js.DeleteStream("KV_"+datasvcBucket, shortJSContext(t)); !deniedJS(err) {
+			t.Errorf("platform delete datasvc KV: got %v, want a denied (timed out) request", err)
+		}
+	})
+}
+
+// A denied JetStream request gets no reply, so it times out; a permitted one
+// succeeds or fails fast with an API error.
+func deniedJS(err error) bool {
+	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, nats.ErrTimeout)
+}
+
+func shortJSContext(t *testing.T) nats.ContextOpt {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	t.Cleanup(cancel)
+
+	return nats.Context(ctx)
 }
 
 // Each collector gets its own subjects and its one stream, and nothing that
@@ -121,10 +170,8 @@ func TestCollectorCredsAreScopedToTheirStream(t *testing.T) {
 						t.Fatalf("create own stream %s: %v", tc.stream, err)
 					}
 				} else {
-					ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-					defer cancel()
 					rogue := &nats.StreamConfig{Name: tc.stream, Subjects: []string{"rogue.>"}, MaxBytes: 1 << 20}
-					if _, err := js.AddStream(rogue, nats.Context(ctx)); err == nil || !errors.Is(err, context.DeadlineExceeded) {
+					if _, err := js.AddStream(rogue, shortJSContext(t)); !deniedJS(err) {
 						t.Errorf("%s create %s: got %v, want a denied (timed out) request", tc.creds, tc.stream, err)
 					}
 					if _, err := js.UpdateStream(stream); err != nil {
@@ -138,10 +185,8 @@ func TestCollectorCredsAreScopedToTheirStream(t *testing.T) {
 					}
 				}
 
-				ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-				defer cancel()
-				if err := js.DeleteStream(tc.stream, nats.Context(ctx)); err == nil {
-					t.Errorf("%s deleted stream %s", tc.creds, tc.stream)
+				if err := js.DeleteStream(tc.stream, shortJSContext(t)); !deniedJS(err) {
+					t.Errorf("%s delete %s: got %v, want a denied (timed out) request", tc.creds, tc.stream, err)
 				}
 
 				if _, err := js.Publish(agentConfigSubject, []byte(`{}`), nats.AckWait(500*time.Millisecond)); err == nil {

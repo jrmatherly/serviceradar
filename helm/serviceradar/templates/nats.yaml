@@ -349,7 +349,8 @@ spec:
                       "\$JS.ACK.>",
                       "_INBOX.>"
                     ]
-                    deny: ["\$SYS.>"]
+                    # Core manages streams but must not delete or rewrite datasvc's.
+                    deny: ["\$SYS.>", "\$JS.API.STREAM.CREATE.KV_{{ $kvBucket }}", "\$JS.API.STREAM.UPDATE.KV_{{ $kvBucket }}", "\$JS.API.STREAM.DELETE.KV_{{ $kvBucket }}", "\$JS.API.STREAM.PURGE.KV_{{ $kvBucket }}", "\$JS.API.STREAM.MSG.DELETE.KV_{{ $kvBucket }}", "\$JS.API.STREAM.CREATE.OBJ_{{ $objectBucket }}", "\$JS.API.STREAM.UPDATE.OBJ_{{ $objectBucket }}", "\$JS.API.STREAM.DELETE.OBJ_{{ $objectBucket }}", "\$JS.API.STREAM.PURGE.OBJ_{{ $objectBucket }}", "\$JS.API.STREAM.MSG.DELETE.OBJ_{{ $objectBucket }}"]
                   }
                   subscribe: {
                     allow: [
@@ -397,36 +398,34 @@ spec:
                   }
                 }
               },
-              # Datasvc query-side service: reads catalog events/config and
-              # object/KV state. Attributed flows are queried from CNPG, not a
-              # flow.attributed.* NATS read-back stream.
+              # Datasvc owns the KV bucket holding agent configuration and the
+              # object store, and may call JetStream only on those two streams.
               {
                 user: "CN=serviceradar-datasvc,OU=Kubernetes,O=ServiceRadar,L=San Francisco,ST=CA,C=US"
                 permissions: {
                   publish: {
                     allow: [
-                      "events.>",
-                      "config.>",
                       "\$KV.{{ $kvBucket }}.>",
                       "\$O.{{ $objectBucket }}.>",
+                      "\$JS.FC.KV_{{ $kvBucket }}.>",
                       "\$JS.FC.OBJ_{{ $objectBucket }}.>",
-                      "\$JS.API.>",
-                      "\$JS.ACK.>",
+                      "\$JS.ACK.KV_{{ $kvBucket }}.>",
+                      "\$JS.ACK.OBJ_{{ $objectBucket }}.>",
+                      "\$JS.API.INFO",
+                      "\$JS.API.*.*.KV_{{ $kvBucket }}",
+                      "\$JS.API.*.*.KV_{{ $kvBucket }}.>",
+                      "\$JS.API.*.*.*.KV_{{ $kvBucket }}",
+                      "\$JS.API.*.*.*.KV_{{ $kvBucket }}.>",
+                      "\$JS.API.*.*.OBJ_{{ $objectBucket }}",
+                      "\$JS.API.*.*.OBJ_{{ $objectBucket }}.>",
+                      "\$JS.API.*.*.*.OBJ_{{ $objectBucket }}",
+                      "\$JS.API.*.*.*.OBJ_{{ $objectBucket }}.>",
                       "_INBOX.>"
                     ]
                     deny: ["\$SYS.>"]
                   }
                   subscribe: {
-                    allow: [
-                      "events.>",
-                      "config.>",
-                      "\$KV.{{ $kvBucket }}.>",
-                      "\$O.{{ $objectBucket }}.>",
-                      "\$JS.FC.OBJ_{{ $objectBucket }}.>",
-                      "\$JS.API.>",
-                      "\$JS.ACK.>",
-                      "_INBOX.>"
-                    ]
+                    allow: ["_INBOX.>"]
                     deny: ["\$SYS.>"]
                   }
                 }

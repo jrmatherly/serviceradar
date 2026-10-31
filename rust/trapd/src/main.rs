@@ -153,13 +153,23 @@ async fn main() -> Result<()> {
     };
 
     let mut delay = Duration::from_millis(500);
-    while let Err(e) = ensure_stream(&js, &cfg).await {
-        warn!(
-            "waiting for stream {}: {e:#}; retrying in {delay:?}",
-            cfg.stream_name
-        );
-        tokio::time::sleep(delay).await;
-        delay = (delay * 2).min(Duration::from_secs(30));
+    loop {
+        match ensure_stream(&js, &cfg).await {
+            Ok(StreamState::Ready) => break,
+            Ok(StreamState::Missing) => {
+                warn!(
+                    "waiting for stream {} to be created by its owner; retrying in {delay:?}",
+                    cfg.stream_name
+                );
+                tokio::time::sleep(delay).await;
+                delay = (delay * 2).min(Duration::from_secs(30));
+            }
+            // Waiting cannot fix a denied or failed request; publish as before.
+            Err(e) => {
+                warn!("failed to ensure stream {}: {e:#}", cfg.stream_name);
+                break;
+            }
+        }
     }
 
     let mut buf = vec![0u8; 65535];
@@ -245,20 +255,34 @@ mod subject_covers_tests {
     }
 }
 
+enum StreamState {
+    Ready,
+    Missing,
+}
+
 // The stream's owner (the otel log-collector, or core's EventWriter when it is
-// absent) creates and sizes it. trapd only adds its subject, so it waits rather
-// than creating an unsized stream the account rejects.
-async fn ensure_stream(js: &async_nats::jetstream::Context, cfg: &Config) -> Result<()> {
-    let mut stream = js
-        .get_stream(&cfg.stream_name)
-        .await
-        .context("not created by its owner yet")?;
+// absent) creates and sizes it. trapd only adds its subject, so a missing stream
+// means wait, not create an unsized stream the account rejects.
+async fn ensure_stream(js: &async_nats::jetstream::Context, cfg: &Config) -> Result<StreamState> {
+    let mut stream = match js.get_stream(&cfg.stream_name).await {
+        Ok(stream) => stream,
+        Err(e) if is_stream_not_found(&e) => return Ok(StreamState::Missing),
+        Err(e) => return Err(e.into()),
+    };
     let info = stream.info().await?;
     if let Some(updated) = merged_stream_config(&info.config, cfg) {
         js.update_stream(updated).await?;
     }
 
-    Ok(())
+    Ok(StreamState::Ready)
+}
+
+fn is_stream_not_found(e: &async_nats::jetstream::context::GetStreamError) -> bool {
+    matches!(
+        e.kind(),
+        async_nats::jetstream::context::GetStreamErrorKind::JetStream(api)
+            if api.error_code() == async_nats::jetstream::ErrorCode::STREAM_NOT_FOUND
+    )
 }
 
 fn merged_stream_config(

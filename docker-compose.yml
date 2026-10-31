@@ -774,7 +774,31 @@ services:
       - ./docker/compose/datasvc.mtls.json:/etc/serviceradar/datasvc.json:ro
       - ./docker/compose/entrypoint-datasvc.sh:/usr/local/bin/entrypoint.sh:ro
       - cert-data:/etc/serviceradar/certs:ro
-      - ${NATS_CREDS_DIR:-nats-creds}:/etc/serviceradar/creds:ro
+      # Only this service's NATS credentials, not the whole creds volume.
+      - type: volume
+        source: nats-creds
+        target: /etc/serviceradar/creds/datasvc.creds
+        read_only: true
+        volume:
+          subpath: datasvc.creds
+      - type: volume
+        source: nats-creds
+        target: /etc/serviceradar/creds/operator.seed
+        read_only: true
+        volume:
+          subpath: operator.seed
+      - type: volume
+        source: nats-creds
+        target: /etc/serviceradar/creds/system_account.pub
+        read_only: true
+        volume:
+          subpath: system_account.pub
+      - type: volume
+        source: nats-creds
+        target: /etc/serviceradar/creds/system.creds
+        read_only: true
+        volume:
+          subpath: system.creds
       - datasvc-data:/var/lib/serviceradar
       - ./logs:/var/log/serviceradar
     environment:
@@ -905,7 +929,13 @@ services:
       - ./docker/compose/flowgger.docker.toml:/etc/serviceradar/flowgger.toml:ro
       - ./docker/compose/otel.docker.toml:/etc/serviceradar/otel.toml:ro
       - cert-data:/etc/serviceradar/certs:ro
-      - ${NATS_CREDS_DIR:-nats-creds}:/etc/serviceradar/creds:ro
+      # Only this service's NATS credentials, not the whole creds volume.
+      - type: volume
+        source: nats-creds
+        target: /etc/serviceradar/creds/log-collector.creds
+        read_only: true
+        volume:
+          subpath: log-collector.creds
       - log-collector-data:/var/lib/serviceradar
       - ./logs:/var/log/serviceradar
     environment:
@@ -1026,7 +1056,13 @@ services:
     volumes:
       - ./docker/compose/trapd.docker.json:/etc/serviceradar/trapd.json:ro
       - cert-data:/etc/serviceradar/certs:ro
-      - ${NATS_CREDS_DIR:-nats-creds}:/etc/serviceradar/creds:ro
+      # Only this service's NATS credentials, not the whole creds volume.
+      - type: volume
+        source: nats-creds
+        target: /etc/serviceradar/creds/trapd.creds
+        read_only: true
+        volume:
+          subpath: trapd.creds
       - trapd-data:/var/lib/serviceradar
       - ./logs:/var/log/serviceradar
     environment:
@@ -1057,7 +1093,13 @@ services:
     volumes:
       - ./docker/compose/flow-collector.docker.json:/etc/serviceradar/flow-collector.json:ro
       - cert-data:/etc/serviceradar/certs:ro
-      - ${NATS_CREDS_DIR:-nats-creds}:/etc/serviceradar/creds:ro
+      # Only this service's NATS credentials, not the whole creds volume.
+      - type: volume
+        source: nats-creds
+        target: /etc/serviceradar/creds/flow-collector.creds
+        read_only: true
+        volume:
+          subpath: flow-collector.creds
       - flow-data:/var/lib/serviceradar
       - ./logs:/var/log/serviceradar
     environment:
@@ -1090,7 +1132,13 @@ services:
     volumes:
       - ./docker/compose/bmp-collector.docker.json:/etc/serviceradar/bmp-collector.json:ro
       - cert-data:/etc/serviceradar/certs:ro
-      - ${NATS_CREDS_DIR:-nats-creds}:/etc/serviceradar/creds:ro
+      # Only this service's NATS credentials, not the whole creds volume.
+      - type: volume
+        source: nats-creds
+        target: /etc/serviceradar/creds/bmp-collector.creds
+        read_only: true
+        volume:
+          subpath: bmp-collector.creds
       - bmp-data:/var/lib/serviceradar
       - ./logs:/var/log/serviceradar
     command:

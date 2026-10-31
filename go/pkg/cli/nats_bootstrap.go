@@ -649,6 +649,19 @@ func generatePlatformAccount(
 			"events.>",
 			"metrics.>",
 			"config.>",
+			// The rest of the Helm CN=serviceradar-core publish set, since
+			// core-elx runs on this credential in Compose.
+			"flows.*.processed",
+			"flows.attribution.observations",
+			"pdns.ocsf",
+			"pdns.ocsf.>",
+			"signals.analytics.>",
+			"notifications.>",
+			"scans.results.>",
+			"mtr.results.>",
+			"vulnerability.assessment.transitions.>",
+			"exposure.dimensions.cve",
+			"exposure.dimensions.package",
 			"$JS.API.>",
 			"$JS.ACK.>",
 			// Object-store writes for the serviceradar_plugins bucket
@@ -663,7 +676,7 @@ func generatePlatformAccount(
 			"$JS.FC.OBJ_serviceradar_plugins.>",
 			"_INBOX.>",
 		},
-		PublishDeny: []string{"$SYS.>"},
+		PublishDeny: append([]string{"$SYS.>"}, datasvcStreamAdminDenies()...),
 		SubscribeAllow: []string{
 			"flow.host-slice.>",
 			"flow.attributed.>",
@@ -673,6 +686,16 @@ func generatePlatformAccount(
 			"events.>",
 			"metrics.>",
 			"config.>",
+			"flows.*.processed",
+			"pdns.ocsf",
+			"pdns.ocsf.>",
+			"signals.analytics.>",
+			"inventory.k8s.>",
+			"trivy.report.>",
+			"vulnerability.assessment.transitions.>",
+			"exposure.dimensions.cve",
+			"exposure.dimensions.package",
+			"falco.>",
 			"$JS.API.>",
 			"$JS.ACK.>",
 			// Object-store reads (GET) for the serviceradar_plugins bucket.
@@ -775,16 +798,17 @@ func (id serviceIdentity) generateCreds(accountName, accountSeed string) (*accou
 }
 
 func serviceIdentities() []serviceIdentity {
-	datasvcSubjects := []string{
-		"events.>",
-		"config.>",
-		"$KV.serviceradar-datasvc.>",
-		"$O.serviceradar-objects.>",
-		"$JS.FC.OBJ_serviceradar-objects.>",
-		"$JS.API.>",
-		"$JS.ACK.>",
+	datasvcPublish := append([]string{
+		"$KV." + datasvcKVBucket + ".>",
+		"$O." + datasvcObjectBucket + ".>",
+		"$JS.FC.KV_" + datasvcKVBucket + ".>",
+		"$JS.FC.OBJ_" + datasvcObjectBucket + ".>",
+		"$JS.ACK.KV_" + datasvcKVBucket + ".>",
+		"$JS.ACK.OBJ_" + datasvcObjectBucket + ".>",
+		// Read-only account usage; the KV client checks it before creating a bucket.
+		"$JS.API.INFO",
 		"_INBOX.>",
-	}
+	}, slices.Concat(jsAPIForStream("KV_"+datasvcKVBucket), jsAPIForStream("OBJ_"+datasvcObjectBucket))...)
 
 	return []serviceIdentity{
 		{user: "flow-collector", permissions: accounts.UserPermissions{
@@ -799,12 +823,12 @@ func serviceIdentities() []serviceIdentity {
 			AllowResponses: true,
 			MaxResponses:   16,
 		}},
-		// Datasvc owns the KV bucket holding agent configuration, so no other
-		// identity may write it.
+		// Datasvc owns the KV bucket holding agent configuration and may touch
+		// only its own two streams.
 		{user: "datasvc", permissions: accounts.UserPermissions{
-			PublishAllow:   datasvcSubjects,
+			PublishAllow:   datasvcPublish,
 			PublishDeny:    []string{"$SYS.>"},
-			SubscribeAllow: datasvcSubjects,
+			SubscribeAllow: []string{"_INBOX.>"},
 			SubscribeDeny:  []string{"$SYS.>"},
 			AllowResponses: true,
 			MaxResponses:   1000,
@@ -814,6 +838,36 @@ func serviceIdentities() []serviceIdentity {
 		{user: "trapd", permissions: streamAppenderPermissions("events", "logs.snmp")},
 		{user: "bmp-collector", permissions: streamPublisherPermissions("ARANCINI_CAUSAL", "arancini.updates", "arancini.updates.>")},
 	}
+}
+
+const (
+	datasvcKVBucket     = "serviceradar-datasvc"
+	datasvcObjectBucket = "serviceradar-objects"
+)
+
+// jsAPIForStream covers every JetStream API request naming one stream: stream
+// INFO/CREATE/UPDATE/DELETE/PURGE, DIRECT.GET, STREAM.MSG.*, and consumer
+// create, info, next and delete, which is what a KV or object store client sends.
+func jsAPIForStream(stream string) []string {
+	return []string{
+		"$JS.API.*.*." + stream,
+		"$JS.API.*.*." + stream + ".>",
+		"$JS.API.*.*.*." + stream,
+		"$JS.API.*.*.*." + stream + ".>",
+	}
+}
+
+// datasvcStreamAdminDenies stops the broad platform credential from deleting,
+// purging, recreating or rewriting the streams behind datasvc's buckets.
+func datasvcStreamAdminDenies() []string {
+	var denies []string
+	for _, stream := range []string{"KV_" + datasvcKVBucket, "OBJ_" + datasvcObjectBucket} {
+		for _, op := range []string{"CREATE", "UPDATE", "DELETE", "PURGE", "MSG.DELETE"} {
+			denies = append(denies, "$JS.API.STREAM."+op+"."+stream)
+		}
+	}
+
+	return denies
 }
 
 // streamPublisherPermissions is for a collector that owns its stream: it
@@ -840,8 +894,6 @@ func streamPermissions(stream string, subjects []string, ops ...string) accounts
 		PublishDeny:    []string{"$SYS.>"},
 		SubscribeAllow: []string{"_INBOX.>"},
 		SubscribeDeny:  []string{"$SYS.>"},
-		AllowResponses: true,
-		MaxResponses:   16,
 	}
 }
 
