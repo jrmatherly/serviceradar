@@ -849,14 +849,18 @@ const (
 // wildcard there would also match a consumer named after the stream on any
 // other stream. Stream DELETE is left out; datasvc never deletes its buckets.
 func jsAPIForStream(stream string) []string {
-	apis := []string{
-		"$JS.API.DIRECT.GET." + stream + ".>",
-		"$JS.API.CONSUMER.CREATE." + stream + ".>",
-	}
-	for _, op := range []string{"STREAM.INFO", "STREAM.CREATE", "STREAM.UPDATE", "STREAM.PURGE", "STREAM.MSG.GET", "STREAM.MSG.DELETE", "DIRECT.GET", "CONSUMER.CREATE"} {
+	streamOps := []string{"STREAM.INFO", "STREAM.CREATE", "STREAM.UPDATE", "STREAM.PURGE", "STREAM.MSG.GET", "STREAM.MSG.DELETE", "DIRECT.GET", "CONSUMER.CREATE"}
+	consumerOps := []string{"CONSUMER.DURABLE.CREATE", "CONSUMER.INFO", "CONSUMER.DELETE", "CONSUMER.MSG.NEXT"}
+
+	apis := make([]string, 0, 2+len(streamOps)+len(consumerOps))
+	apis = append(apis,
+		"$JS.API.DIRECT.GET."+stream+".>",
+		"$JS.API.CONSUMER.CREATE."+stream+".>",
+	)
+	for _, op := range streamOps {
 		apis = append(apis, "$JS.API."+op+"."+stream)
 	}
-	for _, op := range []string{"CONSUMER.DURABLE.CREATE", "CONSUMER.INFO", "CONSUMER.DELETE", "CONSUMER.MSG.NEXT"} {
+	for _, op := range consumerOps {
 		apis = append(apis, "$JS.API."+op+"."+stream+".*")
 	}
 
@@ -866,9 +870,12 @@ func jsAPIForStream(stream string) []string {
 // datasvcStreamAdminDenies stops the broad platform credential from deleting,
 // purging, recreating or rewriting the streams behind datasvc's buckets.
 func datasvcStreamAdminDenies() []string {
-	var denies []string
-	for _, stream := range []string{"KV_" + datasvcKVBucket, "OBJ_" + datasvcObjectBucket} {
-		for _, op := range []string{"CREATE", "UPDATE", "DELETE", "PURGE", "MSG.DELETE"} {
+	streams := []string{"KV_" + datasvcKVBucket, "OBJ_" + datasvcObjectBucket}
+	ops := []string{"CREATE", "UPDATE", "DELETE", "PURGE", "MSG.DELETE"}
+
+	denies := make([]string, 0, len(streams)*len(ops))
+	for _, stream := range streams {
+		for _, op := range ops {
 			denies = append(denies, "$JS.API.STREAM."+op+"."+stream)
 		}
 	}
