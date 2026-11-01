@@ -1,22 +1,13 @@
 defmodule ServiceRadar.Repo.SchemaBootstrapAgeDbTest do
-  use ExUnit.Case, async: false
-
-  import ServiceRadar.TestSupport, only: [checkout_repo!: 1]
+  use ServiceRadar.DataCase, async: false
 
   alias ServiceRadar.NetworkDiscovery.TopologyGraph.Queries.CanonicalRebuild
   alias ServiceRadar.Repo
   alias ServiceRadar.Repo.SchemaBootstrap
 
   # Unboxed: a graph is real DDL plus a row in AGE's catalog.
-  @moduletag :database
+  @moduletag :integration
   @moduletag sandbox: :unboxed
-
-  setup_all do
-    ServiceRadar.TestSupport.start_core!()
-    :ok
-  end
-
-  setup :checkout_repo!
 
   setup do
     graph = "test_baseline_graph_#{System.unique_integer([:positive])}"
