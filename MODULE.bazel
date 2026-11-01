@@ -1132,7 +1132,7 @@ http_file(
     name = "postgresql_server_dev_18_deb",
     sha256 = "bb45f27f6072e8109b9a67e390ff0139ab493f681ec05d1cfed139b101187c00",
     urls = [
-        "https://apt.postgresql.org/pub/repos/apt/pool/main/p/postgresql-18/postgresql-server-dev-18_18.4-1.pgdg12%2B1_amd64.deb",
+        "https://apt-archive.postgresql.org/pub/repos/apt/pool/main/p/postgresql-18/postgresql-server-dev-18_18.4-1.pgdg12%2B1_amd64.deb",
     ],
 )
 
@@ -1383,7 +1383,7 @@ http_file(
     name = "postgresql_18_postgis_3_amd64_deb",
     sha256 = "5c06e2bb5ac73cd3d81f07a9cf44e4240a0c6e0ae8d4e8627187b6cab83d6606",
     urls = [
-        "https://apt.postgresql.org/pub/repos/apt/pool/main/p/postgis/postgresql-18-postgis-3_3.6.2%2Bdfsg-1.pgdg12%2B1_amd64.deb",
+        "https://apt-archive.postgresql.org/pub/repos/apt/pool/main/p/postgis/postgresql-18-postgis-3_3.6.2%2Bdfsg-1.pgdg12%2B1_amd64.deb",
     ],
 )
 
@@ -1391,7 +1391,7 @@ http_file(
     name = "postgresql_18_postgis_3_scripts_all_deb",
     sha256 = "3b311ec39868d0cc18edf6721226bc323aa33edafc53c2968f38910a4e270ef5",
     urls = [
-        "https://apt.postgresql.org/pub/repos/apt/pool/main/p/postgis/postgresql-18-postgis-3-scripts_3.6.2%2Bdfsg-1.pgdg12%2B1_all.deb",
+        "https://apt-archive.postgresql.org/pub/repos/apt/pool/main/p/postgis/postgresql-18-postgis-3-scripts_3.6.2%2Bdfsg-1.pgdg12%2B1_all.deb",
     ],
 )
 
