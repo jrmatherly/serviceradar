@@ -40,7 +40,9 @@ init_compose_database() {
     chown -R postgres:postgres "$DATA_DIR"
   fi
 
-  call_as_postgres initdb -D "$DATA_DIR" --username="$postgres_user" --pwfile="$password_file"
+  # Left to itself initdb picks SQL_ASCII, which AGE and the migrations reject.
+  call_as_postgres initdb -D "$DATA_DIR" --username="$postgres_user" --pwfile="$password_file" \
+    --encoding=UTF8 --locale=C
 
   call_as_postgres pg_ctl -D "$DATA_DIR" -w \
     -o "-c listen_addresses='' -c shared_preload_libraries=timescaledb,age" \
