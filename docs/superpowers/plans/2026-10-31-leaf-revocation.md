@@ -1,6 +1,6 @@
 # Leaf revocation: findings and options
 
-Status: no fix built. The owner has not chosen an option.
+Status: no fix built. On 2026-10-31 the owner chose leaf polling and reload, the recommended option below.
 
 ## The gap
 
