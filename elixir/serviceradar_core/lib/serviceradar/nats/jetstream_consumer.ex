@@ -143,6 +143,10 @@ defmodule ServiceRadar.NATS.JetstreamConsumer do
       {:ok, %{"streams" => streams}} when is_list(streams) ->
         {:ok, Enum.filter(streams, &is_binary/1)}
 
+      # The server encodes "no stream owns this subject" as null, not [].
+      {:ok, %{"streams" => nil}} ->
+        {:ok, []}
+
       {:ok, %{"error" => error}} ->
         {:error, error}
 
@@ -1050,10 +1054,9 @@ defmodule ServiceRadar.NATS.JetstreamConsumer do
     if valid_requested_stream?(requested) do
       fallback_stream = normalize_stream_name(requested)
 
-      Logger.warning("Failed to resolve stream by subject; falling back to configured stream",
-        requested_stream: fallback_stream,
-        subject: subject,
-        reason: inspect(error)
+      Logger.warning(
+        "Failed to resolve stream by subject #{subject}; falling back to configured stream " <>
+          "#{fallback_stream}: #{inspect(error)}"
       )
 
       {:ok, fallback_stream}
