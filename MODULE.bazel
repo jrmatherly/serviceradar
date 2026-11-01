@@ -1133,6 +1133,7 @@ http_file(
     sha256 = "bb45f27f6072e8109b9a67e390ff0139ab493f681ec05d1cfed139b101187c00",
     urls = [
         "https://apt-archive.postgresql.org/pub/repos/apt/pool/main/p/postgresql-18/postgresql-server-dev-18_18.4-1.pgdg12%2B1_amd64.deb",
+        "https://apt.postgresql.org/pub/repos/apt/pool/main/p/postgresql-18/postgresql-server-dev-18_18.4-1.pgdg12%2B1_amd64.deb",
     ],
 )
 
