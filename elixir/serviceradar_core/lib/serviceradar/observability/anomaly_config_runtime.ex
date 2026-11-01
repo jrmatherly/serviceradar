@@ -280,9 +280,7 @@ defmodule ServiceRadar.Observability.AnomalyConfigRuntime do
           :unchanged
 
         {:error, reason} ->
-          Logger.warning("Failed to refresh anomaly detection config",
-            reason: inspect(reason)
-          )
+          Logger.warning("Failed to refresh anomaly detection config: #{inspect(reason)}")
 
           :unchanged
       end
@@ -308,9 +306,7 @@ defmodule ServiceRadar.Observability.AnomalyConfigRuntime do
           Map.get(existing, :capacity_forecasting_opts, [])
 
         {:error, reason} ->
-          Logger.warning("Failed to refresh capacity forecast config",
-            reason: inspect(reason)
-          )
+          Logger.warning("Failed to refresh capacity forecast config: #{inspect(reason)}")
 
           Map.get(existing, :capacity_forecasting_opts, [])
       end
@@ -324,11 +320,11 @@ defmodule ServiceRadar.Observability.AnomalyConfigRuntime do
   end
 
   defp fetch_anomaly_settings(actor) do
-    AnomalyDetectionConfig.get_settings(actor: actor)
+    AnomalyDetectionConfig.get_settings(actor: actor, not_found_error?: false)
   end
 
   defp fetch_forecast_settings(actor) do
-    CapacityForecastConfig.get_settings(actor: actor)
+    CapacityForecastConfig.get_settings(actor: actor, not_found_error?: false)
   end
 
   defp cache do

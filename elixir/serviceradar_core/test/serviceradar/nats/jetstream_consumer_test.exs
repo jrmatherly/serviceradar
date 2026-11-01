@@ -41,7 +41,8 @@ defmodule ServiceRadar.NATS.JetstreamConsumerTest do
             Enum.any?(subjects, &Config.nats_filter_covers?(&1, subject)),
             do: name
 
-      {%{"streams" => names}, streams}
+      # Like the real server, no owner is null rather than [].
+      {%{"streams" => if(names == [], do: nil, else: names)}, streams}
     end
 
     defp respond("$JS.API.STREAM.INFO." <> name, _body, streams) do
@@ -634,6 +635,25 @@ defmodule ServiceRadar.NATS.JetstreamConsumerTest do
                ensure_flow_consumer_quietly(conn, "flows.raw.netflow")
 
       assert Map.has_key?(FakeJetStream.streams(conn), "events")
+    end
+  end
+
+  describe "a subject no stream owns yet" do
+    test "creates the requested stream without a discovery warning" do
+      conn = start_supervised!({FakeJetStream, %{}})
+
+      log =
+        capture_log(fn ->
+          assert {:ok, %{stream_name: "events"}} =
+                   JetstreamConsumer.ensure_durable(conn,
+                     stream_name: "events",
+                     filter_subject: "events.syslog",
+                     consumer_name: "fresh-test-consumer"
+                   )
+        end)
+
+      assert Map.has_key?(FakeJetStream.streams(conn), "events")
+      refute log =~ "Failed to resolve stream"
     end
   end
 
