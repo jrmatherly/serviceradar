@@ -1310,8 +1310,8 @@ if config_env() == :prod do
       # Converges plugin service state with plugin assignments changed outside the
       # web-ng assignment actions. Kept in step with serviceradar_core's runtime.exs.
       {"*/5 * * * *", ServiceRadar.Observability.PluginServiceStateReconcileWorker, queue: :maintenance},
-      # The hub loses revocations with its nats-data volume, and this is how long they
-      # can stay lost. Kept in step with serviceradar_core's runtime.exs and config.exs.
+      # The hub loses revocations with its nats-data volume, and this job restores them.
+      # Kept in step with serviceradar_core's runtime.exs and config.exs.
       {"*/5 * * * *", ServiceRadar.Edge.Workers.ReapplyNatsRevocationsWorker, queue: :nats_accounts},
       # Merged device availability (stage b): drains the invalidation log and re-resolves
       # devices whose evidence aged out. Neither resolves outside `shadow` mode. Kept

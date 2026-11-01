@@ -186,3 +186,34 @@ func TestAccountSigner_ResizeAccountJetStream(t *testing.T) {
 		t.Fatalf("resize by another operator: err = %v, want ErrAccountNotIssuedByOperator", err)
 	}
 }
+
+func TestRevokeUsersRefusesAnotherOperatorsAccount(t *testing.T) {
+	ownSeed, _, err := GenerateOperatorKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	own, err := NewOperator(&OperatorConfig{Name: "own", OperatorSeed: ownSeed})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	otherSeed, _, err := GenerateOperatorKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	other, err := NewOperator(&OperatorConfig{Name: "other", OperatorSeed: otherSeed})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	account, err := NewAccountSigner(own).CreateAccount("acct", nil, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, _, err := NewAccountSigner(other).RevokeUsers(account.AccountJWT, nil); !errors.Is(err, ErrAccountNotIssuedByOperator) {
+		t.Fatalf("revoke by another operator: err = %v, want ErrAccountNotIssuedByOperator", err)
+	}
+}

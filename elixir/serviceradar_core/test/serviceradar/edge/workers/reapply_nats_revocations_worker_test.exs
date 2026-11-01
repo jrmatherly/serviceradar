@@ -73,6 +73,19 @@ defmodule ServiceRadar.Edge.Workers.ReapplyNatsRevocationsWorkerTest do
     refute active.user_public_key in sent
   end
 
+  test "the read reaches keys past the first page", %{actor: actor} do
+    keys = for _ <- 1..3, do: (actor |> credential() |> revoke!(actor)).user_public_key
+
+    read =
+      NatsCredential
+      |> Ash.Query.for_read(:revoked, %{}, actor: actor)
+      |> Ash.stream!(actor: actor, batch_size: 2)
+      |> Enum.map(& &1.user_public_key)
+
+    assert keys -- read == []
+    assert read == Enum.uniq(read)
+  end
+
   test "the read returns the key and no other field of the row", %{actor: actor} do
     actor |> credential() |> revoke!(actor)
 

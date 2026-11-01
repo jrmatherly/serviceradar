@@ -9,8 +9,9 @@ defmodule ServiceRadar.Edge.Workers.ReapplyNatsRevocationsWorker do
 
   datasvc pushes nothing when it already holds every key, so a healthy run changes
   nothing. A failure is logged at error and left to Oban, because it means revoked
-  credentials may be live. A deployment without a NATS account name has no hub to
-  restore, so that answer counts as success.
+  credentials may be live. Revoking needs an account name, so revoked keys with no
+  account name left mean a misconfigured deployment: that warns, since a retry cannot
+  fix it.
   """
 
   use Oban.Worker,
@@ -53,7 +54,10 @@ defmodule ServiceRadar.Edge.Workers.ReapplyNatsRevocationsWorker do
     |> report()
   end
 
-  defp report({:error, :nats_not_configured, _applied}), do: :ok
+  defp report({:error, :nats_not_configured, _applied}) do
+    Logger.warning("Revoked NATS credentials exist, but no node has a NATS account name")
+    :ok
+  end
 
   defp report({:error, reason, applied}) do
     Logger.error(

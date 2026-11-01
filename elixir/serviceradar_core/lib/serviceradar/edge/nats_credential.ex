@@ -69,7 +69,7 @@ defmodule ServiceRadar.Edge.NatsCredential do
       description "Public keys of revoked credentials, which the hub must refuse"
       filter expr(status == :revoked)
       prepare build(select: [:user_public_key])
-      pagination keyset?: true, required?: false, default_limit: 500, max_page_size: 500
+      pagination keyset?: true, required?: false, max_page_size: 500
     end
 
     read :by_collector_type do

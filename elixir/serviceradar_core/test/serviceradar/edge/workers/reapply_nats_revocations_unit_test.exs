@@ -51,8 +51,12 @@ defmodule ServiceRadar.Edge.Workers.ReapplyNatsRevocationsUnitTest do
     assert log =~ "lost 2 revocations"
   end
 
-  test "a deployment without a NATS account is a silent success" do
-    assert {:ok, ""} = run(["UA"], [{:error, :nats_not_configured}])
+  test "revoked keys with no NATS account warn and do not retry" do
+    {result, log} = run(["UA"], [{:error, :nats_not_configured}])
+
+    assert result == :ok
+    assert log =~ "[warning]"
+    assert log =~ "no node has a NATS account name"
   end
 
   test "any other failure is returned and logged at error" do
