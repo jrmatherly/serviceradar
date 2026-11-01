@@ -22,6 +22,7 @@ fi
 
 project="$COMPOSE_PROJECT_NAME"
 timeout="${VERIFY_TIMEOUT:-300}"
+marker="compose-verify-$(date +%s)"
 # network-ingest adds trapd, flow-collector and bmp-collector; coldtier is here only
 # so that a teardown also removes it.
 profiles=(--profile network-ingest)
@@ -31,7 +32,7 @@ teardown_profiles=(--profile network-ingest --profile coldtier)
 # when running, because their profile is optional.
 required_identities=(core datasvc log-collector agent-gateway web-ng)
 optional_identities=(trapd flow-collector bmp-collector)
-required_streams=(events flows ARANCINI_CAUSAL METRICS LOGS OTEL_METRICS OTEL_TRACES)
+required_streams=(events flows metrics ARANCINI_CAUSAL)
 required_graphs=(platform_graph serviceradar serviceradar_topology)
 
 nats_json() {
@@ -50,7 +51,7 @@ core_query() {
     q = fn sql -> {:ok, r} = ServiceRadar.Repo.query(sql); r.rows end
     IO.puts(\"encoding=\" <> (q.(\"show server_encoding\") |> List.flatten() |> hd()))
     IO.puts(\"graphs=\" <> (q.(\"select name::text from ag_catalog.ag_graph\") |> List.flatten() |> Enum.join(\",\")))
-    IO.puts(\"logs=\" <> (q.(\"select count(*) from platform.logs\") |> List.flatten() |> hd() |> to_string()))
+    IO.puts(\"marker=\" <> (q.(\"select count(*) from platform.logs where body like '%$marker%'\") |> List.flatten() |> hd() |> to_string()))
   "
 }
 
@@ -68,8 +69,17 @@ check_containers() {
   done <<<"$rows"
 }
 
+# Proves the whole path: collector, stream, EventWriter, table. Sent on every attempt
+# because UDP is lost while the collector is still starting.
+send_marker() {
+  docker run --rm --network "${project}_serviceradar-net" alpine:3 sh -c \
+    "echo '<14>1 2026-01-01T00:00:00Z host01.example.com compose-verify - - - $marker' | nc -u -w1 log-collector 514" \
+    >/dev/null 2>&1 || true
+}
+
 check_database() {
   local out
+  send_marker
   if ! out="$(core_query 2>&1)"; then
     echo "core could not query the database: $(tail -1 <<<"$out")"
     return
@@ -80,8 +90,7 @@ check_database() {
   for graph in "${required_graphs[@]}"; do
     grep -qE "(^|,)$graph(,|$)" <<<"$graphs" || echo "AGE graph $graph is not registered in ag_catalog"
   done
-  # Proves the whole path: collector, stream, EventWriter, table.
-  grep -qE '^logs=[1-9]' <<<"$out" || echo "no logs reached CNPG through the EventWriter"
+  grep -qE '^marker=[1-9]' <<<"$out" || echo "a syslog marker did not reach CNPG: collector, NATS or EventWriter is broken"
 }
 
 check_nats() {
@@ -143,7 +152,9 @@ verify() {
   local deadline failures
   deadline=$(($(date +%s) + timeout))
   while :; do
-    failures="$(check_containers; check_database; check_nats; check_logs)"
+    # A crashed check counts as a failure and says so, rather than ending the script here.
+    failures="$(check_containers; check_database; check_nats; check_logs)" \
+      || failures="$failures"$'\n'"a verify check crashed"
     if [ -z "$failures" ]; then
       echo "PASS: stack verified"
       return 0

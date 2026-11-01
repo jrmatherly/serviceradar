@@ -82,6 +82,13 @@ image (`docs/fork-ci.md`); override it with `CNPG_IMAGE`. On Apple Silicon add
   `COMPOSE_LOCAL_IMAGES="web_ng core_elx"` limits it to the images you changed. The loaded
   images are amd64 only, so on Apple Silicon every service then runs under emulation, not
   just the ones the arm64 overlay already handles.
+- Rebuild from nothing: `APP_TAG=local make compose-rebuild` destroys this project's volumes, starts
+  the stack with the ingest collectors, and verifies it. `make compose-restart` keeps volumes, and
+  `make compose-verify` checks a running stack. Trust these over `docker compose ps`: a service that
+  cannot reach NATS or the database keeps retrying and stays healthy. The check asserts a UTF8 database,
+  registered AGE graphs, a NATS connection per identity, a consumer on each core stream, and a syslog
+  marker reaching CNPG. A new NATS client needs an entry in `serviceIdentities()`, `required_artifacts`
+  in `init-nats-creds.sh`, a mount and env in `docker-compose.yml`, and a line in `compose-stack.sh`.
 - Verify: `docker compose ps` (one-shot jobs like cert-generator/config-updater exit once finished);
   `make check-dev-image-tags` guards the compose image defaults.
 - Validation data for god view, maps and the Wasm lanes: `make seed-faker` (synthetic Armis
