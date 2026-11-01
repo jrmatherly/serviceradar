@@ -1,0 +1,100 @@
+package cli
+
+import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
+	"math/big"
+	"net"
+	"os"
+	"path/filepath"
+	"regexp"
+	"testing"
+	"time"
+
+	"github.com/nats-io/nats-server/v2/server"
+	"github.com/nats-io/nats.go"
+)
+
+func TestExpReload(t *testing.T) {
+	pki := newLeafTestPKI(t)
+	hub, leafPort := runLeafTestHub(t, pki)
+	conf := renderLeafConf(t, pki, leafPort, "leaf-collectors.conf")
+	path := filepath.Join(t.TempDir(), "nats.conf")
+	os.WriteFile(path, []byte(conf), 0o600)
+	opts, err := server.ProcessConfigFile(path)
+	if err != nil { t.Fatal(err) }
+	opts.NoSigs = true
+	leaf := runACLServer(t, opts)
+	t.Cleanup(leaf.Shutdown)
+	waitForLeafLink(t, hub)
+	admin := connectHubAdmin(t, pki, hub)
+	js, _ := admin.JetStream()
+	js.AddStream(&nats.StreamConfig{Name: "events", Subjects: []string{"logs.>"}, MaxBytes: 1 << 20})
+
+	revoked := "flowgger-11111111222243338444555555550001.default.serviceradar"
+	other := "trapd-11111111222243338444555555550002.default.serviceradar"
+	closed := make(chan time.Time, 1)
+	a := connectToLeaf(t, pki, leaf, revoked, nats.NoReconnect(), nats.ClosedHandler(func(*nats.Conn) { closed <- time.Now() }))
+	b := connectToLeaf(t, pki, leaf, other, nats.NoReconnect())
+	aJS, _ := a.JetStream(); bJS, _ := b.JetStream()
+	publishUntilAcked(t, aJS, "logs.syslog"); publishUntilAcked(t, bJS, "logs.snmp")
+	sessionsBefore := hub.NumLeafNodes()
+
+	re := regexp.MustCompile(`(?s)\{\s*user: "CN=flowgger.*?\n        \},\n`)
+	next := re.ReplaceAllString(conf, "")
+	if next == conf { t.Fatal("no change") }
+	os.WriteFile(path, []byte(next), 0o600)
+	start := time.Now()
+	if err := leaf.Reload(); err != nil { t.Fatalf("reload: %v", err) }
+	t.Logf("reload returned after %v", time.Since(start))
+	select {
+	case at := <-closed:
+		t.Logf("revoked open connection closed after %v, lastErr=%v", at.Sub(start), a.LastError())
+	case <-time.After(5 * time.Second):
+		t.Logf("revoked open connection NOT closed; status=%v", a.Status())
+	}
+	cert, key := pki.issue(t, revoked, nil, nil)
+	_, err = nats.Connect(leaf.ClientURL(), nats.RootCAs(pki.caFile), nats.ClientCert(cert, key), nats.NoReconnect())
+	t.Logf("new connection after reload: err=%v", err)
+	t.Logf("other collector status=%v", b.Status())
+	_, err = bJS.Publish("logs.snmp", []byte(`{}`), nats.AckWait(2*time.Second))
+	t.Logf("other collector publish after reload: err=%v", err)
+	t.Logf("leaf links before=%d after=%d", sessionsBefore, hub.NumLeafNodes())
+}
+
+func TestExpCertExpiry(t *testing.T) {
+	pki := newLeafTestPKI(t)
+	hub, leafPort := runLeafTestHub(t, pki)
+	leaf := runRenderedLeaf(t, pki, hub, leafPort, "leaf-collectors.conf")
+	admin := connectHubAdmin(t, pki, hub)
+	js, _ := admin.JetStream()
+	js.AddStream(&nats.StreamConfig{Name: "events", Subjects: []string{"logs.>"}, MaxBytes: 1 << 20})
+
+	cn := "flowgger-11111111222243338444555555550001.default.serviceradar"
+	key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	tpl := &x509.Certificate{SerialNumber: big.NewInt(9001), Subject: pkix.Name{CommonName: cn}, NotBefore: time.Now().Add(-time.Hour),
+		NotAfter: time.Now().Add(3 * time.Second), DNSNames: []string{cn}, IPAddresses: []net.IP{net.ParseIP("127.0.0.1")},
+		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}, KeyUsage: x509.KeyUsageDigitalSignature}
+	der, err := x509.CreateCertificate(rand.Reader, tpl, pki.caCert, &key.PublicKey, pki.caKey)
+	if err != nil { t.Fatal(err) }
+	keyDER, _ := x509.MarshalECPrivateKey(key)
+	dir := t.TempDir()
+	cf, kf := filepath.Join(dir, "c.pem"), filepath.Join(dir, "k.pem")
+	os.WriteFile(cf, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0o600)
+	os.WriteFile(kf, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER}), 0o600)
+
+	conn, err := nats.Connect(leaf.ClientURL(), nats.RootCAs(pki.caFile), nats.ClientCert(cf, kf), nats.NoReconnect())
+	if err != nil { t.Fatal(err) }
+	defer conn.Close()
+	cjs, _ := conn.JetStream()
+	publishUntilAcked(t, cjs, "logs.syslog")
+	time.Sleep(5 * time.Second)
+	_, err = cjs.Publish("logs.syslog", []byte(`{}`), nats.AckWait(2*time.Second))
+	t.Logf("publish on open connection 2s after certificate expiry: err=%v status=%v", err, conn.Status())
+	_, err = nats.Connect(leaf.ClientURL(), nats.RootCAs(pki.caFile), nats.ClientCert(cf, kf), nats.NoReconnect())
+	t.Logf("new connection with expired certificate: err=%v", err)
+}

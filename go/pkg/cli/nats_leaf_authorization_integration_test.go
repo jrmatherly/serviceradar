@@ -310,6 +310,14 @@ system_account: SYS
 func runRenderedLeaf(t *testing.T, pki *leafTestPKI, hub *server.Server, leafPort int, fixture string) *server.Server {
 	t.Helper()
 
+	leaf := runLeafTestServer(t, renderLeafConf(t, pki, leafPort, fixture))
+	waitForLeafLink(t, hub)
+	return leaf
+}
+
+func renderLeafConf(t *testing.T, pki *leafTestPKI, leafPort int, fixture string) string {
+	t.Helper()
+
 	rendered, err := os.ReadFile(filepath.Join("testdata", fixture))
 	if err != nil {
 		t.Fatal(err)
@@ -329,9 +337,11 @@ func runRenderedLeaf(t *testing.T, pki *leafTestPKI, hub *server.Server, leafPor
 		"listen: 0.0.0.0:4222", "listen: 127.0.0.1:-1",
 		"tls://hub.example.com:7422", fmt.Sprintf("tls://localhost:%d", leafPort),
 	)
-	conf := replacer.Replace(string(rendered))
+	return replacer.Replace(string(rendered))
+}
 
-	leaf := runLeafTestServer(t, conf)
+func waitForLeafLink(t *testing.T, hub *server.Server) {
+	t.Helper()
 
 	deadline := time.Now().Add(10 * time.Second)
 	for hub.NumLeafNodes() == 0 {
@@ -340,7 +350,6 @@ func runRenderedLeaf(t *testing.T, pki *leafTestPKI, hub *server.Server, leafPor
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	return leaf
 }
 
 func runLeafTestServer(t *testing.T, conf string) *server.Server {
