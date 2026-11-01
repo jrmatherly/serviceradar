@@ -74,6 +74,7 @@ type NATSAccountServiceClient interface {
 	GenerateUserCredentials(ctx context.Context, in *GenerateUserCredentialsRequest, opts ...grpc.CallOption) (*GenerateUserCredentialsResponse, error)
 	// RevokeUsers adds user public keys to the platform account's revocations,
 	// keeping its other claims, and pushes the re-issued JWT to the NATS resolver.
+	// When the hub already holds every key it pushes nothing.
 	// FAILED_PRECONDITION when datasvc lacks the operator key or platform account
 	// seed, UNAVAILABLE when the resolver cannot be read or updated.
 	RevokeUsers(ctx context.Context, in *RevokeUsersRequest, opts ...grpc.CallOption) (*RevokeUsersResponse, error)
@@ -183,6 +184,7 @@ type NATSAccountServiceServer interface {
 	GenerateUserCredentials(context.Context, *GenerateUserCredentialsRequest) (*GenerateUserCredentialsResponse, error)
 	// RevokeUsers adds user public keys to the platform account's revocations,
 	// keeping its other claims, and pushes the re-issued JWT to the NATS resolver.
+	// When the hub already holds every key it pushes nothing.
 	// FAILED_PRECONDITION when datasvc lacks the operator key or platform account
 	// seed, UNAVAILABLE when the resolver cannot be read or updated.
 	RevokeUsers(context.Context, *RevokeUsersRequest) (*RevokeUsersResponse, error)

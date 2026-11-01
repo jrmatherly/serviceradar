@@ -52,6 +52,7 @@ service NATSAccountService {
 
   // RevokeUsers adds user public keys to the platform account's revocations,
   // keeping its other claims, and pushes the re-issued JWT to the NATS resolver.
+  // When the hub already holds every key it pushes nothing.
   // FAILED_PRECONDITION when datasvc lacks the operator key or platform account
   // seed, UNAVAILABLE when the resolver cannot be read or updated.
   rpc RevokeUsers(RevokeUsersRequest) returns (RevokeUsersResponse) {}
@@ -144,9 +145,10 @@ message RevokeUsersRequest {
   repeated string user_public_keys = 2; // NATS user public keys (start with 'U')
 }
 
-// RevokeUsersResponse confirms the hub holds the re-issued account JWT.
+// RevokeUsersResponse confirms the hub refuses the users.
 message RevokeUsersResponse {
   string account_public_key = 1;        // The account's public NKey
+  uint32 newly_revoked = 2;             // Keys the hub did not already hold; zero means nothing was pushed
 }
 
 // BootstrapOperatorRequest is used to initialize the NATS operator.

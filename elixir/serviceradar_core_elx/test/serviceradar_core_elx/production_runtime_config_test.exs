@@ -10,6 +10,7 @@ defmodule ServiceRadarCoreElx.ProductionRuntimeConfigTest do
   alias ServiceRadar.Analytics.StarRocks
   alias ServiceRadar.Automation.Ansible.FileCallbackResponsePolicyProvider
   alias ServiceRadar.Edge.AgentCommandCleanupWorker
+  alias ServiceRadar.Edge.Workers.ReapplyNatsRevocationsWorker
   alias ServiceRadar.EventWriter.Config, as: EventWriterConfig
   alias ServiceRadar.Jobs.SecurityEventsRetentionWorker
   alias ServiceRadar.NetworkDiscovery.TopologyGraph
@@ -24,6 +25,7 @@ defmodule ServiceRadarCoreElx.ProductionRuntimeConfigTest do
 
   @required_production_workers [
     ServiceRadar.CompositeChecks.TickWorker,
+    ReapplyNatsRevocationsWorker,
     ServiceRadar.Identity.SAMLAssertionCleanupWorker,
     ServiceRadar.Jobs.AlertsRetentionWorker,
     SecurityEventsRetentionWorker,
@@ -108,6 +110,17 @@ defmodule ServiceRadarCoreElx.ProductionRuntimeConfigTest do
 
     assert {"* * * * *", RecoveryWorker, cron_opts} = entry
     assert cron_opts[:queue] == :alert_recovery
+  end
+
+  test "revoked NATS credentials are re-applied on a queue this release runs" do
+    config = read_prod_config()
+
+    assert {"*/5 * * * *", ReapplyNatsRevocationsWorker, opts} =
+             Enum.find(oban_crontab(config), fn entry ->
+               elem(entry, 1) == ReapplyNatsRevocationsWorker
+             end)
+
+    assert config[:serviceradar_core][Oban][:queues][opts[:queue]] > 0
   end
 
   test "prod config uses the shipped Req client for Swoosh API adapters" do

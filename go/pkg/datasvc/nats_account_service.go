@@ -770,7 +770,8 @@ func refusedForMinting(subject string) bool {
 // re-issues the JWT the resolver holds rather than one built from a request, so
 // the account's limits and earlier revocations survive, and it needs the operator
 // key because only the operator can sign an account JWT. The server drops a revoked
-// user's open connections when the update arrives. Revoking a key twice is harmless.
+// user's open connections when the update arrives. A request naming only keys the
+// hub already holds pushes nothing and leaves the JWT and its timestamps alone.
 func (s *NATSAccountServer) RevokeUsers(
 	ctx context.Context,
 	req *proto.RevokeUsersRequest,
@@ -812,7 +813,7 @@ func (s *NATSAccountServer) RevokeUsers(
 		return nil, status.Errorf(codes.Unavailable, "read account JWT from resolver: %v", err)
 	}
 
-	revoked, err := signer.RevokeUsers(current, req.GetUserPublicKeys())
+	revoked, newlyRevoked, err := signer.RevokeUsers(current, req.GetUserPublicKeys())
 	if err != nil {
 		if errors.Is(err, accounts.ErrInvalidUserKey) {
 			return nil, status.Error(codes.InvalidArgument, err.Error())
@@ -820,11 +821,16 @@ func (s *NATSAccountServer) RevokeUsers(
 		return nil, status.Errorf(codes.Internal, "re-issue account JWT: %v", err)
 	}
 
-	if _, err := s.pushAccountJWT(accountPublicKey, revoked); err != nil {
-		return nil, status.Errorf(codes.Unavailable, "push account JWT to resolver: %v", err)
+	if newlyRevoked > 0 {
+		if _, err := s.pushAccountJWT(accountPublicKey, revoked); err != nil {
+			return nil, status.Errorf(codes.Unavailable, "push account JWT to resolver: %v", err)
+		}
 	}
 
-	return &proto.RevokeUsersResponse{AccountPublicKey: accountPublicKey}, nil
+	return &proto.RevokeUsersResponse{
+		AccountPublicKey: accountPublicKey,
+		NewlyRevoked:     uint32(newlyRevoked), //nolint:gosec // bounded by the request's key count
+	}, nil
 }
 
 // Helper functions for proto conversion

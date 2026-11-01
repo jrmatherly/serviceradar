@@ -703,10 +703,11 @@ func (x *RevokeUsersRequest) GetUserPublicKeys() []string {
 	return nil
 }
 
-// RevokeUsersResponse confirms the hub holds the re-issued account JWT.
+// RevokeUsersResponse confirms the hub refuses the users.
 type RevokeUsersResponse struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	AccountPublicKey string                 `protobuf:"bytes,1,opt,name=account_public_key,json=accountPublicKey,proto3" json:"account_public_key,omitempty"` // The account's public NKey
+	NewlyRevoked     uint32                 `protobuf:"varint,2,opt,name=newly_revoked,json=newlyRevoked,proto3" json:"newly_revoked,omitempty"`              // Keys the hub did not already hold; zero means nothing was pushed
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -746,6 +747,13 @@ func (x *RevokeUsersResponse) GetAccountPublicKey() string {
 		return x.AccountPublicKey
 	}
 	return ""
+}
+
+func (x *RevokeUsersResponse) GetNewlyRevoked() uint32 {
+	if x != nil {
+		return x.NewlyRevoked
+	}
+	return 0
 }
 
 // BootstrapOperatorRequest is used to initialize the NATS operator.
@@ -1158,9 +1166,10 @@ const file_nats_account_proto_rawDesc = "" +
 	"\x0fexpires_at_unix\x18\x04 \x01(\x03R\rexpiresAtUnix\"a\n" +
 	"\x12RevokeUsersRequest\x12!\n" +
 	"\faccount_name\x18\x01 \x01(\tR\vaccountName\x12(\n" +
-	"\x10user_public_keys\x18\x02 \x03(\tR\x0euserPublicKeys\"C\n" +
+	"\x10user_public_keys\x18\x02 \x03(\tR\x0euserPublicKeys\"h\n" +
 	"\x13RevokeUsersResponse\x12,\n" +
-	"\x12account_public_key\x18\x01 \x01(\tR\x10accountPublicKey\"\xad\x01\n" +
+	"\x12account_public_key\x18\x01 \x01(\tR\x10accountPublicKey\x12#\n" +
+	"\rnewly_revoked\x18\x02 \x01(\rR\fnewlyRevoked\"\xad\x01\n" +
 	"\x18BootstrapOperatorRequest\x12#\n" +
 	"\roperator_name\x18\x01 \x01(\tR\foperatorName\x124\n" +
 	"\x16existing_operator_seed\x18\x02 \x01(\tR\x14existingOperatorSeed\x126\n" +

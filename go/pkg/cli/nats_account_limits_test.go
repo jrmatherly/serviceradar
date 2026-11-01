@@ -425,7 +425,7 @@ func TestAccountLimitsResizeResolverCopyKeepsRevocations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	revoked, err := accounts.NewAccountSigner(op).RevokeUsers(string(token), []string{userKey})
+	revoked, _, err := accounts.NewAccountSigner(op).RevokeUsers(string(token), []string{userKey})
 	if err != nil {
 		t.Fatal(err)
 	}

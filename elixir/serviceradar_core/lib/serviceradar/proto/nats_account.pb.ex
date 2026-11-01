@@ -157,6 +157,7 @@ defmodule Proto.RevokeUsersResponse do
     syntax: :proto3
 
   field :account_public_key, 1, type: :string, json_name: "accountPublicKey"
+  field :newly_revoked, 2, type: :uint32, json_name: "newlyRevoked"
 end
 
 defmodule Proto.BootstrapOperatorRequest do

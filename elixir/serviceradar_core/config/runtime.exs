@@ -1773,6 +1773,9 @@ if config_env() == :prod do
            # Kept in step with serviceradar_core_elx's runtime.exs and config.exs.
            {"*/5 * * * *", ServiceRadar.Observability.PluginServiceStateReconcileWorker,
             queue: :maintenance},
+           # Kept in step with serviceradar_core_elx's runtime.exs and this app's config.exs.
+           {"*/5 * * * *", ServiceRadar.Edge.Workers.ReapplyNatsRevocationsWorker,
+            queue: :nats_accounts},
            {"31 3 * * *", ServiceRadar.Edge.RemoteAccessVersionRetentionWorker,
             queue: :maintenance},
            # Kept in step with the same entry in serviceradar_core_elx's

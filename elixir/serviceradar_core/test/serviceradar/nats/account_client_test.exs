@@ -14,6 +14,7 @@ defmodule ServiceRadar.NATS.AccountClientTest do
 
   import ExUnit.CaptureLog
 
+  alias GRPC.Client.Adapter
   alias Proto.NATSAccountService.Stub
   alias ServiceRadar.DataService.Client
   alias ServiceRadar.NATS.AccountClient
@@ -21,7 +22,7 @@ defmodule ServiceRadar.NATS.AccountClientTest do
   defmodule RefusingAdapter do
     @moduledoc false
 
-    @behaviour GRPC.Client.Adapter
+    @behaviour Adapter
 
     @impl true
     def connect(channel, _opts), do: {:ok, channel}
@@ -49,6 +50,69 @@ defmodule ServiceRadar.NATS.AccountClientTest do
 
     @impl true
     def cancel(_stream), do: :ok
+  end
+
+  defmodule RevokedAdapter do
+    @moduledoc false
+
+    @behaviour Adapter
+
+    @impl true
+    def connect(channel, _opts), do: {:ok, channel}
+
+    @impl true
+    def disconnect(channel), do: {:ok, channel}
+
+    @impl true
+    def send_request(stream, _contents, _opts), do: stream
+
+    @impl true
+    def receive_data(_stream, _opts) do
+      {:ok,
+       %Proto.RevokeUsersResponse{account_public_key: "AINVENTED", newly_revoked: 2}
+       |> Proto.RevokeUsersResponse.encode()
+       |> IO.iodata_to_binary()
+       |> Proto.RevokeUsersResponse.decode()}
+    end
+
+    @impl true
+    def send_headers(stream, _opts), do: stream
+
+    @impl true
+    def send_data(stream, _message, _opts), do: stream
+
+    @impl true
+    def end_stream(stream), do: stream
+
+    @impl true
+    def cancel(_stream), do: :ok
+  end
+
+  describe "revoke_users/3" do
+    test "reports how many keys the hub did not already hold" do
+      # The grpc application owns this supervisor once core has booted.
+      if !Process.whereis(GRPC.Client.Supervisor) do
+        start_supervised!(
+          {DynamicSupervisor, name: GRPC.Client.Supervisor, strategy: :one_for_one}
+        )
+      end
+
+      start_supervised!(
+        {Client, host: "127.0.0.1", port: 1, sec_mode: "plaintext", connect_timeout_ms: 10}
+      )
+
+      # A booted core runs Gun, and the client's first connect holds its mailbox while Gun retries.
+      :sys.replace_state(
+        Client,
+        fn state ->
+          %{state | channel: %GRPC.Channel{adapter: RevokedAdapter}, connect_task: nil}
+        end,
+        15_000
+      )
+
+      assert AccountClient.revoke_users("invented", ["UINVENTED"]) ==
+               {:ok, %{account_public_key: "AINVENTED", newly_revoked: 2}}
+    end
   end
 
   describe "generate_user_credentials/4" do

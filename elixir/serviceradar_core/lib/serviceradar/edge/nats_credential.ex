@@ -65,6 +65,13 @@ defmodule ServiceRadar.Edge.NatsCredential do
       filter expr(status == :active)
     end
 
+    read :revoked do
+      description "Public keys of revoked credentials, which the hub must refuse"
+      filter expr(status == :revoked)
+      prepare build(select: [:user_public_key])
+      pagination keyset?: true, required?: false, max_page_size: 500
+    end
+
     read :by_collector_type do
       argument :collector_type, :atom, allow_nil?: false
       filter expr(collector_type == ^arg(:collector_type) and status == :active)
