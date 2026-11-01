@@ -34,12 +34,19 @@ defmodule ServiceRadar.Edge.Workers.ReapplyNatsRevocationsUnitTest do
   end
 
   test "no revoked credentials makes no call" do
-    assert {:ok, ""} = run([], [{:error, :must_not_be_called}])
+    {result, log} = run([], [{:error, :must_not_be_called}])
+
+    assert result == :ok
+    refute log =~ "revocations"
     refute_received {:hub_revoke, _}
   end
 
   test "a hub holding every key is quiet" do
-    assert {:ok, ""} = run(["UA", "UB"], [{:ok, %{newly_revoked: 0}}])
+    # capture_log sees every process, so this names the message, not an empty log.
+    {result, log} = run(["UA", "UB"], [{:ok, %{newly_revoked: 0}}])
+
+    assert result == :ok
+    refute log =~ "revocations"
     assert_received {:hub_revoke, ["UA", "UB"]}
   end
 

@@ -23,6 +23,7 @@ defmodule ServiceRadar.Repo.SchemaBootstrap do
   @baseline_dir "priv/repo/baseline"
   @baseline_metadata_file "metadata.json"
   @default_search_path "platform, public, ag_catalog"
+  @age_graphs ~w(platform_graph serviceradar serviceradar_topology)
 
   @type state :: :empty | :migrated | {:ambiguous, map()}
 
@@ -72,9 +73,42 @@ defmodule ServiceRadar.Repo.SchemaBootstrap do
     verify_baseline_checksum!(schema_file, metadata)
 
     run_schema_file!(repo, schema_file)
+    register_age_graphs!(repo)
     mark_baseline_migrations_applied!(repo, migrations_path, metadata)
     record_schema_baseline!(repo, metadata)
     :ok
+  end
+
+  @doc """
+  Register each AGE graph whose schema exists without a catalog row.
+
+  A schema dump carries a graph's schema and tables but not its row in `ag_catalog.ag_graph`,
+  which belongs to the extension, so a database built from the baseline has graphs AGE cannot
+  see. `create_graph` refuses an existing schema, and the dumped one holds only AGE's empty
+  label tables, so it is replaced. A registered graph is left alone.
+  """
+  @spec register_age_graphs!(module(), [String.t()]) :: :ok
+  def register_age_graphs!(repo, graphs \\ @age_graphs) do
+    Enum.each(graphs, fn graph ->
+      if unregistered_graph_schema?(repo, graph) do
+        repo.query!(~s(DROP SCHEMA "#{graph}" CASCADE), [], log: false)
+        repo.query!("SELECT ag_catalog.create_graph('#{graph}')", [], log: false)
+      end
+    end)
+  end
+
+  defp unregistered_graph_schema?(repo, graph) do
+    %{rows: [[unregistered?]]} =
+      repo.query!(
+        """
+        SELECT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = $1)
+           AND NOT EXISTS (SELECT 1 FROM ag_catalog.ag_graph WHERE name::text = $1)
+        """,
+        [graph],
+        log: false
+      )
+
+    unregistered?
   end
 
   @doc """

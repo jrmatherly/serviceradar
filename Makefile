@@ -155,6 +155,14 @@ doctor: ## Check this machine has the toolchains, hooks and local files the fork
 compose-up: ## Start Docker Compose stack
 	@docker compose up -d
 
+.PHONY: compose-rebuild compose-restart compose-verify
+compose-rebuild: ## Destroy this project's Compose volumes, rebuild from nothing and verify (APP_TAG=local for local images)
+	@scripts/compose-stack.sh rebuild
+compose-restart: ## Stop and start the Compose stack with volumes kept, then verify
+	@scripts/compose-stack.sh restart
+compose-verify: ## Check the running stack: database, AGE graphs, NATS clients, streams, telemetry reaching CNPG
+	@scripts/compose-stack.sh verify
+
 .PHONY: seed-faker seed-faker-status seed-faker-down
 seed-faker: ## Seed the compose stack with synthetic faker devices (SEED_DEVICE_COUNT, default 50000)
 	@scripts/seed-faker.sh up

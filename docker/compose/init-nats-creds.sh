@@ -7,7 +7,8 @@ seed_dir="/seed/creds"
 required_artifacts=(
   operator.jwt system.jwt system_account.pub nats.conf
   system.creds platform.creds core.creds flow-collector.creds datasvc.creds
-  log-collector.creds trapd.creds bmp-collector.creds platform_account.seed
+  log-collector.creds trapd.creds bmp-collector.creds agent-gateway.creds web-ng.creds
+  platform_account.seed
 )
 
 bootstrap_complete() {

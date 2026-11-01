@@ -44,10 +44,15 @@ go_test(
         "nats_bootstrap_acl_integration_test.go",
         "nats_bootstrap_acl_test.go",
         "nats_bootstrap_platform_subjects_integration_test.go",
+        "nats_compose_wiring_test.go",
         "nats_edge_collector_creds_integration_test.go",
         "nats_leaf_authorization_integration_test.go",
     ],
-    data = glob(["testdata/**"]),
+    data = glob(["testdata/**"]) + [
+        "//:docker-compose.yml",
+        "//docker/compose:check-cnpg-major-version.sh",
+        "//docker/compose:init-nats-creds.sh",
+    ],
     embed = [":cli"],
     deps = [
         "//go/pkg/nats/accounts",
