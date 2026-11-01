@@ -596,6 +596,11 @@ services:
       - NATS_TLS=true
       - NATS_SERVER_NAME=nats.serviceradar
       - NATS_CREDS_FILE=/etc/serviceradar/creds/core.creds
+      # Drains JetStream into CNPG. Unset, it stays off and every stream only fills.
+      - EVENT_WRITER_ENABLED=true
+      - EVENT_WRITER_NATS_URL=nats://nats:4222
+      - EVENT_WRITER_NATS_TLS=true
+      - EVENT_WRITER_NATS_CREDS_FILE=/etc/serviceradar/creds/core.creds
       # Matches nats-bootstrap's default --platform-account, which init-nats-creds.sh keeps.
       - NATS_ACCOUNT_NAME=platform
       # StarRocks warehouse. Default off so Compose without --profile starrocks
@@ -936,12 +941,23 @@ services:
       - OTEL_CERT_DIR=/etc/serviceradar/certs
       - OTEL_CERT_NAME=gateway
       - OTEL_SERVICE_NAME=serviceradar-agent-gateway
+      # Unset, the gateway dials localhost and drops every metric it publishes.
+      - AGENT_GATEWAY_NATS_URL=nats://nats:4222
+      - AGENT_GATEWAY_NATS_TLS=true
+      - AGENT_GATEWAY_NATS_SERVER_NAME=nats.serviceradar
+      - AGENT_GATEWAY_NATS_CREDS_FILE=/etc/serviceradar/creds/agent-gateway.creds
     ports:
       - "${GATEWAY_PUBLIC_BIND:-127.0.0.1}:${GATEWAY_PUBLIC_PORT:-50052}:50052"
     volumes:
       - cert-data:/etc/serviceradar/certs:ro
       - admin-creds:/etc/serviceradar/admin:ro
       - ./docker/compose/ssl_dist.gateway.conf:/etc/serviceradar/ssl_dist.conf:ro
+      - type: volume
+        source: nats-creds
+        target: /etc/serviceradar/creds/agent-gateway.creds
+        read_only: true
+        volume:
+          subpath: agent-gateway.creds
     depends_on:
       config-updater:
         condition: service_completed_successfully
@@ -1414,7 +1430,11 @@ services:
       - SERVICERADAR_MCP_CLIENT_CREDENTIALS_ENABLED=${SERVICERADAR_MCP_CLIENT_CREDENTIALS_ENABLED:-true}
       - SERVICERADAR_MCP_REFRESH_TTL_SECONDS=${SERVICERADAR_MCP_REFRESH_TTL_SECONDS:-28800}
       - SERVICERADAR_GATEWAY_ADDR=${SERVICERADAR_GATEWAY_ADDR:-${SERVICERADAR_HOST:-localhost}:50052}
+      - NATS_ENABLED=true
       - NATS_URL=${NATS_URL:-nats://nats:4222}
+      - NATS_TLS=true
+      - NATS_SERVER_NAME=nats.serviceradar
+      - NATS_CREDS_FILE=/etc/serviceradar/creds/web-ng.creds
       - SERVICERADAR_NATS_COLLECTOR_URL=${SERVICERADAR_NATS_COLLECTOR_URL:-}
       - CORE_ADDRESS=${CORE_ADDRESS:-core-elx:50052}
       - SERVICERADAR_STARROCKS_ENABLED=${STARROCKS_ENABLED:-false}
@@ -1498,6 +1518,12 @@ services:
       - OTEL_CERT_NAME=web
       - OTEL_SERVICE_NAME=serviceradar-web-ng
     volumes:
+      - type: volume
+        source: nats-creds
+        target: /etc/serviceradar/creds/web-ng.creds
+        read_only: true
+        volume:
+          subpath: web-ng.creds
       - cert-data:/etc/serviceradar/certs:ro
       - admin-creds:/etc/serviceradar/admin:ro
       - ./docker/compose/ssl_dist.web.conf:/etc/serviceradar/ssl_dist.conf:ro

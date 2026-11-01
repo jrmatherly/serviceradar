@@ -837,6 +837,37 @@ func serviceIdentities() []serviceIdentity {
 		{user: "log-collector", permissions: streamPublisherPermissions("events", "logs.syslog", "logs.otel", "otel.>")},
 		{user: "trapd", permissions: streamAppenderPermissions("events", "logs.snmp")},
 		{user: "bmp-collector", permissions: streamPublisherPermissions("ARANCINI_CAUSAL", "arancini.updates", "arancini.updates.>")},
+		// The Helm CN=serviceradar-agent-gateway set. Its publishes wait for a PubAck,
+		// and it never calls the JetStream API.
+		{user: "agent-gateway", permissions: accounts.UserPermissions{
+			PublishAllow: []string{
+				"metrics.sysmon.>", "metrics.snmp.>", "metrics.icmp.>", "metrics.mtr.>", "metrics.rperf.>",
+				"metrics.sweep.>", "metrics.timeseries.>", "metrics.agent_gateway",
+				"otel.traces.raw", "otel.metrics.raw", "otel.metrics.derived", "logs.otel",
+				"inventory.k8s.public_endpoints",
+			},
+			PublishDeny: []string{
+				"$SYS.>", "flow.attributed.>", "events.>", "logs.syslog", "logs.syslog.>", "logs.snmp", "logs.snmp.>",
+			},
+			SubscribeAllow: []string{"_INBOX.>"},
+			SubscribeDeny:  []string{"$SYS.>", "flow.attributed.>", "flow.host-slice.>"},
+		}},
+		// The Helm CN=serviceradar-web-ng set: object stores for plugins and field
+		// surveys, plus what core code running inside the web-ng release publishes.
+		{user: "web-ng", permissions: accounts.UserPermissions{
+			PublishAllow: []string{
+				"$O.serviceradar_plugins.>", "$JS.FC.OBJ_serviceradar_plugins.>",
+				"$O.serviceradar_fieldsurvey.>", "$JS.FC.OBJ_serviceradar_fieldsurvey.>",
+				"logs.internal.>", "events.internal.>", "signals.analytics.>",
+				"$JS.API.>", "$JS.ACK.>", "_INBOX.>",
+			},
+			PublishDeny: append([]string{"$SYS.>"}, datasvcStreamAdminDenies()...),
+			SubscribeAllow: []string{
+				"$O.serviceradar_plugins.>", "$O.serviceradar_fieldsurvey.>", "notifications.>",
+				"$JS.API.>", "$JS.ACK.>", "_INBOX.>",
+			},
+			SubscribeDeny: []string{"$SYS.>"},
+		}},
 	}
 }
 
