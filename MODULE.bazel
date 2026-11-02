@@ -148,7 +148,7 @@ git_override(
 # --- Hex packages ------------------------------------------------------------
 # The Elixir/Erlang dependency closure compiled by the Bazel Elixir toolchain.
 #
-#   bazel run  //third_party/hex:gen       regenerate after any mix.lock change
+#   bazel run  //third_party/hex:write     regenerate after any mix.lock change
 #   bazel test //third_party/hex:gen_test  fails when that has not been done
 #
 # Depend on a package as @hexpm//:<app> -- for example @hexpm//:ecto. (Not to be confused
