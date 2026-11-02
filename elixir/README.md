@@ -176,7 +176,7 @@ refer to each other that way, but first-party code goes through the hub.
 Both halves — the stubs and the package list the extension reads — come out of one target:
 
 ```sh
-bazel run //third_party/hex:gen        # regenerate from the mix.lock files
+bazel run //third_party/hex:write      # regenerate from the mix.lock files
 bazel test //third_party/hex:gen_test  # fails when the checked-in tree is stale
 ```
 
@@ -195,12 +195,13 @@ Three consequences that bite:
 - **First-party path overrides are invisible to `mix.lock`.** `connection`, `elixir_uuid`,
   `opentelemetry_oban` and `serviceradar_srql` are `path:` deps, so they never appear as lock
   entries, but Hex packages still declare edges to them (`gnat -> connection`). The
-  `@path_deps` map at the top of `third_party/hex/gen_hex_bazel.exs` redirects those edges.
+  `path_deps` map on `//third_party/hex:stubs` redirects those edges.
   Miss one and the dependent fails with `module Connection is not loaded and could not be
   found`, which reads like a missing dependency rather than a shadowed one.
-- **A package that leaves every lock is pruned.** `gen` deletes generated stubs that no
-  longer resolve, and `gen_test` fails if one is still checked in. Hand-written stubs are
-  recognised by the absence of the generated marker and left alone.
+- **A package that leaves every lock must be deleted by hand.** `write` only copies stubs in;
+  it removes nothing. `gen_test` fails and names any stub that is still checked in but no
+  longer generated, so delete that file. Hand-written stubs are exempt because they are
+  listed in `HAND_WRITTEN` in `third_party/hex/BUILD.bazel`.
 
 `bundlex` and `ex_turn` are pinned from git rather than Hex. Each is a `git_pkg` in
 `//third_party/hex:extensions.bzl`, in the same extension as the fetched packages, so sibling
@@ -228,7 +229,8 @@ its own sandbox, so a dependency reading a key with `compile_env` sees **only it
 default** -- while the assembled release still applies our `config/config.exs` at runtime.
 
 `//build:hex_compile_env.bzl` exists for exactly this. Its `HEX_COMPILE_ENV_CONFIG` list is
-emitted by `gen_hex_bazel.exs` into every Mix-built package's `extra_config`, so dependencies
+emitted by the `extra_mix_attrs` on `//third_party/hex:stubs` into every Mix-built package's
+`extra_config`, so dependencies
 record the same value the release will supply. Add a key there when both are true:
 
 - our `config/config.exs` sets it, and
@@ -538,14 +540,14 @@ available`.
 repository, and add your lock to `MIX_LOCKS` in `//third_party/hex/BUILD.bazel`:
 
 ```sh
-bazel run //third_party/hex:gen
+bazel run //third_party/hex:write
 ```
 
 Nothing to paste anywhere. If the generator warns about a version conflict, reconcile the
 locks -- it will build, but Mix and Bazel are then compiling different versions.
 
-**5. If another first-party app will depend on yours**, add it to `@path_deps` in
-`third_party/hex/gen_hex_bazel.exs` *and* to that app's `mix_app` `deps` as
+**5. If another first-party app will depend on yours**, add it to `path_deps` on
+`//third_party/hex:stubs` *and* to that app's `mix_app` `deps` as
 `//elixir/serviceradar_widget:erlang_app`.
 
 **6. Build and test:**
@@ -574,14 +576,14 @@ entry with a real checksum. Do this in the project directory as normal.
 **2. Regenerate:**
 
 ```sh
-bazel run //third_party/hex:gen
+bazel run //third_party/hex:write
 ```
 
 The target already passes **every** project's lock, not just the one you changed: Bazel
 repositories are global, so the closure has to be resolved across the whole workspace at
 once.
 
-**3. Nothing to paste.** `gen` writes both the stubs and `third_party/hex/hex_packages.bzl`,
+**3. Nothing to paste.** `write` copies both the stubs and `third_party/hex/hex_packages.bzl`,
 which is the list the module extension reads. Review the diff as you would any generated
 file.
 
@@ -605,15 +607,15 @@ found` at compile time, not as a Bazel error.
 Add a `git_pkg(...)` to `//third_party/hex:extensions.bzl` with a `build_file` pointing at a
 stub you write in `//third_party/hex`, add the stub name to `HAND_WRITTEN` in
 `third_party/hex/BUILD.bazel`, and add the package to the `path_deps` map on
-`//third_party/hex:stubs` so edges to it resolve. Keep the stub free of the
-`do not edit by hand` marker, or `gen` will prune it as a package that left the closure.
+`//third_party/hex:stubs` so edges to it resolve. Without the `HAND_WRITTEN` entry,
+`gen_test` reports the stub as stale and fails.
 `bundlex` and `ex_turn` are the worked examples.
 
 ### If the package will not build
 
-Add it to the `@skip` map in `third_party/hex/gen_hex_bazel.exs` **with a reason**. The map
-is currently empty, which is the point -- it is a record of what Bazel cannot build, not a
-convenience.
+Add it to the `skip` map (app -> reason) on `//third_party/hex:stubs` **with a reason**. No
+package is skipped today, which is the point -- it is a record of what Bazel cannot build, not
+a convenience.
 
 ## Step by step: add a test file
 
@@ -823,7 +825,7 @@ reads Rust sources.
 | `could not fetch application environment ... because the application was not loaded` | Config loader did not run. Check `elixir_opts` ordering. |
 | `Could not find hackney dependency` | Same root cause: `config/` unstaged, so `config :swoosh, :api_client, false` never landed. |
 | `module ServiceRadar.TestSupport is not available` | `mix_env` is `"prod"` but `test/support` is needed. Set `mix_env = "test"`. |
-| `module Connection is not loaded and could not be found` | A `path:` dep edge dropped. Add it to `@path_deps` in `third_party/hex/gen_hex_bazel.exs`. |
+| `module Connection is not loaded and could not be found` | A `path:` dep edge dropped. Add it to `path_deps` on `//third_party/hex:stubs`. |
 | `{:bad_lib, "Failed to find library init function"}` | `RUSTLER_PRIMARY_NIF_INIT=1` missing from the NIF's `rustc_env`. |
 | Cargo runs during a Bazel build | `skip_compilation?: true` missing from `extra_config`. |
 | `40P01 deadlock_detected` across integration groups | Two lanes sharing a database. Check `//rust/integration-db:provision_generation` cloned every lane's database first. |
