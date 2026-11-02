@@ -10,7 +10,7 @@
 
 **Spec:** `openspec/changes/add-sweep-diagnostics-srql-entities/`
 
-**Depends on:** `docs/superpowers/plans/2026-09-02-sweep-diagnostics-write-path.md`. Tasks 6 and 7 read `sweep_host_results.scanned_ports`, `.agent_id`, `.sweep_group_id` and `platform.sweep_coverage_daily`, all created by plan 1. Tasks 1 through 5 do not depend on it and may land first.
+**Depends on:** `docs/superpowers/plans/completed/2026-09-02-sweep-diagnostics-write-path.md`. Tasks 6 and 7 read `sweep_host_results.scanned_ports`, `.agent_id`, `.sweep_group_id` and `platform.sweep_coverage_daily`, all created by plan 1. Tasks 1 through 5 do not depend on it and may land first.
 
 ## Global Constraints
 

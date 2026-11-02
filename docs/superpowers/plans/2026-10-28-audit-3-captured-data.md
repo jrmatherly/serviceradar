@@ -179,7 +179,7 @@ git commit -m "test(inventory): invent the endpoint MAC and address fixtures"
 - serviceradar_core tests: `composite_checks/validation/coverage_test.exs`, `edge/agent_command_bus_registry_test.exs`, `edge/sweep_config_distribution_integration_test.exs`, `inventory/identity/duplicate_sweep_test.exs:151`, `inventory/identity_reconciler_merge_test.exs`, `inventory/sync_ingestor_vendor_type_test.exs:633`, `sweep_jobs/sweep_results_flow_e2e_test.exs`
 - `rust/srql/src/parser/tests.rs`, `rust/srql/src/query/tests/device_queries.rs:770-819`, `js/cli/tests/dashboard-resolve.test.mjs`
 - Active specs: `openspec/changes/add-device-group-grants/{proposal.md:9,design.md:56,specs/device-group-grants/spec.md}`
-- Plan doc: `docs/superpowers/plans/2026-09-02-sweep-diagnostics-srql-entities.md:791,838,841-843`
+- Plan doc: `docs/superpowers/plans/completed/2026-09-02-sweep-diagnostics-srql-entities.md:791,838,841-843`
 
 - [ ] **Step 1: Owner decision**
 

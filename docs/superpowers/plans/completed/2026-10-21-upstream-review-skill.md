@@ -8,7 +8,7 @@
 
 **Tech Stack:** bash (`#!/usr/bin/env bash`, which is Homebrew bash 5.3 here; the script must also run under `/bin/bash` 3.2, exercised once in Task 8) plus git, jq; bats 1.14 and shellcheck for tests; Claude Code project skill (`.claude/skills/`).
 
-**Spec:** `docs/superpowers/specs/2026-10-21-upstream-review-skill.md`
+**Spec:** `docs/superpowers/specs/completed/2026-10-21-upstream-review-skill.md`
 
 ## Global Constraints
 

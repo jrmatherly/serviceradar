@@ -9,4 +9,4 @@
 - `--stat` markers vs each commit's pre-image, fork point as fallback: `=` clean pick, `<` older entry first, `~` we changed it, `x` we removed it, `+` new, `bin`.
 - Decided deviations and open decisions: `.claude/skills/upstream-review/references/deviations.md`. Open as of 2026-10-21: upstream VERSION/CHANGELOG/dependency bumps. Planned: own CI in `.github/` (PR jrmatherly/serviceradar#1), rebrand (mapper to adapt from ai-kb `scripts/rebrand/`).
 - `make check` and `make test` cannot run on the fork (Bazel `--config=ci` / `--config=remote` use upstream's cache and BuildBuddy executor); `references/validation.md` lists what can.
-- Design record: `docs/superpowers/specs/2026-10-21-upstream-review-skill.md`; plan: `docs/superpowers/plans/2026-10-21-upstream-review-skill.md`.
+- Design record: `docs/superpowers/specs/completed/2026-10-21-upstream-review-skill.md`; plan: `docs/superpowers/plans/completed/2026-10-21-upstream-review-skill.md`.
