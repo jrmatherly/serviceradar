@@ -3,15 +3,24 @@ defmodule ServiceRadar.DireTrace do
   Records DIRE behavior as a trace of `formal/dire/DireResolution.tla` states.
 
   A trace test declares a synthetic physical world, drives the real ingestion entry points
-  step by step, and after every step records the full model state:
+  step by step, and after every step records the model state:
 
     * observable state, read from the database: records and merge redirects, identifier
-      owners, device addresses, confirmed IP aliases, interface-MAC claims;
-    * ground truth, known only to the harness: DHCP leases (`ipAt`) and which physical device
-      each identity-bearing observation came from (`phys`);
+      owners, device addresses, confirmed IP aliases, interface-MAC claims, retired identifiers
+      (`archive`), and whether an identity-bearing observation wrote the record (`idSeen`);
+    * ground truth, known only to the harness: DHCP leases (`ipAt`), the id the source reports
+      each device under (`srcOf`) and which physical device each identity-bearing observation
+      came from (`phys`);
+    * the source's absence clock (`absence`): issued and reported ids from the harness, and
+      staleness from the absence counts the code keeps. The clock's other half, T, is the time
+      `retire/1` passes by construction;
+    * the first-seen times a record carries (`recFs`): read from the identifier row each sync
+      wrote, and kept across merges as the model's ghost keeps them;
     * the step itself (`act`): its name, the identifiers it reported, the identity decisions
       the code made (telemetry) and recorded (persisted rows), and any merge caused by address
       evidence.
+
+  `seenWith` is not recorded: `formal/dire/README.md` says why.
 
   The trace is compared byte for byte with the committed `formal/dire/traces/<name>.tla` and
   `.cfg`, which `//formal/dire` model-checks. With `DIRE_TRACE_WRITE=1` it is written instead.
@@ -39,6 +48,7 @@ defmodule ServiceRadar.DireTrace do
   alias ServiceRadar.Inventory.SyncIngestor
   alias ServiceRadar.Inventory.SyncIngestorQueue
   alias ServiceRadar.NetworkDiscovery.MapperResultsIngestor
+  alias ServiceRadar.Repo
   alias ServiceRadar.SweepJobs.SweepGroup
   alias ServiceRadar.SweepJobs.SweepResultsIngestor
 
@@ -71,8 +81,10 @@ defmodule ServiceRadar.DireTrace do
     witness: nil,
     ip_at: %{},
     src_of: %{},
+    absence: %{},
     names: %{},
     phys: %{},
+    rec_fs: %{},
     states: []
   ]
 
@@ -142,7 +154,11 @@ defmodule ServiceRadar.DireTrace do
       pre_uids: MapSet.new(),
       handler: handler,
       ip_at: Map.new(Map.keys(world.ifaces), &{&1, "NoIp"}),
-      src_of: world.src_of
+      src_of: world.src_of,
+      absence:
+        Map.new(world.src_ids, fn a ->
+          {a, if(a in Map.values(world.src_of), do: "Present", else: "Unissued")}
+        end)
     }
 
     trace = if world.src_ids == [], do: trace, else: create_source(trace)
@@ -374,7 +390,8 @@ defmodule ServiceRadar.DireTrace do
     # comes long after the device's first record, so a record the new id lands on must be
     # created in a later second than the trace's records so far.
     if a != "NoId", do: Process.sleep(1_100)
-    record(%{trace | src_of: src_of}, quiet_act("Rekey"))
+    absence = if a == "NoId", do: trace.absence, else: Map.put(trace.absence, a, "Present")
+    record(%{trace | src_of: src_of, absence: absence}, quiet_act("Rekey"))
   end
 
   @doc """
@@ -455,11 +472,7 @@ defmodule ServiceRadar.DireTrace do
   step).
   """
   def retire(trace) do
-    settings =
-      case DeviceCleanupSettings.get_settings(actor: trace.actor) do
-        {:ok, %DeviceCleanupSettings{} = settings} -> settings
-        _ -> DeviceCleanupSettings.create_settings!(%{}, actor: trace.actor)
-      end
+    settings = ensure_settings(trace)
 
     instance = %{partition: "default", source: "armis", source_instance: trace.source}
 
@@ -526,7 +539,7 @@ defmodule ServiceRadar.DireTrace do
 
   defp ensure_settings(trace) do
     case DeviceCleanupSettings.get_settings(actor: trace.actor) do
-      {:ok, %DeviceCleanupSettings{}} -> :ok
+      {:ok, %DeviceCleanupSettings{} = settings} -> settings
       _ -> DeviceCleanupSettings.create_settings!(%{}, actor: trace.actor)
     end
   end
@@ -544,14 +557,12 @@ defmodule ServiceRadar.DireTrace do
   defp record_succession(trace, []), do: trace
 
   defp record_succession(trace, [{from, to, _reason}]) do
-    {from, to} = {name_of!(trace, from), name_of!(trace, to)}
+    merge = {name_of!(trace, from), name_of!(trace, to), "source_succession"}
 
-    phys =
-      Map.update(trace.phys, to, Map.get(trace.phys, from, []), fn held ->
-        Enum.uniq(held ++ Map.get(trace.phys, from, []))
-      end)
-
-    record(%{trace | phys: phys}, quiet_act("Succession"))
+    record(
+      %{trace | phys: absorb(trace.phys, [merge]), rec_fs: absorb(trace.rec_fs, [merge])},
+      quiet_act("Succession")
+    )
   end
 
   defp record_succession(trace, successions) do
@@ -654,10 +665,7 @@ defmodule ServiceRadar.DireTrace do
     # or, when they are split across records (a refused conflict), the one holding its address.
     target = landing_record(trace, x, ids)
 
-    phys =
-      Enum.reduce(new_merges, trace.phys, fn {from, to, _reason}, acc ->
-        Map.update(acc, to, Map.get(acc, from, []), &Enum.uniq(&1 ++ Map.get(acc, from, [])))
-      end)
+    phys = absorb(trace.phys, new_merges)
 
     phys =
       if ids != [] and target != nil,
@@ -673,7 +681,12 @@ defmodule ServiceRadar.DireTrace do
     address_merged =
       for {from, _to, reason} <- new_merges, reason == "ip_alias_conflict", do: from
 
-    record(%{trace | phys: phys}, %{
+    trace =
+      trace
+      |> Map.merge(%{phys: phys, rec_fs: rec_fs_after(trace, name, h, ids, new_merges)})
+      |> age_absences(name)
+
+    record(trace, %{
       name: name,
       ids: ids,
       ip: observed_ip,
@@ -681,6 +694,97 @@ defmodule ServiceRadar.DireTrace do
       recorded: recorded,
       address_merged: address_merged
     })
+  end
+
+  # The records merged into each survivor join what it held, in `phys` and `recFs` alike.
+  defp absorb(held, merges) do
+    Enum.reduce(merges, held, fn {from, to, _reason}, acc ->
+      Map.update(acc, to, Map.get(acc, from, []), &Enum.uniq(&1 ++ Map.get(acc, from, [])))
+    end)
+  end
+
+  # A source sync writes the device's first-seen time to the record owning the id it reported,
+  # which the identifier row carries. A merge keeps both records' values.
+  defp rec_fs_after(trace, name, h, ids, merges) do
+    rec_fs = absorb(trace.rec_fs, merges)
+
+    case {name, ids} do
+      {"Armis", [a | _macs]} ->
+        {target, fs} = observed_first_seen(trace, h, a)
+        Map.update(rec_fs, target, [fs], &Enum.uniq([fs | &1]))
+
+      _ ->
+        rec_fs
+    end
+  end
+
+  defp observed_first_seen(trace, h, a) do
+    value = trace.real.src[a]
+
+    case DeviceIdentifier
+         |> Ash.Query.filter(identifier_type == :armis_device_id and identifier_value == ^value)
+         |> Ash.read!(actor: trace.actor) do
+      [%{device_id: uid, metadata: %{"source_first_seen_time" => time}}] ->
+        {name_of!(trace, uid), first_seen_value!(trace, h, a, time)}
+
+      rows ->
+        flunk("DIRE trace #{trace.name}: sync of #{a} left #{inspect(rows)}")
+    end
+  end
+
+  # The model's FsOf for a first-seen time: the device's original one, or the id's own.
+  defp first_seen_value!(trace, h, a, time) do
+    {:ok, at, 0} = DateTime.from_iso8601(time)
+    %{devices: devices, ids: ids} = trace.real.first_seen
+
+    cond do
+      DateTime.compare(at, Map.get(ids, a, Map.fetch!(devices, h))) != :eq ->
+        flunk("DIRE trace #{trace.name}: #{a} of #{h} carries the first-seen time #{time}")
+
+      Map.has_key?(ids, a) ->
+        {h, a}
+
+      true ->
+        {h, "NoId"}
+    end
+  end
+
+  # An exact collection ages the ids it did not report. An id the source reports is Present and
+  # one it just stopped reporting is Fresh, whatever the count says (one absence never retires an
+  # id); after that it is Stale once the code has counted N absences of it. Ids no live record
+  # holds have no count, and a retired one stays Stale, since the model's clock never turns back.
+  defp age_absences(trace, "Collect") do
+    n = ensure_settings(trace).source_retirement_absent_collections
+    current = Map.values(trace.src_of)
+    counts = absent_counts(trace)
+
+    absence =
+      Map.new(trace.absence, fn {a, state} ->
+        count = Map.get(counts, trace.real.src[a], 0)
+
+        {a,
+         cond do
+           a in current -> "Present"
+           state == "Present" -> "Fresh"
+           state == "Fresh" and count >= n -> "Stale"
+           true -> state
+         end}
+      end)
+
+    %{trace | absence: absence}
+  end
+
+  defp age_absences(trace, _step), do: trace
+
+  defp absent_counts(trace) do
+    %{rows: rows} =
+      Repo.query!(
+        "SELECT source_object_id, absent_count FROM platform.source_identifier_absences " <>
+          "WHERE source = 'armis' AND source_instance = $1",
+        [trace.source]
+      )
+
+    Map.new(rows, fn [value, count] -> {value, count} end)
   end
 
   defp record(trace, act) do
@@ -729,7 +833,12 @@ defmodule ServiceRadar.DireTrace do
       "alias" => aliases(trace),
       "phys" => Map.new(recs, fn r -> {r, Enum.sort(Map.get(trace.phys, r, []))} end),
       "ifClaims" => if_claims(trace, recs),
-      "act" => act
+      "act" => act,
+      "srcOf" => Map.new(trace.world.phys, fn h -> {h, Map.get(trace.src_of, h, "NoId")} end),
+      "absence" => trace.absence,
+      "archive" => archive(trace),
+      "recFs" => Map.new(recs, fn r -> {r, Map.get(trace.rec_fs, r, [])} end),
+      "idSeen" => Map.new(recs, fn r -> {r, id_seen?(trace, r, by_uid)} end)
     }
   end
 
@@ -777,6 +886,28 @@ defmodule ServiceRadar.DireTrace do
     else
       _ -> "NoIp"
     end
+  end
+
+  # identity_observed_at is set: an identity-bearing observation wrote the record.
+  defp id_seen?(trace, r, by_uid) do
+    case Map.get(by_uid, uid_of(trace, r)) do
+      %Device{identity_observed_at: at} -> not is_nil(at)
+      nil -> false
+    end
+  end
+
+  # The records each source id retired from, by its device_identifier_archive rows.
+  defp archive(trace) do
+    Map.new(trace.world.src_ids, fn a ->
+      %{rows: rows} =
+        Repo.query!(
+          "SELECT device_id FROM platform.device_identifier_archive " <>
+            "WHERE identifier_type = 'armis_device_id' AND identifier_value = $1",
+          [trace.real.src[a]]
+        )
+
+      {a, rows |> Enum.map(fn [uid] -> name_of!(trace, uid) end) |> Enum.uniq() |> Enum.sort()}
+    end)
   end
 
   defp owners(trace) do
@@ -1186,9 +1317,9 @@ defmodule ServiceRadar.DireTrace do
   whose harm is the state it leaves. Once the defect is fixed the trace no longer reaches that
   state, TLC reaches its end instead, and the target fails until the witness is deleted.
 
-  `tamper: true` also emits one self-test variant per model variable, each altering that one
+  `tamper: true` also emits one self-test variant per recorded variable, each altering that one
   variable in the final state. `//formal/dire` requires TLC to reject every variant, which is
-  the proof that no variable is left unchecked.
+  the proof that no recorded variable is left unchecked.
   """
   def assert_golden!(trace, opts \\ []) do
     stop(trace)
@@ -1221,7 +1352,22 @@ defmodule ServiceRadar.DireTrace do
     :ok
   end
 
-  @variables ["ipAt", "created", "into", "owner", "recIp", "alias", "phys", "ifClaims", "act"]
+  @variables [
+    "ipAt",
+    "created",
+    "into",
+    "owner",
+    "recIp",
+    "alias",
+    "phys",
+    "ifClaims",
+    "act",
+    "srcOf",
+    "absence",
+    "archive",
+    "recFs",
+    "idSeen"
+  ]
 
   defp tampered(trace) do
     {earlier, [last]} = Enum.split(trace.states, -1)
@@ -1238,6 +1384,15 @@ defmodule ServiceRadar.DireTrace do
     [key | _] = fun |> Map.keys() |> Enum.sort()
     Map.update!(fun, key, &tamper_entry(var, &1, trace))
   end
+
+  defp tamper_entry("srcOf", "NoId", trace), do: hd(trace.world.src_ids)
+  defp tamper_entry("srcOf", _id, _trace), do: "NoId"
+
+  defp tamper_entry("absence", "Stale", _trace), do: "Present"
+  defp tamper_entry("absence", _state, _trace), do: "Stale"
+
+  defp tamper_entry("archive", [], trace), do: [hd(all_recs(trace.world))]
+  defp tamper_entry("recFs", [], trace), do: [{hd(trace.world.phys), "NoId"}]
 
   defp tamper_entry(_var, true, _trace), do: false
   defp tamper_entry(_var, false, _trace), do: true
@@ -1337,7 +1492,19 @@ defmodule ServiceRadar.DireTrace do
       "ifClaims |-> #{fun_map(s["ifClaims"], &set/1)}, " <>
       "act |-> [name |-> #{str(act.name)}, ids |-> #{set(act.ids)}, ip |-> #{atom_or_str(act.ip)}, " <>
       "decisions |-> #{decision_set(act.decisions)}, recorded |-> #{decision_set(act.recorded)}, " <>
-      "addressMerged |-> #{set(act.address_merged)}]]"
+      "addressMerged |-> #{set(act.address_merged)}], " <>
+      "srcOf |-> #{fun_map(s["srcOf"], &atom_or_str/1)}, " <>
+      "absence |-> #{fun_map(s["absence"], &str/1)}, " <>
+      "archive |-> #{fun_map(s["archive"], &set/1)}, " <>
+      "recFs |-> #{fun_map(s["recFs"], &first_seen_set/1)}, " <>
+      "idSeen |-> #{fun_map(s["idSeen"], &tla_bool/1)}]"
+  end
+
+  defp first_seen_set(values) do
+    "{" <>
+      (values
+       |> Enum.sort()
+       |> Enum.map_join(", ", fn {h, a} -> "<<#{str(h)}, #{atom_or_str(a)}>>" end)) <> "}"
   end
 
   defp decision_set(ds),

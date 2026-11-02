@@ -513,6 +513,61 @@ tlc_test(
 )
 
 tlc_test(
+    name = "trace_armis_dhcp__tamper_srcOf_test",
+    cfg = "traces/Trace_armis_dhcp__tamper_srcOf.cfg",
+    spec = "traces/Trace_armis_dhcp__tamper_srcOf.tla",
+    deps = [
+        "CurrentBugs.tla",
+        "DireResolution.tla",
+        "DireResolutionTrace.tla",
+    ],
+)
+
+tlc_test(
+    name = "trace_armis_dhcp__tamper_absence_test",
+    cfg = "traces/Trace_armis_dhcp__tamper_absence.cfg",
+    spec = "traces/Trace_armis_dhcp__tamper_absence.tla",
+    deps = [
+        "CurrentBugs.tla",
+        "DireResolution.tla",
+        "DireResolutionTrace.tla",
+    ],
+)
+
+tlc_test(
+    name = "trace_armis_dhcp__tamper_archive_test",
+    cfg = "traces/Trace_armis_dhcp__tamper_archive.cfg",
+    spec = "traces/Trace_armis_dhcp__tamper_archive.tla",
+    deps = [
+        "CurrentBugs.tla",
+        "DireResolution.tla",
+        "DireResolutionTrace.tla",
+    ],
+)
+
+tlc_test(
+    name = "trace_armis_dhcp__tamper_recFs_test",
+    cfg = "traces/Trace_armis_dhcp__tamper_recFs.cfg",
+    spec = "traces/Trace_armis_dhcp__tamper_recFs.tla",
+    deps = [
+        "CurrentBugs.tla",
+        "DireResolution.tla",
+        "DireResolutionTrace.tla",
+    ],
+)
+
+tlc_test(
+    name = "trace_armis_dhcp__tamper_idSeen_test",
+    cfg = "traces/Trace_armis_dhcp__tamper_idSeen.cfg",
+    spec = "traces/Trace_armis_dhcp__tamper_idSeen.tla",
+    deps = [
+        "CurrentBugs.tla",
+        "DireResolution.tla",
+        "DireResolutionTrace.tla",
+    ],
+)
+
+tlc_test(
     name = "trace_conflict_unmerge_test",
     cfg = "traces/Trace_conflict_unmerge.cfg",
     expect = "violation:TraceIncomplete",

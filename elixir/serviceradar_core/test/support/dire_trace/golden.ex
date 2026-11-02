@@ -62,6 +62,8 @@ defmodule ServiceRadar.DireTrace.Golden do
   end
 
   @doc "A TLA+ function over `keys`, written with `:>` and `@@`."
+  def fun([], _value_fun), do: "[x \\in {} |-> x]"
+
   def fun(keys, value_fun) do
     "(" <> Enum.map_join(keys, " @@ ", &"#{str(&1)} :> #{value_fun.(&1)}") <> ")"
   end

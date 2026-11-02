@@ -265,20 +265,40 @@ An alternative is never fixed, so its configuration stays when switches come and
 `elixir/serviceradar_core/test/serviceradar/inventory/dire_resolution_trace_test.exs` through
 `ServiceRadar.DireTrace` (`test/support/dire_trace.ex`). Each test builds a synthetic physical
 world, drives the real ingestion entry points step by step (`SyncIngestor`,
-`MapperResultsIngestor`, `AgentGatewaySync`), and records the full model state after every
-step:
+`MapperResultsIngestor`, `AgentGatewaySync`), and records the model state after every step:
 
 - database state: records, merge redirects, identifier owners, addresses, confirmed aliases,
-  interface-MAC claims;
-- ground truth that only the harness knows: DHCP leases, and which physical device each
-  observation came from;
+  interface-MAC claims, retired identifiers (`archive`, from `device_identifier_archive`), and
+  whether `identity_observed_at` is set (`idSeen`);
+- ground truth that only the harness knows: DHCP leases, the id the source reports each device
+  under (`srcOf`), and which physical device each observation came from;
+- the absence clock (`absence`): issued and reported ids from the harness, and staleness from
+  the counts in `source_identifier_absences`. The clock's other half, T, is not recorded:
+  `DireTrace.retire/1` passes it by construction, with a clock T past now;
+- the first-seen times a record carries (`recFs`), read from the `source_first_seen_time` of the
+  identifier row each sync wrote. The value is real and the accumulation is a ghost: the model
+  keeps a merged record's times on it as well as on the survivor, so the recorder keeps them
+  across merges rather than reading them back;
 - the identity decisions the code made (telemetry) and recorded (persisted rows).
 
-`DireResolutionTrace.tla` pins every variable to the logged state at every step and requires
-the model's `Next` to allow each transition. A matched trace reaches its last state, so its
-target expects `violation:TraceIncomplete`. The `__tamper_<var>` variants of one trace each
-alter a single variable in the final state and must not be matched, which proves no variable
-goes unchecked.
+`DireResolutionTrace.tla` pins every variable but `seenWith` to the logged state at every step
+and requires the model's `Next` to allow each transition. A matched trace reaches its last
+state, so its target expects `violation:TraceIncomplete`. The `__tamper_<var>` variants of one
+trace each alter a single variable in the final state and must not be matched, which proves no
+recorded variable goes unchecked.
+
+`seenWith` is not recorded, because nothing in the code holds it. It orders ids by when the
+source issued them, while the code compares reported times: a hostname corroborates when the
+current id's first-seen time is no earlier than the retired id's last-seen time
+(`SourceCorroboration.corroboration/2`). The two differ on a re-keyed device that keeps its
+original first-seen time, the default in these traces: the time precedes the last sighting, but
+the id was issued after it, so `seenWith` leaves it out. That case corroborates on the equal
+first-seen time before the hostname matters, so the difference changes no decision. Deriving the
+value in the recorder would only repeat the model's rule, so a pin could never fail on its own.
+`seenWith` is still not free: `Next` computes one value from the pinned `absence`, `owner` and
+`act`, and each trace has exactly one distinct state per logged step. What it decides is checked
+through its effect, since the `into` and `act` pins reject a trace whose succession or review
+the model would decide differently.
 
 The lifecycle traces come from
 `elixir/serviceradar_core/test/serviceradar/inventory/dire_lifecycle_trace_test.exs` through
